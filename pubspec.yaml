@@ -1,0 +1,63 @@
+name: tap_card
+description: "A modern NFC-enabled tap card Flutter application with glassmorphism UI"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: ">=3.10.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # UI and Icons
+  cupertino_icons: ^1.0.8
+
+  # Glassmorphism UI
+  glassmorphism: ^3.0.0
+
+  # NFC Functionality
+  nfc_manager: ^4.0.2
+  flutter_nfc_kit: ^3.3.1
+
+  # QR Code Generation and Scanning
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^3.5.7
+
+  # State Management
+  provider: ^6.1.1
+
+  # Network Image Caching
+  cached_network_image: ^3.3.1
+
+  # Animations
+  lottie: ^2.7.0
+  flutter_animate: ^4.5.0
+
+  # Permission Handling
+  permission_handler: ^11.3.0
+
+  # UUID Generation
+  uuid: ^4.3.3
+
+  # Additional Utilities
+  shared_preferences: ^2.2.2
+  path_provider: ^2.1.2
+  image_picker: ^1.0.7
+  url_launcher: ^6.2.4
+  share_plus: ^7.2.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  build_runner: ^2.4.8
+
+flutter:
+  uses-material-design: true
+
+  # Assets
+  assets:
+    - assets/images/
