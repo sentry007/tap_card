@@ -68,7 +68,7 @@ class AppTheme {
       ),
 
       // Card Theme
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: AppColors.glassBackground,
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -159,7 +159,7 @@ class AppTheme {
       ),
 
       // Tab Bar Theme
-      tabBarTheme: const TabBarTheme(
+      tabBarTheme: const TabBarThemeData(
         labelColor: AppColors.primaryAction,
         unselectedLabelColor: AppColors.textTertiary,
         labelStyle: AppTextStyles.buttonMedium,

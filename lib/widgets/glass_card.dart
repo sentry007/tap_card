@@ -43,6 +43,7 @@ class GlassCard extends StatelessWidget {
     final effectiveBorderColor = borderColor ?? AppColors.glassBorder;
 
     return Container(
+      key: const Key('glass_card_outer_container'),
       width: width,
       height: height,
       margin: margin,
@@ -62,10 +63,13 @@ class GlassCard extends StatelessWidget {
         ],
       ),
       child: ClipRRect(
+        key: const Key('glass_card_clip_rrect'),
         borderRadius: BorderRadius.circular(borderRadius),
         child: BackdropFilter(
+          key: const Key('glass_card_backdrop_filter'),
           filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
           child: Container(
+            key: const Key('glass_card_inner_container'),
             decoration: BoxDecoration(
               color: effectiveBackgroundColor,
               borderRadius: BorderRadius.circular(borderRadius),
@@ -84,13 +88,16 @@ class GlassCard extends StatelessWidget {
               ),
             ),
             child: Material(
+              key: const Key('glass_card_material'),
               color: Colors.transparent,
               child: InkWell(
+                key: const Key('glass_card_inkwell'),
                 onTap: enabled ? onTap : null,
                 borderRadius: BorderRadius.circular(borderRadius),
                 splashColor: AppColors.primaryAction.withOpacity(0.1),
                 highlightColor: AppColors.primaryAction.withOpacity(0.05),
                 child: Padding(
+                  key: const Key('glass_card_padding'),
                   padding: padding ?? EdgeInsets.zero,
                   child: child,
                 ),
@@ -130,6 +137,7 @@ class GlassCardVariant extends StatelessWidget {
     switch (type) {
       case GlassCardType.normal:
         return GlassCard(
+          key: const Key('glass_card_variant_normal'),
           width: width,
           height: height,
           padding: padding,
@@ -140,6 +148,7 @@ class GlassCardVariant extends StatelessWidget {
         );
       case GlassCardType.elevated:
         return GlassCard(
+          key: const Key('glass_card_variant_elevated'),
           width: width,
           height: height,
           padding: padding,
@@ -163,6 +172,7 @@ class GlassCardVariant extends StatelessWidget {
         );
       case GlassCardType.subtle:
         return GlassCard(
+          key: const Key('glass_card_variant_subtle'),
           width: width,
           height: height,
           padding: padding,
@@ -183,6 +193,7 @@ class GlassCardVariant extends StatelessWidget {
         );
       case GlassCardType.highlighted:
         return GlassCard(
+          key: const Key('glass_card_variant_highlighted'),
           width: width,
           height: height,
           padding: padding,
@@ -243,15 +254,19 @@ class GlassContainer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      key: const Key('glass_container_outer'),
       width: width,
       height: height,
       margin: margin,
       alignment: alignment,
       child: ClipRRect(
+        key: const Key('glass_container_clip'),
         borderRadius: BorderRadius.circular(borderRadius),
         child: BackdropFilter(
+          key: const Key('glass_container_backdrop'),
           filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
           child: Container(
+            key: const Key('glass_container_inner'),
             padding: padding,
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(opacity),

@@ -135,40 +135,48 @@ class _AppButtonState extends State<AppButton>
     final isEnabled = widget.enabled && !widget.loading;
 
     Widget buttonContent = Row(
+      key: const Key('app_button_content_row'),
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         if (widget.loading)
           SizedBox(
+            key: const Key('app_button_loading_container'),
             width: buttonConfig.iconSize,
             height: buttonConfig.iconSize,
             child: CircularProgressIndicator(
+              key: const Key('app_button_loading_indicator'),
               strokeWidth: 2,
               valueColor: AlwaysStoppedAnimation<Color>(
                 buttonConfig.textColor.withOpacity(0.8),
               ),
             ),
           )
-        else if (widget.icon != null) ...[
-          SizedBox(
-            width: buttonConfig.iconSize,
-            height: buttonConfig.iconSize,
-            child: widget.icon,
+        else ...[
+          Text(
+            widget.text,
+            key: const Key('app_button_text'),
+            style: buttonConfig.textStyle.copyWith(
+              color: isEnabled
+                  ? buttonConfig.textColor
+                  : buttonConfig.textColor.withOpacity(0.5),
+            ),
           ),
-          SizedBox(width: buttonConfig.spacing),
+          if (widget.icon != null) ...[
+            SizedBox(key: const Key('app_button_icon_spacing'), width: buttonConfig.spacing),
+            SizedBox(
+              key: const Key('app_button_icon_container'),
+              width: buttonConfig.iconSize,
+              height: buttonConfig.iconSize,
+              child: widget.icon,
+            ),
+          ],
         ],
-        Text(
-          widget.text,
-          style: buttonConfig.textStyle.copyWith(
-            color: isEnabled
-                ? buttonConfig.textColor
-                : buttonConfig.textColor.withOpacity(0.5),
-          ),
-        ),
       ],
     );
 
     Widget button = Container(
+      key: const Key('app_button_container'),
       width: widget.width,
       height: buttonConfig.height,
       margin: widget.margin,
@@ -178,9 +186,11 @@ class _AppButtonState extends State<AppButton>
     );
 
     return AnimatedBuilder(
+      key: const Key('app_button_animated_builder'),
       animation: _scaleAnimation,
       builder: (context, child) {
         return Transform.scale(
+          key: const Key('app_button_transform'),
           scale: _scaleAnimation.value,
           child: button,
         );
@@ -191,6 +201,7 @@ class _AppButtonState extends State<AppButton>
   Widget _buildGlassButton(
       Widget content, _ButtonConfig config, bool isEnabled) {
     return GlassCard(
+      key: const Key('app_button_glass_card'),
       padding: config.padding,
       margin: EdgeInsets.zero,
       borderRadius: config.borderRadius,
@@ -207,11 +218,13 @@ class _AppButtonState extends State<AppButton>
   Widget _buildRegularButton(
       Widget content, _ButtonConfig config, bool isEnabled) {
     return GestureDetector(
+      key: const Key('app_button_gesture_detector'),
       onTapDown: _onTapDown,
       onTapUp: _onTapUp,
       onTapCancel: _onTapCancel,
       onTap: isEnabled ? widget.onPressed : null,
       child: Container(
+        key: const Key('app_button_regular_container'),
         padding: config.padding,
         decoration: BoxDecoration(
           color: config.backgroundColor,
