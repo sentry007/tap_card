@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/unified_models.dart';
+import '../core/models/profile_models.dart';
 
 /// Service for managing local tokens and future Firebase integration
 class TokenManagerService {
@@ -230,6 +231,7 @@ class TokenManagerService {
   Map<String, dynamic> _profileToJson(ProfileData profile) {
     return {
       'id': profile.id,
+      'uid': profile.uid,
       'type': profile.type.toString(),
       'name': profile.name,
       'title': profile.title,
@@ -240,19 +242,21 @@ class TokenManagerService {
       'socialMedia': profile.socialMedia,
       'isActive': profile.isActive,
       'profileImagePath': profile.profileImagePath,
-      'templateIndex': profile.templateIndex,
+      'cardAesthetics': profile.cardAesthetics.toJson(),
       'lastUpdated': profile.lastUpdated.toIso8601String(),
     };
   }
 
   /// Convert JSON to ProfileData
   ProfileData _profileFromJson(Map<String, dynamic> json) {
+    final type = ProfileType.values.firstWhere(
+      (type) => type.toString() == json['type'],
+      orElse: () => ProfileType.personal,
+    );
     return ProfileData(
       id: json['id'],
-      type: ProfileType.values.firstWhere(
-        (type) => type.toString() == json['type'],
-        orElse: () => ProfileType.professional,
-      ),
+      uid: json['uid'],
+      type: type,
       name: json['name'] ?? '',
       title: json['title'],
       company: json['company'],
@@ -262,7 +266,9 @@ class TokenManagerService {
       socialMedia: Map<String, String>.from(json['socialMedia'] ?? {}),
       isActive: json['isActive'] ?? true,
       profileImagePath: json['profileImagePath'],
-      templateIndex: json['templateIndex'] ?? 0,
+      cardAesthetics: json['cardAesthetics'] != null
+        ? CardAesthetics.fromJson(json['cardAesthetics'])
+        : CardAesthetics.defaultForType(type),
       lastUpdated: json['lastUpdated'] != null ? DateTime.parse(json['lastUpdated']) : DateTime.now(),
     );
   }

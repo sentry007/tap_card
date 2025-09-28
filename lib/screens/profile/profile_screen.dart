@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'dart:ui';
 import 'dart:io';
 
@@ -56,11 +57,41 @@ class _ProfileScreenState extends State<ProfileScreen>
   // State variables
   File? _profileImage;
   File? _backgroundImage;
-  int _selectedTemplate = 0;
   bool _isSaving = false;
   ProfileData? _currentProfile;
   ProfileType _selectedProfileType = ProfileType.personal;
   final ImagePicker _picker = ImagePicker();
+  List<Map<String, Color?>> _recentCombinations = [];
+
+  // Helper getters for current card aesthetics
+  CardAesthetics get _currentAesthetics => _currentProfile?.cardAesthetics ?? CardAesthetics.defaultForType(_selectedProfileType);
+  double get _blurLevel => _currentAesthetics.blurLevel;
+  Color get _borderColor => _currentAesthetics.borderColor;
+  Color? get _backgroundColor => _currentAesthetics.backgroundColor;
+  Color get _primaryColor => _currentAesthetics.primaryColor;
+  Color get _secondaryColor => _currentAesthetics.secondaryColor;
+
+  // Template index getter (for compatibility)
+  int get _selectedTemplate => _currentAesthetics.templateIndex;
+
+  // Template setters (update CardAesthetics)
+  set _selectedTemplate(int index) {
+    if (index >= 0 && index < _templates.length) {
+      final template = _templates[index];
+      _updateCardAesthetics(
+        primaryColor: template.primaryColor,
+        secondaryColor: template.secondaryColor,
+      );
+    }
+  }
+
+  set _backgroundColor(Color? color) {
+    _updateCardAesthetics(backgroundColor: color);
+  }
+
+  set _borderColor(Color color) {
+    _updateCardAesthetics(borderColor: color);
+  }
 
   // Templates
   final List<ContactTemplate> _templates = [
@@ -128,7 +159,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     _phoneController.text = profile.phone ?? '';
     _emailController.text = profile.email ?? '';
     _websiteController.text = profile.website ?? '';
-    _selectedTemplate = profile.templateIndex;
 
     if (profile.profileImagePath != null) {
       _profileImage = File(profile.profileImagePath!);
@@ -136,10 +166,9 @@ class _ProfileScreenState extends State<ProfileScreen>
       _profileImage = null;
     }
 
-    // Load background image if exists
-    final backgroundPath = profile.socialMedia['backgroundImage'];
-    if (backgroundPath != null && backgroundPath.isNotEmpty) {
-      _backgroundImage = File(backgroundPath);
+    // Load background image from CardAesthetics
+    if (profile.cardAesthetics.backgroundImagePath != null) {
+      _backgroundImage = File(profile.cardAesthetics.backgroundImagePath!);
     } else {
       _backgroundImage = null;
     }
@@ -246,6 +275,33 @@ class _ProfileScreenState extends State<ProfileScreen>
     setState(() {}); // Trigger rebuild for live preview
   }
 
+  /// Update card aesthetics and trigger preview update
+  void _updateCardAesthetics({
+    Color? primaryColor,
+    Color? secondaryColor,
+    Color? borderColor,
+    Color? backgroundColor,
+    double? blurLevel,
+    String? backgroundImagePath,
+  }) {
+    if (_currentProfile == null) return;
+
+    final updatedAesthetics = _currentProfile!.cardAesthetics.copyWith(
+      primaryColor: primaryColor,
+      secondaryColor: secondaryColor,
+      borderColor: borderColor,
+      backgroundColor: backgroundColor,
+      blurLevel: blurLevel,
+      backgroundImagePath: backgroundImagePath,
+    );
+
+    setState(() {
+      _currentProfile = _currentProfile!.copyWith(
+        cardAesthetics: updatedAesthetics,
+      );
+    });
+  }
+
   Future<void> _pickImage(ImageSource source, {bool isBackground = false}) async {
     try {
       final XFile? image = await _picker.pickImage(
@@ -323,7 +379,11 @@ class _ProfileScreenState extends State<ProfileScreen>
       socialMediaData['backgroundImage'] = _backgroundImage!.path;
     }
 
-    // Create updated profile
+    // Create updated profile with CardAesthetics
+    final updatedAesthetics = _currentAesthetics.copyWith(
+      backgroundImagePath: _backgroundImage?.path,
+    );
+
     final updatedProfile = _currentProfile!.copyWith(
       name: _nameController.text.trim(),
       title: _titleController.text.trim().isEmpty ? null : _titleController.text.trim(),
@@ -333,10 +393,15 @@ class _ProfileScreenState extends State<ProfileScreen>
       website: _websiteController.text.trim().isEmpty ? null : _websiteController.text.trim(),
       socialMedia: socialMediaData,
       profileImagePath: _profileImage?.path,
-      templateIndex: _selectedTemplate,
+      cardAesthetics: updatedAesthetics,
     );
 
-    await _profileService.updateProfile(updatedProfile);
+    // Regenerate NFC cache when profile data changes for instant sharing
+    final profileWithFreshCache = updatedProfile.regenerateNfcCache();
+    await _profileService.updateProfile(profileWithFreshCache);
+
+    // Save color combination after successful profile save
+    _saveColorCombination();
   }
 
   @override
@@ -409,18 +474,18 @@ class _ProfileScreenState extends State<ProfileScreen>
                     key: const Key('profile_form_column'),
                     children: [
                       const SizedBox(key: Key('profile_top_spacing'), height: 8),
-                      _buildProfilePhotoPicker(),
-                      const SizedBox(key: Key('profile_photo_spacing'), height: 24),
+                      _buildLivePreview(),
+                      const SizedBox(key: Key('profile_preview_spacing'), height: 24),
+                      _buildBlurSlider(),
+                      const SizedBox(key: Key('profile_blur_spacing'), height: 24),
+                      _buildTemplateSelector(),
+                      const SizedBox(key: Key('profile_template_spacing'), height: 24),
                       if (_profileService.multipleProfilesEnabled) ...[
                         _buildProfileSelector(),
                         const SizedBox(key: Key('profile_selector_spacing'), height: 24),
                       ],
                       _buildFormSection(),
-                      const SizedBox(key: Key('profile_form_spacing'), height: 24),
-                      _buildTemplateSelector(),
-                      const SizedBox(key: Key('profile_template_spacing'), height: 24),
-                      _buildLivePreview(),
-                      const SizedBox(key: Key('profile_preview_spacing'), height: 32),
+                      const SizedBox(key: Key('profile_form_spacing'), height: 32),
                       _buildSaveButton(),
                       const SizedBox(key: Key('profile_bottom_spacing'), height: 100),
                     ],
@@ -483,7 +548,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                         height: 48,
                         child: const Icon(
                           key: Key('profile_appbar_clear_icon'),
-                          Icons.clear_all,
+                          Icons.delete_outline,
                           color: AppColors.error,
                           size: 20,
                         ),
@@ -530,97 +595,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  Widget _buildProfilePhotoPicker() {
-    return AnimatedBuilder(
-      animation: _formController,
-      builder: (context, child) {
-        return Transform.translate(
-          offset: Offset(0, _formSlide.value * 50),
-          child: Opacity(
-            opacity: 1.0 - _formSlide.value,
-            child: Center(
-              child: GestureDetector(
-                onTap: _showImagePicker,
-                child: Container(
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(50),
-                    border: Border.all(
-                      color: AppColors.glassBorder,
-                      width: 2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 20,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(48),
-                    child: Stack(
-                      children: [
-                        Container(
-                          width: 100,
-                          height: 100,
-                          decoration: BoxDecoration(
-                            gradient: _profileImage == null
-                                ? AppColors.primaryGradient
-                                : null,
-                          ),
-                          child: _profileImage == null
-                              ? const Icon(
-                                  Icons.person,
-                                  size: 40,
-                                  color: AppColors.textPrimary,
-                                )
-                              : Image.file(
-                                  _profileImage!,
-                                  fit: BoxFit.cover,
-                                ),
-                        ),
-                        // Camera overlay
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: Container(
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              color: AppColors.primaryAction,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: AppColors.primaryBackground,
-                                width: 2,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColors.primaryAction.withOpacity(0.3),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: const Icon(
-                              Icons.camera_alt,
-                              size: 16,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
 
   Widget _buildImagePickerModal({bool isBackground = false}) {
     return Container(
@@ -755,19 +729,19 @@ class _ProfileScreenState extends State<ProfileScreen>
                   ),
                 ),
                 const SizedBox(height: 16),
-                SizedBox(
-                  height: 120,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: ProfileType.values.length,
-                    itemBuilder: (context, index) {
-                      final profileType = ProfileType.values[index];
-                      final profile = _profileService.getProfileByType(profileType);
-                      final isSelected = profile?.id == _currentProfile?.id;
-
-                      return _buildProfileTypeCard(profileType, isSelected);
-                    },
-                  ),
+                Row(
+                  children: ProfileType.values.map((profileType) {
+                    final profile = _profileService.getProfileByType(profileType);
+                    final isSelected = profile?.id == _currentProfile?.id;
+                    return Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          right: profileType != ProfileType.values.last ? 12 : 0,
+                        ),
+                        child: _buildProfileTypeCard(profileType, isSelected),
+                      ),
+                    );
+                  }).toList(),
                 ),
               ],
             ),
@@ -783,8 +757,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     return GestureDetector(
       onTap: () => _switchToProfileType(profileType),
       child: Container(
-        width: 100,
-        margin: const EdgeInsets.only(right: 12),
+        height: 120,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
           child: BackdropFilter(
@@ -1219,10 +1192,17 @@ class _ProfileScreenState extends State<ProfileScreen>
           height: 80,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
-            itemCount: _templates.length + 1, // +1 for the add background button
+            itemCount: _recentCombinations.length + _templates.length + 3, // recent + templates + border + bg + add bg
             itemBuilder: (context, index) {
-              if (index < _templates.length) {
-                return _buildTemplatePreview(index);
+              if (index < _recentCombinations.length && _recentCombinations.isNotEmpty) {
+                return _buildRecentCombination(index);
+              } else if (index < _recentCombinations.length + _templates.length) {
+                final templateIndex = index - _recentCombinations.length;
+                return _buildTemplatePreview(templateIndex);
+              } else if (index == _recentCombinations.length + _templates.length) {
+                return _buildBorderColorPicker();
+              } else if (index == _recentCombinations.length + _templates.length + 1) {
+                return _buildBackgroundColorPicker();
               } else {
                 return _buildAddBackgroundButton();
               }
@@ -1301,10 +1281,207 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
+  Widget _buildRecentCombination(int index) {
+    final combination = _recentCombinations[index];
+    final bgColor = combination['background'];
+    final borderColor = combination['border']!;
+
+    return Container(
+      width: 120,
+      margin: const EdgeInsets.only(right: 12),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            setState(() {
+              _backgroundColor = bgColor;
+              _borderColor = borderColor;
+            });
+            HapticFeedback.lightImpact();
+          },
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: bgColor != null
+                ? LinearGradient(
+                    colors: [bgColor, bgColor.withOpacity(0.8)],
+                  )
+                : LinearGradient(
+                    colors: [
+                      _templates[_selectedTemplate].primaryColor,
+                      _templates[_selectedTemplate].secondaryColor,
+                    ],
+                  ),
+              borderRadius: BorderRadius.circular(12),
+              border: borderColor != Colors.transparent
+                ? Border.all(
+                    color: borderColor,
+                    width: 2,
+                  )
+                : null,
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: bgColor ?? _templates[_selectedTemplate].primaryColor,
+                    borderRadius: BorderRadius.circular(6),
+                    border: borderColor != Colors.transparent
+                      ? Border.all(
+                          color: borderColor,
+                          width: 2,
+                        )
+                      : null,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Recent\n#${index + 1}',
+                  style: AppTextStyles.caption.copyWith(
+                    fontWeight: FontWeight.w500,
+                    color: (bgColor ?? _templates[_selectedTemplate].primaryColor).computeLuminance() > 0.5 ? Colors.black : Colors.white,
+                    fontSize: 10,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBorderColorPicker() {
+    return Container(
+      width: 120,
+      margin: const EdgeInsets.only(right: 12),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _showColorPicker,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _borderColor.withOpacity(0.5),
+                width: 2,
+                strokeAlign: BorderSide.strokeAlignInside,
+              ),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: _borderColor,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.palette_outlined,
+                    color: _borderColor.computeLuminance() > 0.5 ? Colors.black : Colors.white,
+                    size: 16,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Border\nColor',
+                  style: AppTextStyles.caption.copyWith(
+                    fontWeight: FontWeight.w500,
+                    color: _borderColor,
+                    fontSize: 10,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBackgroundColorPicker() {
+    return Container(
+      width: 120,
+      margin: const EdgeInsets.only(right: 12),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _showBackgroundColorPicker,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: _backgroundColor != null
+                ? LinearGradient(colors: [_backgroundColor!, _backgroundColor!.withOpacity(0.8)])
+                : null,
+              color: _backgroundColor == null ? Colors.white.withOpacity(0.1) : null,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _backgroundColor?.withOpacity(0.5) ?? AppColors.primaryAction.withOpacity(0.5),
+                width: 2,
+                strokeAlign: BorderSide.strokeAlignInside,
+              ),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    gradient: _backgroundColor != null
+                      ? LinearGradient(colors: [_backgroundColor!, _backgroundColor!.withOpacity(0.8)])
+                      : AppColors.primaryGradient,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.gradient,
+                    color: _backgroundColor != null
+                      ? (_backgroundColor!.computeLuminance() > 0.5 ? Colors.black : Colors.white)
+                      : Colors.white,
+                    size: 16,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Background\nColor',
+                  style: AppTextStyles.caption.copyWith(
+                    fontWeight: FontWeight.w500,
+                    color: _backgroundColor != null
+                      ? (_backgroundColor!.computeLuminance() > 0.5 ? Colors.black : Colors.white)
+                      : AppColors.primaryAction,
+                    fontSize: 10,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildAddBackgroundButton() {
     return Container(
-      width: 80,
-      margin: const EdgeInsets.only(left: 12),
+      width: 120,
+      margin: const EdgeInsets.only(right: 12),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -1354,6 +1531,875 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
+  void _showColorPicker() async {
+    Color selectedColor = _borderColor;
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (context) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+        child: Dialog(
+          backgroundColor: Colors.transparent,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.white.withOpacity(0.2),
+                      Colors.white.withOpacity(0.1),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.3),
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Border Color',
+                      style: AppTextStyles.h3.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.2),
+                          width: 1,
+                        ),
+                      ),
+                      child: Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          // Transparent/Remove option first
+                          GestureDetector(
+                            onTap: () {
+                              _updateCardAesthetics(
+                                borderColor: Colors.transparent,
+                              );
+                              Navigator.pop(context);
+                              HapticFeedback.lightImpact();
+                            },
+                            child: Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: _borderColor == Colors.transparent
+                                    ? AppColors.primaryAction
+                                    : Colors.white.withOpacity(0.3),
+                                  width: _borderColor == Colors.transparent ? 3 : 1.5,
+                                ),
+                              ),
+                              child: Icon(
+                                Icons.clear,
+                                color: _borderColor == Colors.transparent
+                                  ? AppColors.primaryAction
+                                  : AppColors.textSecondary,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                          // Regular colors
+                          ...[
+                            Colors.white,
+                            Colors.blue,
+                            Colors.purple,
+                            Colors.pink,
+                            Colors.orange,
+                            Colors.green,
+                            Colors.red,
+                            Colors.yellow,
+                            Colors.cyan,
+                            Colors.indigo,
+                            Colors.teal,
+                            Colors.lime,
+                          ].map((color) {
+                            final isSelected = color.value == _borderColor.value;
+                            return GestureDetector(
+                              onTap: () {
+                                _updateCardAesthetics(
+                                  borderColor: color,
+                                );
+                                Navigator.pop(context);
+                                HapticFeedback.lightImpact();
+                              },
+                              child: Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: color,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: isSelected
+                                      ? AppColors.primaryAction
+                                      : Colors.white.withOpacity(0.3),
+                                    width: isSelected ? 3 : 1.5,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: color.withOpacity(0.3),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: isSelected
+                                  ? Icon(
+                                      Icons.check,
+                                      color: color.computeLuminance() > 0.5
+                                        ? Colors.black
+                                        : Colors.white,
+                                      size: 20,
+                                    )
+                                  : null,
+                              ),
+                            );
+                          }).toList(),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            height: 48,
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () => Navigator.pop(context),
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(0.2),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      'Cancel',
+                                      style: AppTextStyles.body.copyWith(
+                                        color: AppColors.textSecondary,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Container(
+                            height: 48,
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () => _showCustomColorPicker(selectedColor),
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    gradient: AppColors.primaryGradient,
+                                    borderRadius: BorderRadius.circular(12),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: AppColors.primaryAction.withOpacity(0.3),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      'Custom',
+                                      style: AppTextStyles.body.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showCustomColorPicker(Color initialColor) {
+    Color selectedColor = initialColor;
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (context) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+        child: Dialog(
+          backgroundColor: Colors.transparent,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.white.withOpacity(0.2),
+                      Colors.white.withOpacity(0.1),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.3),
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Custom Color',
+                      style: AppTextStyles.h3.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.2),
+                          width: 1,
+                        ),
+                      ),
+                      child: ColorPicker(
+                        pickerColor: selectedColor,
+                        onColorChanged: (color) {
+                          selectedColor = color;
+                        },
+                        colorPickerWidth: 250,
+                        pickerAreaHeightPercent: 0.7,
+                        enableAlpha: false,
+                        displayThumbColor: true,
+                        paletteType: PaletteType.hsvWithHue,
+                        labelTypes: const [],
+                        pickerAreaBorderRadius: BorderRadius.circular(12),
+                        hexInputBar: false,
+                        portraitOnly: true,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            height: 48,
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () => Navigator.pop(context),
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(0.2),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      'Cancel',
+                                      style: AppTextStyles.body.copyWith(
+                                        color: AppColors.textSecondary,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Container(
+                            height: 48,
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () {
+                                  _updateCardAesthetics(
+                                    borderColor: selectedColor,
+                                  );
+                                  Navigator.pop(context);
+                                  Navigator.pop(context);
+                                  HapticFeedback.lightImpact();
+                                },
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    gradient: AppColors.primaryGradient,
+                                    borderRadius: BorderRadius.circular(12),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: AppColors.primaryAction.withOpacity(0.3),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      'Apply',
+                                      style: AppTextStyles.body.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showBackgroundColorPicker() async {
+    Color selectedColor = _backgroundColor ?? _templates[_selectedTemplate].primaryColor;
+
+    // Get template colors for presets
+    final templateColors = _templates.map((t) => [t.primaryColor, t.secondaryColor]).expand((x) => x).toList();
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (context) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+        child: Dialog(
+          backgroundColor: Colors.transparent,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.white.withOpacity(0.2),
+                      Colors.white.withOpacity(0.1),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.3),
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Background Color',
+                      style: AppTextStyles.h3.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.2),
+                          width: 1,
+                        ),
+                      ),
+                      child: Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          // Transparent/Remove option first
+                          GestureDetector(
+                            onTap: () {
+                              _updateCardAesthetics(
+                                backgroundColor: null,
+                              );
+                              Navigator.pop(context);
+                              HapticFeedback.lightImpact();
+                            },
+                            child: Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: _backgroundColor == null
+                                    ? AppColors.primaryAction
+                                    : Colors.white.withOpacity(0.3),
+                                  width: _backgroundColor == null ? 3 : 1.5,
+                                ),
+                              ),
+                              child: Icon(
+                                Icons.clear,
+                                color: _backgroundColor == null
+                                  ? AppColors.primaryAction
+                                  : AppColors.textSecondary,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                          // Template and other colors
+                          ...([
+                            ...templateColors,
+                            Colors.white,
+                            Colors.blue,
+                            Colors.purple,
+                            Colors.pink,
+                            Colors.orange,
+                            Colors.green,
+                            Colors.red,
+                            Colors.yellow,
+                            Colors.cyan,
+                            Colors.indigo,
+                            Colors.teal,
+                            Colors.lime,
+                          ]).map((color) {
+                            final isSelected = color.value == (_backgroundColor?.value ?? _templates[_selectedTemplate].primaryColor.value);
+                            return GestureDetector(
+                              onTap: () {
+                                _updateCardAesthetics(
+                                  backgroundColor: color,
+                                );
+                                Navigator.pop(context);
+                                HapticFeedback.lightImpact();
+                              },
+                              child: Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: color,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: isSelected
+                                      ? AppColors.primaryAction
+                                      : Colors.white.withOpacity(0.3),
+                                    width: isSelected ? 3 : 1.5,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: color.withOpacity(0.3),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: isSelected
+                                  ? Icon(
+                                      Icons.check,
+                                      color: color.computeLuminance() > 0.5
+                                        ? Colors.black
+                                        : Colors.white,
+                                      size: 20,
+                                    )
+                                  : null,
+                              ),
+                            );
+                          }).toList(),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            height: 48,
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () => Navigator.pop(context),
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(0.2),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      'Cancel',
+                                      style: AppTextStyles.body.copyWith(
+                                        color: AppColors.textSecondary,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Container(
+                            height: 48,
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () => _showCustomBackgroundColorPicker(selectedColor),
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    gradient: AppColors.primaryGradient,
+                                    borderRadius: BorderRadius.circular(12),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: AppColors.primaryAction.withOpacity(0.3),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      'Custom',
+                                      style: AppTextStyles.body.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showCustomBackgroundColorPicker(Color initialColor) {
+    Color selectedColor = initialColor;
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (context) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+        child: Dialog(
+          backgroundColor: Colors.transparent,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.white.withOpacity(0.2),
+                      Colors.white.withOpacity(0.1),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.3),
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Custom Background',
+                      style: AppTextStyles.h3.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.2),
+                          width: 1,
+                        ),
+                      ),
+                      child: ColorPicker(
+                        pickerColor: selectedColor,
+                        onColorChanged: (color) {
+                          selectedColor = color;
+                        },
+                        colorPickerWidth: 250,
+                        pickerAreaHeightPercent: 0.7,
+                        enableAlpha: false,
+                        displayThumbColor: true,
+                        paletteType: PaletteType.hsvWithHue,
+                        labelTypes: const [],
+                        pickerAreaBorderRadius: BorderRadius.circular(12),
+                        hexInputBar: false,
+                        portraitOnly: true,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            height: 48,
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () => Navigator.pop(context),
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(0.2),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      'Cancel',
+                                      style: AppTextStyles.body.copyWith(
+                                        color: AppColors.textSecondary,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Container(
+                            height: 48,
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () {
+                                  _updateCardAesthetics(
+                                    backgroundColor: selectedColor,
+                                  );
+                                  Navigator.pop(context);
+                                  Navigator.pop(context);
+                                  HapticFeedback.lightImpact();
+                                },
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    gradient: AppColors.primaryGradient,
+                                    borderRadius: BorderRadius.circular(12),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: AppColors.primaryAction.withOpacity(0.3),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      'Apply',
+                                      style: AppTextStyles.body.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _saveColorCombination() {
+    // Save combination if either background or border is customized
+    if (_backgroundColor != null || _borderColor != Colors.white) {
+      final combination = {
+        'background': _backgroundColor,
+        'border': _borderColor,
+      };
+
+      // Remove if already exists
+      _recentCombinations.removeWhere((c) =>
+        c['background']?.value == combination['background']?.value &&
+        c['border']!.value == combination['border']!.value
+      );
+
+      // Add to beginning
+      _recentCombinations.insert(0, combination);
+
+      // Keep only first 3
+      if (_recentCombinations.length > 3) {
+        _recentCombinations = _recentCombinations.take(3).toList();
+      }
+    }
+  }
+
+  Widget _buildBlurSlider() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              'Glassmorphic Blur',
+              style: AppTextStyles.h3.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              '${_blurLevel.toStringAsFixed(1)}px',
+              style: AppTextStyles.body.copyWith(
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            activeTrackColor: AppColors.primaryAction,
+            inactiveTrackColor: AppColors.textSecondary.withOpacity(0.3),
+            thumbColor: AppColors.primaryAction,
+            overlayColor: AppColors.primaryAction.withOpacity(0.2),
+            trackHeight: 4,
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+          ),
+          child: Slider(
+            value: _blurLevel,
+            min: 0,
+            max: 18,
+            divisions: 36,
+            onChanged: (value) {
+              _updateCardAesthetics(blurLevel: value);
+              HapticFeedback.lightImpact();
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildLivePreview() {
     return AnimatedBuilder(
       animation: _previewController,
@@ -1382,10 +2428,35 @@ class _ProfileScreenState extends State<ProfileScreen>
     return Container(
       width: double.infinity,
       height: 200,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
         child: Stack(
           children: [
+            // Background with CardAesthetics colors
+            Container(
+              decoration: BoxDecoration(
+                gradient: _backgroundColor != null
+                  ? LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        _backgroundColor!,
+                        _backgroundColor!.withOpacity(0.8),
+                      ],
+                    )
+                  : _currentAesthetics.gradient,
+              ),
+            ),
             // Background image if present
             if (_backgroundImage != null)
               Positioned.fill(
@@ -1394,61 +2465,102 @@ class _ProfileScreenState extends State<ProfileScreen>
                   fit: BoxFit.cover,
                 ),
               ),
-            // Overlay for backdrop filter and content
+            // Glassmorphic overlay
             BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              filter: ImageFilter.blur(sigmaX: _blurLevel, sigmaY: _blurLevel),
               child: Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      Colors.white.withOpacity(_backgroundImage != null ? 0.3 : 0.2),
-                      Colors.white.withOpacity(_backgroundImage != null ? 0.15 : 0.1),
+                      Colors.white.withOpacity(_backgroundImage != null ? 0.1 : 0.2),
+                      Colors.white.withOpacity(_backgroundImage != null ? 0.05 : 0.1),
                     ],
                   ),
+                  border: _borderColor != Colors.transparent
+                    ? Border.all(
+                        color: _borderColor.withOpacity(0.8),
+                        width: 1.5,
+                      )
+                    : null,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.3),
-                    width: 1.5,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
+              ),
+            ),
+            // Content overlay for readability
+            if (_backgroundImage != null)
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.black.withOpacity(0.2),
+                      Colors.black.withOpacity(0.3),
+                    ],
+                  ),
+                ),
+              ),
+            // Content
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                       // Header with avatar and name
                       Row(
                         children: [
-                          Container(
-                            width: 45,
-                            height: 45,
-                            decoration: BoxDecoration(
-                              gradient: _profileImage == null ? AppColors.primaryGradient : null,
-                              borderRadius: BorderRadius.circular(22.5),
-                            ),
-                            child: _profileImage == null
-                                ? const Icon(
-                                    Icons.person,
-                                    color: Colors.white,
-                                    size: 24,
-                                  )
-                                : ClipRRect(
-                                    borderRadius: BorderRadius.circular(22.5),
-                                    child: Image.file(
-                                      _profileImage!,
-                                      fit: BoxFit.cover,
+                          GestureDetector(
+                            onTap: _showImagePicker,
+                            child: Container(
+                              width: 60,
+                              height: 60,
+                              decoration: BoxDecoration(
+                                gradient: _profileImage == null ? AppColors.primaryGradient : null,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Stack(
+                                children: [
+                                  _profileImage == null
+                                      ? const Icon(
+                                          Icons.person,
+                                          color: Colors.white,
+                                          size: 32,
+                                        )
+                                      : ClipRRect(
+                                          borderRadius: BorderRadius.circular(12),
+                                          child: Image.file(
+                                            _profileImage!,
+                                            fit: BoxFit.cover,
+                                          ),
+                                        ),
+                                  // Edit overlay
+                                  Positioned(
+                                    bottom: 0,
+                                    right: 0,
+                                    child: Container(
+                                      width: 20,
+                                      height: 20,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primaryAction,
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: Colors.white,
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                      child: const Icon(
+                                        Icons.camera_alt,
+                                        size: 12,
+                                        color: Colors.white,
+                                      ),
                                     ),
                                   ),
+                                ],
+                              ),
+                            ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
@@ -1570,8 +2682,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                     ],
                   ),
                 ),
-              ),
-            ),
           ],
         ),
       ),

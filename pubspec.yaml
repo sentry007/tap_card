@@ -20,7 +20,8 @@ dependencies:
 
   # NFC Functionality
   nfc_manager: ^4.0.2
-  flutter_nfc_kit: ^3.3.1
+  nfc_manager_ndef: ^1.0.1
+  ndef: ^0.3.1
 
   # QR Code Generation and Scanning
   qr_flutter: ^4.1.0
@@ -51,6 +52,7 @@ dependencies:
   image_picker: ^1.0.7
   url_launcher: ^6.2.4
   share_plus: ^7.2.2
+  flutter_colorpicker: ^1.1.0
 
 dev_dependencies:
   flutter_test:

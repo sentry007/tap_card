@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../models/unified_models.dart';
-import '../services/simple_nfc_service.dart';
+import '../services/nfc_service.dart';
 import '../core/constants/routes.dart';
 import '../core/providers/app_state.dart';
 import '../widgets/widgets.dart';
@@ -74,7 +74,7 @@ class _NFCReceiveScreenState extends State<NFCReceiveScreen>
       }
 
       // Use simplified NFC service to process the data
-      final processedData = SimpleNFCService.processReceivedData(widget.nfcData!);
+      final processedData = NFCService.processReceivedData(widget.nfcData!);
 
       if (processedData == null) {
         throw Exception('Failed to process NFC data');

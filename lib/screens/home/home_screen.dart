@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'dart:ui';
+import 'dart:io';
 
 import '../../theme/theme.dart';
 import '../../widgets/widgets.dart';
@@ -10,7 +11,7 @@ import '../../core/providers/app_state.dart';
 import '../../core/services/notification_service.dart';
 import '../../core/services/profile_service.dart';
 import '../../services/token_manager_service.dart';
-import '../../services/simple_nfc_service.dart';
+import '../../services/nfc_service.dart';
 import '../../services/nfc_discovery_service.dart';
 import '../../core/constants/routes.dart';
 import '../../models/unified_models.dart';
@@ -78,11 +79,10 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _initializeNFC() async {
-    _nfcAvailable = await SimpleNFCService.initialize();
+    _nfcAvailable = await NFCService.initialize();
     if (!_nfcAvailable) {
       _showNfcSetupDialog();
     }
-    print('📱 NFC Available: $_nfcAvailable');
 
     // Initialize NFC discovery for FAB animations
     if (_nfcAvailable) {
@@ -100,10 +100,12 @@ class _HomeScreenState extends State<HomeScreen>
           });
 
           if (detected) {
-            // Start ripple animation when device detected
+            // Start continuous ripple animation when device detected
+            _rippleController.repeat();
+          } else {
+            // Stop continuous ripple when device removed
+            _rippleController.stop();
             _rippleController.reset();
-            _rippleController.forward();
-            print('🎯 NFC device detected - animating FAB');
           }
         }
       },
@@ -133,7 +135,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
 
     _pulseController = AnimationController(
-      duration: const Duration(milliseconds: 2500), // Slightly faster pulse
+      duration: const Duration(milliseconds: 1200), // Faster and synchronized with ripple
       vsync: this,
     );
 
@@ -143,7 +145,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
 
     _rippleController = AnimationController(
-      duration: const Duration(milliseconds: 1800), // Optimized timing
+      duration: const Duration(milliseconds: 1500), // Synchronized with pulse for organic feel
       vsync: this,
     );
 
@@ -253,10 +255,13 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _onNfcTap() async {
+    print('🔥 DEBUG: FAB button tapped - _onNfcTap() called');
     HapticFeedback.mediumImpact();
     _fabController.forward().then((_) => _fabController.reverse());
 
+    print('🔥 DEBUG: Checking NFC availability - _nfcAvailable: $_nfcAvailable');
     if (!_nfcAvailable) {
+      print('🔥 DEBUG: NFC not available, showing setup dialog');
       _showNfcSetupDialog();
       return;
     }
@@ -265,43 +270,59 @@ class _HomeScreenState extends State<HomeScreen>
 
     try {
       // Get active profile for sharing
+      print('🔥 DEBUG: Getting active profile for sharing');
       final activeProfile = await _getActiveProfileForSharing();
       if (activeProfile == null) {
+        print('🔥 DEBUG: No active profile found');
         setState(() => _isNfcLoading = false);
         _showErrorMessage('No active profile found. Please set up your profile first.');
         return;
       }
+      print('🔥 DEBUG: Active profile found: ${activeProfile.name}');
 
-      print('🎯 Starting simple NFC share for profile: ${activeProfile.name}');
-      _showSuccessMessage('Hold your phone near an NFC tag...');
+      // Show loading dialog for phone-to-phone NFC
+      _showNfcScanningDialog();
 
-      // Create simple profile data
-      final profileData = {
-        'name': activeProfile.name,
-        'title': activeProfile.title,
-        'company': activeProfile.company,
-        'email': activeProfile.email,
-        'phone': activeProfile.phone,
-        'website': activeProfile.website,
-      };
+      // Get fresh optimized payload
+      print('🔥 DEBUG: Getting fresh NFC payload');
+      final freshPayload = activeProfile.getFreshNfcPayload();
+      print('🔥 DEBUG: Payload size: ${freshPayload.length} characters');
 
-      // Share via simple NFC service
-      final success = await SimpleNFCService.shareProfile(profileData);
+      // Share via instant NFC service with optimized payload
+      print('🔥 DEBUG: Calling NFCService.shareProfileInstant()...');
+      final result = await NFCService.shareProfileInstant(freshPayload);
+      print('🔥 DEBUG: NFCService.shareProfileInstant() returned: ${result.toString()}');
+      final success = result.isSuccess;
 
       if (mounted) {
         setState(() => _isNfcLoading = false);
+        // Close the scanning dialog safely
+        try {
+          Navigator.of(context, rootNavigator: true).pop();
+        } catch (e) {
+          print('🔥 DEBUG: Dialog already closed or navigation error: $e');
+        }
 
         if (success) {
           // Don't mark as shared/received for sending - only for receiving
           // This prevents unwanted navigation away from home screen
           _showSuccessMessage('Profile shared successfully! 🎉');
+        } else if (result.error == 'Timeout') {
+          _showErrorMessage('NFC timeout - No device or tag detected. Bring an NFC tag or device within 4cm and try again.');
         } else {
-          _showErrorMessage('Failed to share profile via NFC. Make sure you have a writable NFC tag.');
+          _showErrorMessage('NFC sharing failed: ${result.error}. Ensure NFC is enabled and the tag is writable.');
         }
       }
     } catch (e) {
+      print('🔥 DEBUG: Exception in _onNfcTap(): $e');
       if (mounted) {
         setState(() => _isNfcLoading = false);
+        // Close the scanning dialog safely
+        try {
+          Navigator.of(context, rootNavigator: true).pop();
+        } catch (navError) {
+          print('🔥 DEBUG: Dialog already closed or navigation error: $navError');
+        }
         _showErrorMessage('Failed to share card: $e');
       }
     }
@@ -350,6 +371,38 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  void _showNfcScanningDialog() {
+    GlassmorphicDialog.show(
+      context: context,
+      icon: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.primaryAction.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(
+          Icons.nfc,
+          color: AppColors.primaryAction,
+          size: 32,
+        ),
+      ),
+      title: 'NFC Scanning...',
+      content: 'Bring your phone close to:\n• Another NFC-enabled phone or device\n• An NFC tag to write your profile\n\nKeep devices within 4cm of each other.',
+      actions: [
+        DialogAction.secondary(
+          text: 'Cancel',
+          onPressed: () async {
+            Navigator.of(context, rootNavigator: true).pop();
+            await NFCService.cancelSession('User cancelled');
+            if (mounted) {
+              setState(() => _isNfcLoading = false);
+            }
+          },
+        ),
+      ],
+    );
+  }
+
   void _openNfcSettings() async {
     try {
       // Close the current dialog first
@@ -360,7 +413,7 @@ class _HomeScreenState extends State<HomeScreen>
 
       // After user returns from settings, refresh NFC status
       if (mounted) {
-        _nfcAvailable = await SimpleNFCService.initialize();
+        _nfcAvailable = await NFCService.initialize();
 
         // Show result based on NFC state
         if (_nfcAvailable) {
@@ -454,7 +507,7 @@ class _HomeScreenState extends State<HomeScreen>
         );
 
         // Refresh NFC status
-        _nfcAvailable = await SimpleNFCService.initialize();
+        _nfcAvailable = await NFCService.initialize();
 
         // Show result
         if (_nfcAvailable) {
@@ -860,7 +913,12 @@ class _HomeScreenState extends State<HomeScreen>
                     color: Colors.transparent,
                     child: InkWell(
                       key: const Key('home_nfc_fab_inkwell'),
-                      onTap: _isNfcLoading ? null : _onNfcTap,
+                      onTap: _isNfcLoading ? () {
+                        print('🔥 DEBUG: FAB tapped but _isNfcLoading is true, ignoring tap');
+                      } : () {
+                        print('🔥 DEBUG: FAB tapped, calling _onNfcTap()');
+                        _onNfcTap();
+                      },
                       borderRadius: BorderRadius.circular(20), // Match container radius
                       child: Center(
                         key: const Key('home_nfc_fab_center'),
@@ -925,7 +983,7 @@ class _HomeScreenState extends State<HomeScreen>
               : _nfcDeviceDetected
                   ? Colors.white  // Bright white when NFC device detected
                   : Colors.white.withOpacity(0.6),  // Dull white when no device
-          size: 48,
+          size: 56,
         ),
       ),
     );
@@ -1033,39 +1091,114 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildCardPreview() {
+    final activeProfile = _profileService.activeProfile;
+    if (activeProfile == null) {
+      return Container(
+        key: const Key('home_card_preview_loading'),
+        width: 300,
+        height: 180,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Center(
+          child: Text(
+            'No Profile Found',
+            style: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
+          ),
+        ),
+      );
+    }
+
+    final aesthetics = activeProfile.cardAesthetics;
+
     return Container(
       key: const Key('home_card_preview_container'),
       width: 300,
       height: 180,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.white.withOpacity(0.2),
-                  Colors.white.withOpacity(0.1),
-                ],
+        child: Stack(
+          children: [
+            // Background with profile colors
+            Container(
+              decoration: BoxDecoration(
+                gradient: aesthetics.backgroundColor != null
+                  ? LinearGradient(
+                      colors: [
+                        aesthetics.backgroundColor!,
+                        aesthetics.backgroundColor!.withOpacity(0.8),
+                      ],
+                    )
+                  : aesthetics.gradient,
+                borderRadius: BorderRadius.circular(20),
               ),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.3),
-                width: 1.5,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                ),
-              ],
             ),
-            child: Padding(
+            // Background image if present
+            if (aesthetics.hasBackgroundImage)
+              Positioned.fill(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: Image.file(
+                    File(aesthetics.backgroundImagePath!),
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+            // Glassmorphic overlay
+            BackdropFilter(
+              filter: ImageFilter.blur(
+                sigmaX: aesthetics.blurLevel,
+                sigmaY: aesthetics.blurLevel,
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.white.withOpacity(aesthetics.hasBackgroundImage ? 0.1 : 0.2),
+                      Colors.white.withOpacity(aesthetics.hasBackgroundImage ? 0.05 : 0.1),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  border: aesthetics.borderColor != Colors.transparent
+                    ? Border.all(
+                        color: aesthetics.borderColor.withOpacity(0.8),
+                        width: 1.5,
+                      )
+                    : null,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Content overlay for readability
+            if (aesthetics.hasBackgroundImage)
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.black.withOpacity(0.2),
+                      Colors.black.withOpacity(0.3),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+            // Actual content
+            Container(
               padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
@@ -1077,14 +1210,24 @@ class _HomeScreenState extends State<HomeScreen>
                         width: 45,
                         height: 45,
                         decoration: BoxDecoration(
-                          gradient: AppColors.primaryGradient,
+                          gradient: activeProfile.profileImagePath != null
+                            ? null
+                            : aesthetics.gradient,
                           borderRadius: BorderRadius.circular(22.5),
                         ),
-                        child: const Icon(
-                          Icons.person,
-                          color: Colors.white,
-                          size: 24,
-                        ),
+                        child: activeProfile.profileImagePath != null
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(22.5),
+                              child: Image.file(
+                                File(activeProfile.profileImagePath!),
+                                fit: BoxFit.cover,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.person,
+                              color: Colors.white,
+                              size: 24,
+                            ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -1093,7 +1236,7 @@ class _HomeScreenState extends State<HomeScreen>
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              'John Doe',
+                              activeProfile.name.isNotEmpty ? activeProfile.name : 'Your Name',
                               key: const Key('home_card_preview_name'),
                               style: AppTextStyles.body.copyWith(
                                 fontWeight: FontWeight.w700,
@@ -1104,16 +1247,17 @@ class _HomeScreenState extends State<HomeScreen>
                               maxLines: 1,
                             ),
                             const SizedBox(height: 2),
-                            Text(
-                              'Software Engineer',
-                              key: const Key('home_card_preview_title'),
-                              style: AppTextStyles.caption.copyWith(
-                                color: Colors.white.withOpacity(0.7),
-                                fontSize: 12,
+                            if (activeProfile.title != null && activeProfile.title!.isNotEmpty)
+                              Text(
+                                activeProfile.title!,
+                                key: const Key('home_card_preview_title'),
+                                style: AppTextStyles.caption.copyWith(
+                                  color: Colors.white.withOpacity(0.7),
+                                  fontSize: 12,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
                               ),
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1,
-                            ),
                           ],
                         ),
                       ),
@@ -1136,7 +1280,7 @@ class _HomeScreenState extends State<HomeScreen>
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
-                                'john.doe@example.com',
+                                activeProfile.email ?? 'email@example.com',
                                 key: const Key('home_card_preview_email'),
                                 style: AppTextStyles.caption.copyWith(
                                   color: Colors.white.withOpacity(0.9),
@@ -1160,7 +1304,7 @@ class _HomeScreenState extends State<HomeScreen>
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
-                                '+1 234 567 8900',
+                                activeProfile.phone ?? '+1 (555) 123-4567',
                                 key: const Key('home_card_preview_phone'),
                                 style: AppTextStyles.caption.copyWith(
                                   color: Colors.white.withOpacity(0.9),
@@ -1184,7 +1328,7 @@ class _HomeScreenState extends State<HomeScreen>
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
-                                'Tap Card Inc.',
+                                activeProfile.company ?? 'Company Name',
                                 key: const Key('home_card_preview_company'),
                                 style: AppTextStyles.caption.copyWith(
                                   color: Colors.white.withOpacity(0.9),
@@ -1202,7 +1346,7 @@ class _HomeScreenState extends State<HomeScreen>
                 ],
               ),
             ),
-          ),
+          ],
         ),
       ),
     );

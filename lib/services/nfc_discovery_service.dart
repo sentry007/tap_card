@@ -8,6 +8,8 @@ class NFCDiscoveryService {
   static Function(bool)? _onNfcDetectionChanged;
   static bool _isCurrentlyDetected = false;
   static Timer? _detectionTimer;
+  static Timer? _pollingTimer;
+  static bool _isSessionActive = false;
 
   /// Initialize NFC discovery for animations only
   static Future<bool> initialize() async {
@@ -16,15 +18,12 @@ class NFCDiscoveryService {
     try {
       bool isAvailable = await NfcManager.instance.isAvailable();
       if (!isAvailable) {
-        print('📱 NFC not available on this device');
         return false;
       }
 
       _isInitialized = true;
-      print('📱 NFC Discovery Service initialized for animations only');
       return true;
     } catch (e) {
-      print('❌ Error initializing NFC Discovery Service: $e');
       return false;
     }
   }
@@ -36,52 +35,73 @@ class NFCDiscoveryService {
     _onNfcDetectionChanged = onDetectionChanged;
 
     try {
-      // Start NFC session for proximity detection only
+      // Start optimized NFC detection with longer hold period
+      _startOptimizedDetection();
+    } catch (e) {
+    }
+  }
+
+  /// Optimized NFC detection with smart polling to balance UX and performance
+  static void _startOptimizedDetection() {
+    try {
+      // Use single session approach with extended timeout for better presence simulation
       NfcManager.instance.startSession(
         pollingOptions: {
           NfcPollingOption.iso14443,
           NfcPollingOption.iso15693,
-          NfcPollingOption.iso18092,
         },
         onDiscovered: (NfcTag tag) async {
-          print('🎯 NFC device detected - maintaining FAB animation');
 
-          // Set detection state if not already set
           if (!_isCurrentlyDetected) {
-            print('🎯 NFC device first detected - activating FAB animation');
             _isCurrentlyDetected = true;
             _onNfcDetectionChanged?.call(true);
           }
 
-          // Cancel any existing timer
+          // Cancel any existing timeout
           _detectionTimer?.cancel();
 
-          // Quick timeout for responsive feedback - device moved away detection
-          _detectionTimer = Timer(const Duration(milliseconds: 800), () {
+          // Extended 7-second active period for better user experience
+          // This gives users ample time to position and use their devices
+          _detectionTimer = Timer(const Duration(milliseconds: 7000), () {
             if (_isCurrentlyDetected) {
-              print('🎯 NFC device moved away - resetting FAB state');
               _isCurrentlyDetected = false;
               _onNfcDetectionChanged?.call(false);
+
+              // Restart session for next detection after a brief pause
+              Timer(const Duration(milliseconds: 500), () {
+                if (_isInitialized && !_isCurrentlyDetected) {
+                  _startOptimizedDetection();
+                }
+              });
             }
           });
         },
       );
 
-      print('🎯 NFC discovery started - listening for device proximity');
+      _isSessionActive = true;
+
     } catch (e) {
-      print('❌ Error starting NFC discovery: $e');
     }
   }
 
   /// Stop NFC discovery
   static void stopDiscovery() {
     try {
+      // Stop continuous polling
+      _pollingTimer?.cancel();
+      _pollingTimer = null;
+
+      // Stop any active session
       NfcManager.instance.stopSession();
+
+      // Clean up timers and state
       _detectionTimer?.cancel();
       _detectionTimer = null;
       _isCurrentlyDetected = false;
+      _isSessionActive = false;
       _onNfcDetectionChanged = null;
-      print('🛑 NFC discovery stopped');
+
+      print('🛑 NFC continuous polling stopped');
     } catch (e) {
       print('❌ Error stopping NFC discovery: $e');
     }

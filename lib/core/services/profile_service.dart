@@ -103,28 +103,54 @@ class ProfileService extends ChangeNotifier {
   }
 
   Future<void> _createDefaultProfile() async {
-    // Create exactly 3 profiles - one for each type
+    // Create exactly 3 profiles - one for each type with realistic mock data
+    final now = DateTime.now();
+    final baseTime = now.millisecondsSinceEpoch;
+
     final personalProfile = ProfileData(
-      id: 'personal_${DateTime.now().millisecondsSinceEpoch}',
+      id: 'personal_$baseTime',
       type: ProfileType.personal,
-      name: 'Personal',
-      lastUpdated: DateTime.now(),
+      name: 'Alex Rivera',
+      phone: '+1 (555) 123-4567',
+      email: 'alex.rivera@gmail.com',
+      socialMedia: {
+        'instagram': '@alexrivera_',
+        'snapchat': 'alex.rivera.snaps',
+        'tiktok': '@alexrivera'
+      },
+      lastUpdated: now,
       isActive: true,
     );
 
     final professionalProfile = ProfileData(
-      id: 'professional_${DateTime.now().millisecondsSinceEpoch}',
+      id: 'professional_${baseTime + 1}',
       type: ProfileType.professional,
-      name: 'Professional',
-      lastUpdated: DateTime.now(),
+      name: 'Alex Rivera',
+      phone: '+1 (555) 987-6543',
+      company: 'TechFlow Solutions',
+      title: 'Senior Product Designer',
+      email: 'alex@techflow.com',
+      website: 'alexrivera.design',
+      socialMedia: {
+        'linkedin': '/in/alexrivera-design'
+      },
+      lastUpdated: now,
       isActive: false,
     );
 
     final customProfile = ProfileData(
-      id: 'custom_${DateTime.now().millisecondsSinceEpoch}',
+      id: 'custom_${baseTime + 2}',
       type: ProfileType.custom,
-      name: 'Custom',
-      lastUpdated: DateTime.now(),
+      name: 'Alex Rivera',
+      phone: '+1 (555) 456-7890',
+      title: 'Content Creator',
+      email: 'hello@alexcreates.co',
+      website: 'alexcreates.co',
+      socialMedia: {
+        'youtube': '@AlexCreates',
+        'instagram': '@alex_creates'
+      },
+      lastUpdated: now,
       isActive: false,
     );
 
@@ -133,6 +159,7 @@ class ProfileService extends ChangeNotifier {
       activeProfileId: personalProfile.id,
       profileOrder: [personalProfile.id, professionalProfile.id, customProfile.id],
     );
+
 
     await _saveProfiles();
     await _saveSettings();

@@ -22,7 +22,6 @@ class MockProfileData {
     profileImagePath: '/mock/photos/sarah.jpg',
     lastUpdated: DateTime.now().subtract(const Duration(days: 7)),
     isActive: true,
-    templateIndex: 0,
   );
 
   /// Social/personal profile for casual connections
@@ -42,7 +41,6 @@ class MockProfileData {
     profileImagePath: '/mock/photos/tyler.jpg',
     lastUpdated: DateTime.now().subtract(const Duration(days: 2)),
     isActive: true,
-    templateIndex: 1,
   );
 
   /// Minimal profile with basic contact info only
@@ -52,10 +50,9 @@ class MockProfileData {
     name: 'Alex Kim',
     email: 'alex.kim.contact@gmail.com',
     phone: '+1-555-0456',
-    socialMedia: {},
+    socialMedia: const {},
     lastUpdated: DateTime.now().subtract(const Duration(days: 30)),
     isActive: false,
-    templateIndex: 0,
   );
 
   /// Custom profile with mixed professional/personal elements
@@ -77,7 +74,6 @@ class MockProfileData {
     profileImagePath: '/mock/photos/maya.jpg',
     lastUpdated: DateTime.now().subtract(const Duration(days: 1)),
     isActive: true,
-    templateIndex: 2,
   );
 
   /// Enterprise profile with complete professional information
@@ -97,7 +93,6 @@ class MockProfileData {
     profileImagePath: '/mock/photos/james.jpg',
     lastUpdated: DateTime.now().subtract(const Duration(hours: 6)),
     isActive: true,
-    templateIndex: 0,
   );
 
   /// Student profile for academic/networking events
@@ -118,7 +113,6 @@ class MockProfileData {
     profileImagePath: '/mock/photos/zoe.jpg',
     lastUpdated: DateTime.now().subtract(const Duration(days: 3)),
     isActive: true,
-    templateIndex: 1,
   );
 
   /// Get all mock profiles as a list
@@ -176,7 +170,6 @@ class MockProfileData {
       profileImagePath: '/mock/photos/${firstName}.jpg',
       lastUpdated: DateTime.now().subtract(Duration(days: timestamp % 30)),
       isActive: timestamp % 4 != 0,
-      templateIndex: timestamp % 3,
     );
   }
 
@@ -195,10 +188,9 @@ class MockProfileData {
     type: ProfileType.professional,
     name: 'Incomplete User',
     // Missing title, company, email, phone
-    socialMedia: {},
+    socialMedia: const {},
     lastUpdated: DateTime.now(),
     isActive: false,
-    templateIndex: 0,
   );
 
   /// Profile with very long data for payload size testing
@@ -219,7 +211,6 @@ class MockProfileData {
     profileImagePath: '/mock/photos/christopher-alexander-montgomery-fitzpatrick.jpg',
     lastUpdated: DateTime.now(),
     isActive: true,
-    templateIndex: 0,
   );
 
   /// Get profile by ID
