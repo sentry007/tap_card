@@ -35,13 +35,7 @@
 
             <!-- NFC Intent filters REMOVED to prevent app restart on NFC detection -->
             <!-- App only writes/shares NFC data manually via FAB button -->
-
-            <!-- Keep minimal NFC intent filter for plugin registration (no autoVerify) -->
-            <intent-filter>
-                <action android:name="android.nfc.action.NDEF_DISCOVERED" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="text/plain" />
-            </intent-filter>
+            <!-- Foreground dispatch doesn't need manifest filters to work -->
 
             <!-- Keep deep link support for future use (not NFC related) -->
             <intent-filter android:autoVerify="true">

@@ -1,3 +1,13 @@
+/// Tap Card - NFC-enabled Digital Business Card Application
+///
+/// A modern Flutter application for sharing contact information via NFC,
+/// featuring glassmorphism UI, multiple profile support, and real-time updates.
+///
+/// TODO: Firebase integration - Backend sync and cloud storage
+/// TODO: Analytics - Track user engagement and sharing metrics
+library;
+
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -5,12 +15,22 @@ import 'package:go_router/go_router.dart';
 
 import 'core/providers/app_state.dart';
 import 'core/navigation/app_router.dart';
+import 'core/constants/widget_keys.dart';
 import 'theme/theme.dart';
 
+/// Application entry point
+///
+/// Initializes Flutter bindings, system UI configuration, and launches the app
 void main() async {
+  // Ensure Flutter is initialized before app starts
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Set system UI overlay style
+  developer.log(
+    '🚀 Tap Card app starting - Initializing system configuration',
+    name: 'App.Main',
+  );
+
+  // Configure system UI overlay for immersive experience
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -20,64 +40,105 @@ void main() async {
     ),
   );
 
-  // Set preferred orientations
+  // Lock orientation to portrait for consistent UX
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
 
+  developer.log(
+    '✅ System configuration complete - Launching app',
+    name: 'App.Main',
+  );
+
+  // TODO: Firebase - Initialize Firebase here
+  // await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
   runApp(const TapCardApp());
 }
 
+/// Root widget for Tap Card application
+///
+/// Manages global state, routing, and theme configuration
 class TapCardApp extends StatefulWidget {
-  const TapCardApp({Key? key}) : super(key: key);
+  const TapCardApp({super.key});
 
   @override
   State<TapCardApp> createState() => _TapCardAppState();
 }
 
 class _TapCardAppState extends State<TapCardApp> {
-  late GoRouter _router;
-  late AppState _appState;
+  /// Global router instance for navigation
+  late final GoRouter _router;
+
+  /// Global app state provider (onboarding, auth, etc.)
+  late final AppState _appState;
 
   @override
   void initState() {
     super.initState();
+
+    developer.log(
+      '📱 Initializing app state and router',
+      name: 'App.Init',
+    );
+
+    // Initialize global state and navigation
     _appState = AppState();
     _router = AppRouter.createRouter();
+
+    // Load persisted state from storage
     _initializeAppState();
   }
 
+  /// Initialize app state from persistent storage
+  ///
+  /// Loads user preferences, onboarding status, and authentication state
+  /// TODO: Firebase - Sync user state from Firestore if authenticated
   Future<void> _initializeAppState() async {
+    final startTime = DateTime.now();
+
     await _appState.initializeFromStorage();
+
+    final duration = DateTime.now().difference(startTime).inMilliseconds;
+    developer.log(
+      '✅ App state initialized in ${duration}ms',
+      name: 'App.Init',
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
-      key: const Key('app_multi_provider'),
+      key: WidgetKeys.appMultiProvider,
       providers: [
+        // Global app state (onboarding, auth, navigation flow)
         ChangeNotifierProvider.value(value: _appState),
+
+        // TODO: Firebase - Add Firebase providers here
+        // Provider<FirebaseAuth>(create: (_) => FirebaseAuth.instance),
+        // Provider<FirebaseFirestore>(create: (_) => FirebaseFirestore.instance),
       ],
       child: Consumer<AppState>(
-        key: const Key('app_state_consumer'),
+        key: WidgetKeys.appStateConsumer,
         builder: (context, appState, child) {
           return MaterialApp.router(
-            key: const Key('app_material_router'),
+            key: WidgetKeys.appMaterialRouter,
             title: 'Tap Card',
             debugShowCheckedModeBanner: false,
             theme: AppTheme.darkTheme,
             routerConfig: _router,
             builder: (context, child) {
+              // Ensure system UI overlay remains consistent across screens
               return AnnotatedRegion<SystemUiOverlayStyle>(
-                key: const Key('app_system_ui_region'),
+                key: WidgetKeys.appSystemUiRegion,
                 value: const SystemUiOverlayStyle(
                   statusBarColor: Colors.transparent,
                   statusBarIconBrightness: Brightness.light,
                   systemNavigationBarColor: AppColors.primaryBackground,
                   systemNavigationBarIconBrightness: Brightness.light,
                 ),
-                child: child ?? const SizedBox(key: Key('app_fallback_box')),
+                child: child ?? const SizedBox(key: WidgetKeys.appFallbackBox),
               );
             },
           );
@@ -88,6 +149,11 @@ class _TapCardAppState extends State<TapCardApp> {
 
   @override
   void dispose() {
+    developer.log(
+      '🛑 App disposing - Cleaning up resources',
+      name: 'App.Dispose',
+    );
+    // AppState and Router are disposed automatically by framework
     super.dispose();
   }
 }

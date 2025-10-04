@@ -10,6 +10,7 @@ class NFCDiscoveryService {
   static Timer? _detectionTimer;
   static Timer? _pollingTimer;
   static bool _isSessionActive = false;
+  static bool _isPaused = false;
 
   /// Initialize NFC discovery for animations only
   static Future<bool> initialize() async {
@@ -84,7 +85,53 @@ class NFCDiscoveryService {
     }
   }
 
-  /// Stop NFC discovery
+  /// Pause NFC discovery temporarily (for write operations)
+  /// Keeps callback registered so discovery can resume later
+  static void pauseDiscovery() {
+    if (!_isInitialized || _isPaused) return;
+
+    try {
+      // Stop continuous polling
+      _pollingTimer?.cancel();
+      _pollingTimer = null;
+
+      // Stop any active session
+      NfcManager.instance.stopSession();
+
+      // Clean up timers but preserve callback
+      _detectionTimer?.cancel();
+      _detectionTimer = null;
+      _isCurrentlyDetected = false;
+      _isSessionActive = false;
+      _isPaused = true;
+
+      // Notify that device is no longer detected
+      _onNfcDetectionChanged?.call(false);
+
+      print('⏸️  NFC discovery paused (preserving callback)');
+    } catch (e) {
+      print('❌ Error pausing NFC discovery: $e');
+    }
+  }
+
+  /// Resume NFC discovery after pause
+  static void resumeDiscovery() {
+    if (!_isInitialized || !_isPaused) return;
+
+    try {
+      _isPaused = false;
+
+      // Restart discovery if we have a callback
+      if (_onNfcDetectionChanged != null) {
+        _startOptimizedDetection();
+        print('▶️  NFC discovery resumed');
+      }
+    } catch (e) {
+      print('❌ Error resuming NFC discovery: $e');
+    }
+  }
+
+  /// Stop NFC discovery completely
   static void stopDiscovery() {
     try {
       // Stop continuous polling
@@ -99,6 +146,7 @@ class NFCDiscoveryService {
       _detectionTimer = null;
       _isCurrentlyDetected = false;
       _isSessionActive = false;
+      _isPaused = false;
       _onNfcDetectionChanged = null;
 
       print('🛑 NFC continuous polling stopped');
@@ -118,6 +166,9 @@ class NFCDiscoveryService {
 
   /// Check if NFC device is currently detected
   static bool get isNfcDetected => _isCurrentlyDetected;
+
+  /// Check if discovery is currently paused
+  static bool get isPaused => _isPaused;
 
   /// Dispose the service
   static void dispose() {

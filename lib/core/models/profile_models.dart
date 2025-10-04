@@ -1,7 +1,36 @@
+/// Profile Data Models
+///
+/// Core data models for the Tap Card application including:
+/// - **ProfileData**: Main user profile with contact information
+/// - **CardAesthetics**: Visual styling for profile cards
+/// - **ProfileSettings**: App-wide profile configuration
+/// - **ValidationResult**: Profile validation results
+///
+/// **Profile Architecture:**
+/// - Supports 3 profile types: Personal, Professional, Custom
+/// - Each profile has unique aesthetic styling
+/// - NFC payload caching for instant sharing
+/// - Local storage with JSON serialization
+/// - Future: Firebase cloud sync
+///
+/// **NFC Optimization:**
+/// - Compact JSON payload format for NTAG213 (144 bytes)
+/// - Shortened field names ('n', 'p', 'e', 'c')
+/// - Cached payload with 5-minute refresh
+/// - Essential fields only for size optimization
+///
+/// TODO: Firebase - Add Firestore sync methods
+/// TODO: Add profile image compression utilities
+/// TODO: Implement profile validation rules engine
+library;
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 
-/// Card aesthetic settings for each profile (color-based, not template indices)
+/// Card aesthetic settings for each profile
+///
+/// Defines the visual appearance of profile cards including colors,
+/// gradients, blur effects, and background images.
 class CardAesthetics {
   final int templateIndex;     // For UI compatibility (0-3)
   final Color primaryColor;    // Main card color
@@ -414,11 +443,16 @@ class ProfileData {
   }
 
   /// Get fresh NFC payload, regenerating cache if needed
+  ///
+  /// Performance: Prefers cached payload for instant NFC sharing.
+  /// Only regenerates if cache is missing or older than 5 minutes.
   String getFreshNfcPayload() {
-    if (needsNfcCacheUpdate) {
-      return _generateNfcPayload();
+    // Use cached payload if available (instant performance)
+    if (_cachedNfcPayload != null && !needsNfcCacheUpdate) {
+      return _cachedNfcPayload!;
     }
-    return nfcPayload;
+    // Regenerate only if cache is stale or missing
+    return _generateNfcPayload();
   }
 }
 

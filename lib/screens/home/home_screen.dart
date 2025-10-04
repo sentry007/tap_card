@@ -16,6 +16,9 @@ import '../../services/nfc_discovery_service.dart';
 import '../../core/constants/routes.dart';
 import '../../models/unified_models.dart';
 
+// Two-state NFC FAB system
+enum NfcFabState { inactive, active }
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
 
@@ -43,9 +46,17 @@ class _HomeScreenState extends State<HomeScreen>
 
   bool _nfcAvailable = false;
   bool _nfcDeviceDetected = false;
+
+  // NFC FAB state
+  NfcFabState _nfcFabState = NfcFabState.inactive;
   late NotificationService _notificationService;
   late ProfileService _profileService;
   late TokenManagerService _tokenManager;
+
+  // NFC Performance Optimization: Pre-cached data for instant sharing
+  ProfileData? _cachedActiveProfile;  // Pre-cached active profile
+  String? _cachedNfcPayload;          // Pre-cached JSON payload
+  bool _isPayloadReady = false;       // True when payload is cached and ready
 
   // Mock recent contacts data
   List<Contact> _recentContacts = [];
@@ -59,6 +70,16 @@ class _HomeScreenState extends State<HomeScreen>
     _initServices();
     _initAnimations();
     _loadContacts();
+    _preCacheNfcPayload(); // Pre-cache for instant NFC sharing
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Refresh cache when returning to screen or when profile data changes
+    // This ensures payload stays fresh without requiring app restart
+    print('🔄 DEBUG: Refreshing NFC cache (screen resumed or data changed)');
+    _preCacheNfcPayload();
   }
 
   void _initServices() {
@@ -257,6 +278,20 @@ class _HomeScreenState extends State<HomeScreen>
   void _onNfcTap() async {
     print('🔥 DEBUG: FAB button tapped - _onNfcTap() called');
     HapticFeedback.mediumImpact();
+
+    // Two-state FAB system: Toggle between inactive and active
+    if (_nfcFabState == NfcFabState.inactive) {
+      // ACTIVATE NFC write mode
+      await _activateNfcWriteMode();
+    } else {
+      // DEACTIVATE/CANCEL NFC write mode
+      await _deactivateNfcWriteMode();
+    }
+  }
+
+  /// Activate NFC write mode - FAB goes to "active" state
+  Future<void> _activateNfcWriteMode() async {
+    print('🔥 DEBUG: Activating NFC write mode');
     _fabController.forward().then((_) => _fabController.reverse());
 
     print('🔥 DEBUG: Checking NFC availability - _nfcAvailable: $_nfcAvailable');
@@ -266,66 +301,108 @@ class _HomeScreenState extends State<HomeScreen>
       return;
     }
 
-    setState(() => _isNfcLoading = true);
-
-    try {
-      // Get active profile for sharing
-      print('🔥 DEBUG: Getting active profile for sharing');
-      final activeProfile = await _getActiveProfileForSharing();
-      if (activeProfile == null) {
-        print('🔥 DEBUG: No active profile found');
-        setState(() => _isNfcLoading = false);
-        _showErrorMessage('No active profile found. Please set up your profile first.');
+    // ⚡ PERFORMANCE: Check if payload is cached and ready (INSTANT check)
+    print('🔥 DEBUG: Checking cached payload - _isPayloadReady: $_isPayloadReady');
+    if (!_isPayloadReady || _cachedNfcPayload == null) {
+      print('⚠️  DEBUG: Payload not ready, attempting to cache now...');
+      _showErrorMessage('Profile not ready. Please wait a moment...');
+      await _preCacheNfcPayload(); // Try to cache now
+      if (!_isPayloadReady || _cachedNfcPayload == null) {
         return;
       }
-      print('🔥 DEBUG: Active profile found: ${activeProfile.name}');
+    }
 
-      // Show loading dialog for phone-to-phone NFC
-      _showNfcScanningDialog();
+    print('✅ DEBUG: Using cached payload (INSTANT) - ${_cachedNfcPayload!.length} chars');
 
-      // Get fresh optimized payload
-      print('🔥 DEBUG: Getting fresh NFC payload');
-      final freshPayload = activeProfile.getFreshNfcPayload();
-      print('🔥 DEBUG: Payload size: ${freshPayload.length} characters');
+    // CRITICAL: Pause NFC discovery service to prevent session conflicts
+    print('⏸️  DEBUG: Pausing NFC discovery service before write...');
+    NFCDiscoveryService.pauseDiscovery();
 
-      // Share via instant NFC service with optimized payload
-      print('🔥 DEBUG: Calling NFCService.shareProfileInstant()...');
-      final result = await NFCService.shareProfileInstant(freshPayload);
-      print('🔥 DEBUG: NFCService.shareProfileInstant() returned: ${result.toString()}');
+    // Change FAB state to ACTIVE
+    setState(() {
+      _nfcFabState = NfcFabState.active;
+      _isNfcLoading = true;
+    });
+
+    // Start pulse animation for active state
+    _pulseController.repeat(reverse: true);
+
+    try {
+      // IMPORTANT: Don't show dialog - it pauses the activity and breaks foreground dispatch!
+      // Show visual feedback on FAB instead
+
+      // ⚡ Share via instant NFC service with PRE-CACHED payload (NO async calls!)
+      print('🚀 DEBUG: Calling NFCService.shareProfileInstant() with cached payload...');
+      final startTime = DateTime.now();
+
+      final result = await NFCService.shareProfileInstant(_cachedNfcPayload!);
+
+      final duration = DateTime.now().difference(startTime).inMilliseconds;
+      print('⏱️  DEBUG: NFC operation completed in ${duration}ms');
+      print('📊 DEBUG: NFCService returned: ${result.toString()}');
+
       final success = result.isSuccess;
 
       if (mounted) {
-        setState(() => _isNfcLoading = false);
-        // Close the scanning dialog safely
-        try {
-          Navigator.of(context, rootNavigator: true).pop();
-        } catch (e) {
-          print('🔥 DEBUG: Dialog already closed or navigation error: $e');
-        }
+        // Return FAB to inactive state
+        setState(() {
+          _nfcFabState = NfcFabState.inactive;
+          _isNfcLoading = false;
+        });
+        _pulseController.stop();
+        _pulseController.reset();
 
         if (success) {
-          // Don't mark as shared/received for sending - only for receiving
-          // This prevents unwanted navigation away from home screen
-          _showSuccessMessage('Profile shared successfully! 🎉');
+          _showSuccessMessage('Written to NFC tag! 🎉');
         } else if (result.error == 'Timeout') {
-          _showErrorMessage('NFC timeout - No device or tag detected. Bring an NFC tag or device within 4cm and try again.');
+          _showErrorMessage('No NFC tag detected. Bring tag within 4cm and try again.');
         } else {
-          _showErrorMessage('NFC sharing failed: ${result.error}. Ensure NFC is enabled and the tag is writable.');
+          _showErrorMessage('NFC write failed: ${result.error}');
         }
       }
     } catch (e) {
-      print('🔥 DEBUG: Exception in _onNfcTap(): $e');
+      print('❌ DEBUG: Exception in _activateNfcWriteMode(): $e');
       if (mounted) {
-        setState(() => _isNfcLoading = false);
-        // Close the scanning dialog safely
-        try {
-          Navigator.of(context, rootNavigator: true).pop();
-        } catch (navError) {
-          print('🔥 DEBUG: Dialog already closed or navigation error: $navError');
-        }
-        _showErrorMessage('Failed to share card: $e');
+        setState(() {
+          _nfcFabState = NfcFabState.inactive;
+          _isNfcLoading = false;
+        });
+        _pulseController.stop();
+        _pulseController.reset();
+        _showErrorMessage('Failed to activate NFC: $e');
       }
+    } finally {
+      // CRITICAL: Always resume discovery service, even on errors
+      print('▶️  DEBUG: Resuming NFC discovery service after write...');
+      NFCDiscoveryService.resumeDiscovery();
     }
+  }
+
+  /// Deactivate NFC write mode - Cancel operation
+  Future<void> _deactivateNfcWriteMode() async {
+    print('🔥 DEBUG: Deactivating NFC write mode (user cancelled)');
+    HapticFeedback.lightImpact();
+
+    // Call native to cancel write mode
+    try {
+      await NFCService.cancelSession();
+    } catch (e) {
+      print('⚠️ Failed to cancel NFC session: $e');
+    }
+
+    if (mounted) {
+      setState(() {
+        _nfcFabState = NfcFabState.inactive;
+        _isNfcLoading = false;
+      });
+      _pulseController.stop();
+      _pulseController.reset();
+      _showInfoMessage('NFC write cancelled');
+    }
+
+    // Resume NFC discovery service after cancellation
+    print('▶️  DEBUG: Resuming NFC discovery service after cancellation...');
+    NFCDiscoveryService.resumeDiscovery();
   }
 
   void _showShareModal() {
@@ -560,6 +637,24 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  void _showInfoMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.info, color: Colors.blueAccent),
+            const SizedBox(width: 12),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: AppColors.surfaceDark,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
   void _onSettingsTap() {
     HapticFeedback.lightImpact();
     context.go(AppRoutes.settings);
@@ -588,6 +683,57 @@ class _HomeScreenState extends State<HomeScreen>
     } catch (e) {
       debugPrint('Error getting active profile: $e');
       return null;
+    }
+  }
+
+  /// Pre-cache active profile and NFC payload for instant sharing
+  ///
+  /// This method runs at startup and whenever the profile changes,
+  /// ensuring the NFC tap handler has everything ready immediately.
+  Future<void> _preCacheNfcPayload() async {
+    try {
+      print('⚡ DEBUG: Pre-caching NFC payload for instant sharing...');
+      final startTime = DateTime.now();
+
+      // Get active profile (synchronous from service)
+      final profile = await _getActiveProfileForSharing();
+
+      if (profile == null) {
+        print('⚠️  DEBUG: No active profile found for caching');
+        if (mounted) {
+          setState(() {
+            _cachedActiveProfile = null;
+            _cachedNfcPayload = null;
+            _isPayloadReady = false;
+          });
+        }
+        return;
+      }
+
+      // Get cached NFC payload (should be pre-generated)
+      final payload = profile.getFreshNfcPayload();
+
+      final duration = DateTime.now().difference(startTime).inMilliseconds;
+      print('✅ DEBUG: NFC payload cached in ${duration}ms');
+      print('📦 DEBUG: Cached payload size: ${payload.length} chars');
+      print('👤 DEBUG: Cached profile: ${profile.name}');
+
+      if (mounted) {
+        setState(() {
+          _cachedActiveProfile = profile;
+          _cachedNfcPayload = payload;
+          _isPayloadReady = true;
+        });
+      }
+    } catch (e) {
+      print('❌ DEBUG: Error pre-caching NFC payload: $e');
+      if (mounted) {
+        setState(() {
+          _cachedActiveProfile = null;
+          _cachedNfcPayload = null;
+          _isPayloadReady = false;
+        });
+      }
     }
   }
 
@@ -936,6 +1082,35 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildFabContent() {
+    // TWO-STATE FAB SYSTEM
+    if (_nfcFabState == NfcFabState.active) {
+      // ACTIVE STATE: Pulsing animation + "Tap tag" text
+      return Column(
+        key: const Key('home_nfc_fab_active'),
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ScaleTransition(
+            scale: _pulseScale,
+            child: Icon(
+              Icons.nfc,
+              color: Colors.greenAccent,
+              size: 28,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Tap Tag',
+            style: TextStyle(
+              color: Colors.greenAccent,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      );
+    }
+
+    // INACTIVE STATE: Normal NFC icon
     if (_isNfcLoading) {
       return SizedBox(
         key: const Key('home_nfc_fab_loading'),
@@ -951,38 +1126,21 @@ class _HomeScreenState extends State<HomeScreen>
       );
     }
 
-    // Simple NFC icon - no complex state management
+    // Simple NFC icon - inactive state
     IconData iconData = _nfcAvailable ? Icons.nfc : Icons.nfc_outlined;
-    final hasDevice = _nfcDeviceDetected;
 
     return AnimatedContainer(
       key: const Key('home_nfc_fab_icon_container'),
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
-      decoration: hasDevice ? BoxDecoration(
-        boxShadow: [
-          BoxShadow(
-            color: Colors.white.withOpacity(0.3),
-            blurRadius: 16,
-            spreadRadius: 1,
-          ),
-          BoxShadow(
-            color: Colors.white.withOpacity(0.15),
-            blurRadius: 24,
-            spreadRadius: 2,
-          ),
-        ],
-      ) : null,
       child: AnimatedSwitcher(
         duration: const Duration(milliseconds: 300),
         child: Icon(
           iconData,
-          key: ValueKey('${iconData.codePoint}_${hasDevice}'),
+          key: ValueKey('${iconData.codePoint}'),
           color: !_nfcAvailable
               ? AppColors.textSecondary  // Gray when NFC not available
-              : _nfcDeviceDetected
-                  ? Colors.white  // Bright white when NFC device detected
-                  : Colors.white.withOpacity(0.6),  // Dull white when no device
+              : Colors.white.withOpacity(0.9),  // White when available
           size: 56,
         ),
       ),
