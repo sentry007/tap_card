@@ -84,12 +84,21 @@ class NFCConstants {
   // Payload size limits (in bytes)
   static const int ntag213MaxBytes = 144;           // NTAG213 capacity
   static const int ntag215MaxBytes = 504;           // NTAG215 capacity
+  static const int ntag216MaxBytes = 888;           // NTAG216 capacity
   static const int targetPayloadSize = ntag213MaxBytes; // Target for optimization
 
   // Timeout values (in seconds)
   static const int sessionTimeoutSeconds = 30;      // NFC session timeout
   static const int discoveryTimeoutSeconds = 5;     // Device discovery timeout
-  static const int writeTimeoutSeconds = 10;        // Write operation timeout
+  static const int writeTimeoutSeconds = 15;        // Write operation timeout (increased from 10s)
+
+  // Timeout values (in milliseconds)
+  static const int writeTimeoutMs = writeTimeoutSeconds * 1000;  // 15000ms
+  static const int activityResumeDelayMs = 150;     // Delay for activity resume check
+  static const int discoveryHoldPeriodMs = 7000;    // Discovery hold period after tag detected
+
+  // Discovery service timeouts
+  static const int discoveryRestartDelayMs = 500;   // Delay before restarting discovery
 
   // Cache management
   static const int cacheRefreshMinutes = 5;         // Refresh NFC payload cache every 5 minutes
@@ -101,6 +110,10 @@ class NFCConstants {
   static const String appId = 'tc';                 // Shortened app ID for compact payload
   static const String appIdFull = 'tap_card';       // Full app identifier
   static const String payloadVersion = '1';         // Payload format version
+
+  // Tag capacity warnings (in bytes)
+  static const int nearCapacityThreshold = 128;     // Warn when payload is near tag capacity
+  static const int criticalCapacityThreshold = 140; // Critical warning threshold
 }
 
 /// Profile Configuration Constants

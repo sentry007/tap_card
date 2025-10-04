@@ -32,6 +32,8 @@ import 'dart:developer' as developer;
 import 'package:flutter/services.dart';
 import 'package:nfc_manager/nfc_manager.dart';
 
+import '../core/constants/app_constants.dart';
+
 /// Singleton service managing all NFC operations
 class NFCService {
   static bool _isAvailable = false;
@@ -184,7 +186,7 @@ class NFCService {
   /// @returns NFCResult with operation status and metrics
   static Future<NFCResult> writeData(
     Map<String, dynamic> data, {
-    Duration timeout = const Duration(seconds: 10),
+    Duration timeout = const Duration(seconds: NFCConstants.writeTimeoutSeconds),
   }) async {
     // Validate NFC availability
     if (!_isAvailable) {

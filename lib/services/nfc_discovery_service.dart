@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'package:nfc_manager/nfc_manager.dart';
+
+import '../core/constants/app_constants.dart';
 
 /// Simple NFC discovery service for FAB animations only
 /// Does NOT handle navigation or data processing
@@ -61,15 +64,15 @@ class NFCDiscoveryService {
           // Cancel any existing timeout
           _detectionTimer?.cancel();
 
-          // Extended 7-second active period for better user experience
+          // Extended active period for better user experience
           // This gives users ample time to position and use their devices
-          _detectionTimer = Timer(const Duration(milliseconds: 7000), () {
+          _detectionTimer = Timer(const Duration(milliseconds: NFCConstants.discoveryHoldPeriodMs), () {
             if (_isCurrentlyDetected) {
               _isCurrentlyDetected = false;
               _onNfcDetectionChanged?.call(false);
 
               // Restart session for next detection after a brief pause
-              Timer(const Duration(milliseconds: 500), () {
+              Timer(const Duration(milliseconds: NFCConstants.discoveryRestartDelayMs), () {
                 if (_isInitialized && !_isCurrentlyDetected) {
                   _startOptimizedDetection();
                 }
@@ -108,9 +111,9 @@ class NFCDiscoveryService {
       // Notify that device is no longer detected
       _onNfcDetectionChanged?.call(false);
 
-      print('⏸️  NFC discovery paused (preserving callback)');
+      developer.log('⏸️  NFC discovery paused (preserving callback)', name: 'NFC.Discovery');
     } catch (e) {
-      print('❌ Error pausing NFC discovery: $e');
+      developer.log('❌ Error pausing NFC discovery: $e', name: 'NFC.Discovery', error: e);
     }
   }
 
@@ -124,10 +127,10 @@ class NFCDiscoveryService {
       // Restart discovery if we have a callback
       if (_onNfcDetectionChanged != null) {
         _startOptimizedDetection();
-        print('▶️  NFC discovery resumed');
+        developer.log('▶️  NFC discovery resumed', name: 'NFC.Discovery');
       }
     } catch (e) {
-      print('❌ Error resuming NFC discovery: $e');
+      developer.log('❌ Error resuming NFC discovery: $e', name: 'NFC.Discovery', error: e);
     }
   }
 
@@ -149,9 +152,9 @@ class NFCDiscoveryService {
       _isPaused = false;
       _onNfcDetectionChanged = null;
 
-      print('🛑 NFC continuous polling stopped');
+      developer.log('🛑 NFC continuous polling stopped', name: 'NFC.Discovery');
     } catch (e) {
-      print('❌ Error stopping NFC discovery: $e');
+      developer.log('❌ Error stopping NFC discovery: $e', name: 'NFC.Discovery', error: e);
     }
   }
 
@@ -174,6 +177,6 @@ class NFCDiscoveryService {
   static void dispose() {
     stopDiscovery();
     _isInitialized = false;
-    print('📱 NFC Discovery Service disposed');
+    developer.log('📱 NFC Discovery Service disposed', name: 'NFC.Discovery');
   }
 }
