@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:ui';
 import 'dart:io';
 import 'dart:async';
@@ -17,6 +19,9 @@ import '../../services/nfc_service.dart';
 import '../../services/nfc_discovery_service.dart';
 import '../../core/constants/routes.dart';
 import '../../models/unified_models.dart';
+import '../../models/history_models.dart';
+import '../../services/history_service.dart';
+import '../../widgets/history/method_chip.dart';
 
 // Five-state NFC FAB system for comprehensive user feedback
 enum NfcFabState {
@@ -59,6 +64,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   // NFC FAB state
   NfcFabState _nfcFabState = NfcFabState.inactive;
+  NfcMode _nfcMode = NfcMode.tagWrite; // Default to tag write mode
   late NotificationService _notificationService;
   late ProfileService _profileService;
   late TokenManagerService _tokenManager;
@@ -73,9 +79,6 @@ class _HomeScreenState extends State<HomeScreen>
 
   // Mock recent contacts data
   List<Contact> _recentContacts = [];
-
-  // Mock recent history data
-  List<HistoryActivity> _recentHistory = [];
 
   @override
   void initState() {
@@ -102,6 +105,7 @@ class _HomeScreenState extends State<HomeScreen>
 
     // Initialize services
     _initializeNFC();
+    _initializeHistory();
 
     // Setup notification callback
     _notificationService.setCardReceivedCallback(_handleCardReceived);
@@ -110,6 +114,10 @@ class _HomeScreenState extends State<HomeScreen>
 
     // Clean up expired tokens on app start
     _tokenManager.cleanupExpiredTokens();
+  }
+
+  Future<void> _initializeHistory() async {
+    await HistoryService.initialize();
   }
 
   Future<void> _initializeNFC() async {
@@ -250,7 +258,6 @@ class _HomeScreenState extends State<HomeScreen>
     if (mounted) {
       setState(() {
         _recentContacts = _generateMockContacts();
-        _recentHistory = _generateMockHistory();
         _isContactsLoading = false;
       });
       _contactsController.forward();
@@ -267,34 +274,6 @@ class _HomeScreenState extends State<HomeScreen>
     ];
   }
 
-  List<HistoryActivity> _generateMockHistory() {
-    return [
-      HistoryActivity(
-        type: HistoryType.sent,
-        contactName: 'John Williams',
-        timestamp: DateTime.now().subtract(const Duration(minutes: 5)),
-        method: 'NFC',
-      ),
-      HistoryActivity(
-        type: HistoryType.received,
-        contactName: 'Maria Garcia',
-        timestamp: DateTime.now().subtract(const Duration(hours: 2)),
-        method: 'QR Code',
-      ),
-      HistoryActivity(
-        type: HistoryType.qr,
-        contactName: 'QR Scan',
-        timestamp: DateTime.now().subtract(const Duration(hours: 4)),
-        method: 'Camera',
-      ),
-      HistoryActivity(
-        type: HistoryType.sent,
-        contactName: 'Alex Thompson',
-        timestamp: DateTime.now().subtract(const Duration(days: 1)),
-        method: 'NFC',
-      ),
-    ];
-  }
 
   Future<void> _onRefresh() async {
     HapticFeedback.lightImpact();
@@ -303,16 +282,161 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _onNfcTap() async {
     developer.log('🔥 FAB button tapped - _onNfcTap() called', name: 'Home.NFC');
+    developer.log('   Current mode: ${_nfcMode == NfcMode.tagWrite ? "Tag Write" : "P2P Share"}', name: 'Home.NFC');
     HapticFeedback.mediumImpact();
 
-    // Two-state FAB system: Toggle between inactive and active
-    if (_nfcFabState == NfcFabState.inactive) {
-      // ACTIVATE NFC write mode
-      await _activateNfcWriteMode();
+    // Route based on current NFC mode
+    if (_nfcMode == NfcMode.tagWrite) {
+      // TAG WRITE MODE
+      if (_nfcFabState == NfcFabState.inactive) {
+        await _activateNfcWriteMode();
+      } else {
+        await _deactivateNfcWriteMode();
+      }
     } else {
-      // DEACTIVATE/CANCEL NFC write mode
-      await _deactivateNfcWriteMode();
+      // P2P SHARE MODE
+      if (_nfcFabState == NfcFabState.inactive) {
+        await _activateP2pMode();
+      } else {
+        await _deactivateP2pMode();
+      }
     }
+  }
+
+  /// Show mode picker bottom sheet
+  void _showModePicker() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        margin: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceDark.withOpacity(0.95),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.glassBorder, width: 1),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 20),
+            Text(
+              'Select NFC Mode',
+              style: AppTextStyles.h3.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 20),
+            _buildModeOption(
+              icon: CupertinoIcons.arrow_up_arrow_down_square,
+              title: 'Write to NFC Tag',
+              subtitle: 'Write your card to physical NFC tags',
+              isSelected: _nfcMode == NfcMode.tagWrite,
+              onTap: () {
+                Navigator.pop(context);
+                _switchToMode(NfcMode.tagWrite);
+              },
+            ),
+            const Divider(color: AppColors.glassBorder, height: 1),
+            _buildModeOption(
+              icon: CupertinoIcons.radiowaves_right,
+              title: 'Phone-to-Phone Share',
+              subtitle: 'Let others tap their phone against yours',
+              isSelected: _nfcMode == NfcMode.p2pShare,
+              isAvailable: NFCService.isHceSupported,
+              onTap: () {
+                Navigator.pop(context);
+                _switchToMode(NfcMode.p2pShare);
+              },
+            ),
+            SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModeOption({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required bool isSelected,
+    required VoidCallback onTap,
+    bool isAvailable = true,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: isAvailable ? onTap : () {
+          Navigator.pop(context);
+          _showErrorMessage('Phone-to-Phone mode not supported on this device');
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? AppColors.primaryAction.withOpacity(0.2)
+                      : AppColors.glassBorder.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  color: isSelected
+                      ? AppColors.primaryAction
+                      : (isAvailable ? AppColors.textSecondary : AppColors.textTertiary),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: AppTextStyles.body.copyWith(
+                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                        color: isAvailable ? AppColors.textPrimary : AppColors.textTertiary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (isSelected)
+                Icon(
+                  CupertinoIcons.checkmark_circle_fill,
+                  color: AppColors.primaryAction,
+                  size: 24,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Switch to a new NFC mode
+  void _switchToMode(NfcMode newMode) {
+    if (_nfcMode == newMode) return;
+
+    setState(() {
+      _nfcMode = newMode;
+    });
+
+    NFCService.switchMode(newMode);
+    HapticFeedback.lightImpact();
+
+    final modeName = newMode == NfcMode.tagWrite ? 'Tag Write' : 'Phone-to-Phone';
+    _showInfoMessage('Switched to $modeName mode');
   }
 
   /// Activate NFC write mode - FAB goes to "active" state
@@ -382,6 +506,11 @@ class _HomeScreenState extends State<HomeScreen>
           _successController.forward();
           _showSuccessMessage('Written to NFC tag! 🎉');
           _scheduleStateReset(duration: const Duration(seconds: 2));
+
+          // Add to history
+          final tagId = result.tagId ?? 'TAG_${DateTime.now().millisecondsSinceEpoch}';
+          final tagType = result.tagType ?? 'NTAG';
+          _addNfcWriteToHistory(tagId, tagType);
         } else {
           // ERROR state - instant transition from active
           setState(() {
@@ -439,6 +568,131 @@ class _HomeScreenState extends State<HomeScreen>
     NFCDiscoveryService.resumeDiscovery();
   }
 
+  /// Activate P2P mode - Phone acts as NFC tag via HCE
+  Future<void> _activateP2pMode() async {
+    developer.log('🔥 Activating P2P Share mode (HCE)', name: 'Home.P2P');
+    _fabController.forward().then((_) => _fabController.reverse());
+
+    developer.log('🔍 Checking HCE availability - isHceSupported: ${NFCService.isHceSupported}', name: 'Home.P2P');
+    if (!NFCService.isHceSupported) {
+      developer.log('❌ HCE not supported on this device', name: 'Home.P2P');
+      _showErrorMessage('Phone-to-Phone mode not supported on this device');
+      return;
+    }
+
+    // Check if payload is ready
+    developer.log('🔍 Checking cached payload - _isPayloadReady: $_isPayloadReady', name: 'Home.P2P');
+    if (!_isPayloadReady || _cachedNfcPayload == null) {
+      developer.log('⚠️ Payload not ready, attempting to cache now...', name: 'Home.P2P');
+      _showErrorMessage('Profile not ready. Please wait a moment...');
+      await _preCacheNfcPayload();
+      if (!_isPayloadReady || _cachedNfcPayload == null) {
+        return;
+      }
+    }
+
+    developer.log('✅ Using cached payload (INSTANT) - ${_cachedNfcPayload!.length} chars', name: 'Home.P2P');
+
+    // CRITICAL: Pause NFC discovery service to prevent conflicts
+    developer.log('⏸️ Pausing NFC discovery service before HCE...', name: 'Home.P2P');
+    NFCDiscoveryService.pauseDiscovery();
+
+    // Change FAB state to ACTIVE
+    setState(() {
+      _nfcFabState = NfcFabState.active;
+    });
+
+    // Start breathing and ripple animations
+    _pulseController.repeat(reverse: true);
+    _rippleController.repeat();
+
+    try {
+      developer.log('🚀 Calling NFCService.startCardEmulation() with cached payload...', name: 'Home.P2P');
+      final startTime = DateTime.now();
+
+      // Start HCE card emulation
+      final result = await NFCService.startCardEmulation(_cachedNfcPayload!);
+
+      final duration = DateTime.now().difference(startTime).inMilliseconds;
+      developer.log('⏱️ P2P operation completed in ${duration}ms', name: 'Home.P2P');
+      developer.log('📊 NFCService returned: ${result.toString()}', name: 'Home.P2P');
+
+      if (mounted) {
+        if (result.isSuccess) {
+          // Keep in ACTIVE state - HCE is now running and waiting for tap
+          developer.log(
+            '✅ P2P mode activated successfully\n'
+            '   📲 Your phone is now acting as an NFC tag\n'
+            '   👉 Other phones can tap to receive your card\n'
+            '   🔹 Status: ACTIVE and waiting\n'
+            '   🔹 Tap FAB again to stop sharing',
+            name: 'Home.P2P'
+          );
+          _showSuccessMessage('Ready! Hold phones together to share');
+        } else {
+          // ERROR state
+          _pulseController.stop();
+          _rippleController.stop();
+          setState(() {
+            _nfcFabState = NfcFabState.error;
+          });
+          developer.log('❌ Failed to start P2P mode: ${result.error}', name: 'Home.P2P');
+          _showErrorMessage('Failed to start P2P mode: ${result.error}');
+          _scheduleStateReset(duration: const Duration(seconds: 3));
+        }
+      }
+    } catch (e, stackTrace) {
+      developer.log(
+        '❌ Exception in _activateP2pMode(): $e',
+        name: 'Home.P2P',
+        error: e,
+        stackTrace: stackTrace
+      );
+      if (mounted) {
+        _pulseController.stop();
+        _rippleController.stop();
+        setState(() {
+          _nfcFabState = NfcFabState.error;
+        });
+        _showErrorMessage('Failed to activate P2P: $e');
+        _scheduleStateReset(duration: const Duration(seconds: 3));
+      }
+    } finally {
+      // Note: DON'T resume discovery service here - keep it paused while HCE is active
+      developer.log('ℹ️ Discovery service remains paused while P2P mode is active', name: 'Home.P2P');
+    }
+  }
+
+  /// Deactivate P2P mode - Stop HCE
+  Future<void> _deactivateP2pMode() async {
+    developer.log('🔥 Deactivating P2P mode (user cancelled or completed)', name: 'Home.P2P');
+    HapticFeedback.lightImpact();
+
+    // Stop HCE card emulation
+    try {
+      developer.log('🛑 Calling NFCService.stopCardEmulation()...', name: 'Home.P2P');
+      await NFCService.stopCardEmulation();
+      developer.log('✅ HCE stopped successfully', name: 'Home.P2P');
+    } catch (e) {
+      developer.log('⚠️ Failed to stop HCE: $e', name: 'Home.P2P', error: e);
+    }
+
+    if (mounted) {
+      setState(() {
+        _nfcFabState = NfcFabState.inactive;
+      });
+      _pulseController.stop();
+      _rippleController.stop();
+      _pulseController.reset();
+      _rippleController.reset();
+      _showInfoMessage('P2P sharing stopped');
+    }
+
+    // Resume NFC discovery service after deactivation
+    developer.log('▶️ Resuming NFC discovery service after P2P deactivation...', name: 'Home.P2P');
+    NFCDiscoveryService.resumeDiscovery();
+  }
+
   /// Schedule automatic reset from success/error state to inactive
   void _scheduleStateReset({required Duration duration}) {
     _stateResetTimer?.cancel();
@@ -473,7 +727,7 @@ class _HomeScreenState extends State<HomeScreen>
           borderRadius: BorderRadius.circular(12),
         ),
         child: Icon(
-          Icons.nfc,
+          CupertinoIcons.antenna_radiowaves_left_right,
           color: AppColors.primaryAction,
           size: 32,
         ),
@@ -505,7 +759,7 @@ class _HomeScreenState extends State<HomeScreen>
           borderRadius: BorderRadius.circular(12),
         ),
         child: Icon(
-          Icons.nfc,
+          CupertinoIcons.antenna_radiowaves_left_right,
           color: AppColors.primaryAction,
           size: 32,
         ),
@@ -576,7 +830,7 @@ class _HomeScreenState extends State<HomeScreen>
           borderRadius: BorderRadius.circular(12),
         ),
         child: Icon(
-          Icons.settings,
+          CupertinoIcons.settings,
           color: AppColors.primaryAction,
           size: 32,
         ),
@@ -653,7 +907,7 @@ class _HomeScreenState extends State<HomeScreen>
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.check_circle, color: AppColors.success),
+            Icon(CupertinoIcons.check_mark_circled_solid, color: AppColors.success),
             const SizedBox(width: 12),
             Text(message),
           ],
@@ -671,7 +925,7 @@ class _HomeScreenState extends State<HomeScreen>
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.error, color: AppColors.error),
+            Icon(CupertinoIcons.exclamationmark_circle_fill, color: AppColors.error),
             const SizedBox(width: 12),
             Expanded(child: Text(message)),
           ],
@@ -689,7 +943,7 @@ class _HomeScreenState extends State<HomeScreen>
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.info, color: Colors.blueAccent),
+            Icon(CupertinoIcons.info_circle_fill, color: Colors.blueAccent),
             const SizedBox(width: 12),
             Expanded(child: Text(message)),
           ],
@@ -801,6 +1055,90 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  /// Add NFC tag write to history
+  Future<void> _addNfcWriteToHistory(String tagId, String tagType) async {
+    try {
+      await HistoryService.addTagEntry(
+        tagId: tagId,
+        tagType: tagType,
+        method: ShareMethod.tag,
+        tagCapacity: _getTagCapacity(tagType),
+      );
+      developer.log('✅ NFC write added to history: $tagId ($tagType)', name: 'Home.History');
+    } catch (e) {
+      developer.log('❌ Error adding NFC write to history: $e', name: 'Home.History', error: e);
+    }
+  }
+
+  /// Get tag capacity based on tag type
+  int? _getTagCapacity(String tagType) {
+    if (tagType.contains('213')) return 144;
+    if (tagType.contains('215')) return 504;
+    if (tagType.contains('216')) return 888;
+    return null;
+  }
+
+  // Launch methods for ProfileCardPreview interactions
+  Future<void> _launchEmail(String email) async {
+    final uri = Uri(scheme: 'mailto', path: email);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    }
+  }
+
+  Future<void> _launchPhone(String phone) async {
+    final uri = Uri(scheme: 'tel', path: phone);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    }
+  }
+
+  Future<void> _launchUrl(String url) async {
+    Uri uri;
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      uri = Uri.parse('https://$url');
+    } else {
+      uri = Uri.parse(url);
+    }
+
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  Future<void> _launchSocialMedia(String platform, String url) async {
+    String finalUrl = url;
+    if (!url.startsWith('http')) {
+      finalUrl = _getSocialUrl(platform, url);
+    }
+    await _launchUrl(finalUrl);
+  }
+
+  String _getSocialUrl(String platform, String username) {
+    final cleanUsername = username.startsWith('@') ? username.substring(1) : username;
+    switch (platform.toLowerCase()) {
+      case 'linkedin':
+        return 'https://linkedin.com/in/$cleanUsername';
+      case 'twitter':
+      case 'x':
+        return 'https://twitter.com/$cleanUsername';
+      case 'github':
+        return 'https://github.com/$cleanUsername';
+      case 'instagram':
+        return 'https://instagram.com/$cleanUsername';
+      case 'behance':
+        return 'https://behance.net/$cleanUsername';
+      case 'dribbble':
+        return 'https://dribbble.com/$cleanUsername';
+      case 'tiktok':
+        return 'https://tiktok.com/@$cleanUsername';
+      case 'youtube':
+        return 'https://youtube.com/@$cleanUsername';
+      default:
+        return username;
+    }
+  }
+
   @override
   void dispose() {
     // Cancel state reset timer
@@ -821,71 +1159,81 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
+    final statusBarHeight = MediaQuery.of(context).padding.top;
+
     return Scaffold(
       key: const Key('home-screen'),
-      body: Container(
-        key: const Key('home-background'),
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppColors.primaryBackground,
-              AppColors.surfaceDark,
-            ],
-          ),
-        ),
-        child: RefreshIndicator(
-          key: _refreshKey,
-          onRefresh: _onRefresh,
-          color: AppColors.primaryAction,
-          backgroundColor: AppColors.surfaceDark,
-          child: Column(
-            key: const Key('home-layout'),
-            children: [
-              _buildGlassAppBar(),
-              Expanded(
-                key: const Key('home-content'),
-                child: SingleChildScrollView(
-                  key: const Key('home-scroll'),
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 40),
-                      _isPreviewMode ? _buildCardPreview() : _buildHeroNfcFab(),
-                      const SizedBox(height: 16),
-                      _isPreviewMode ? _buildPreviewText() : _buildTapToShareText(),
-                      const SizedBox(height: 60),
-                      _buildRecentContactsStrip(),
-                      const SizedBox(height: 32),
-                      _buildRecentHistoryStrip(),
-                      const SizedBox(height: 80), // Space for bottom nav
-                    ],
-                  ),
+      body: Stack(
+        children: [
+          // Background gradient (full screen behind everything)
+          Positioned.fill(
+            child: Container(
+              key: const Key('home-background'),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    AppColors.primaryBackground,
+                    AppColors.surfaceDark,
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
-        ),
+          // Content scrolls from top
+          RefreshIndicator(
+            key: _refreshKey,
+            onRefresh: _onRefresh,
+            color: AppColors.primaryAction,
+            backgroundColor: AppColors.surfaceDark,
+            child: SingleChildScrollView(
+              key: const Key('home-scroll'),
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: Column(
+                key: const Key('home-layout'),
+                children: [
+                  SizedBox(height: statusBarHeight + 80 + 40), // App bar space + original spacing
+                  _isPreviewMode ? _buildCardPreview() : _buildHeroNfcFab(),
+                  const SizedBox(height: 16),
+                  _isPreviewMode ? _buildPreviewText() : _buildTapToShareText(),
+                  const SizedBox(height: 60),
+                  _buildRecentContactsStrip(),
+                  const SizedBox(height: 32),
+                  _buildRecentHistoryStrip(),
+                  const SizedBox(height: 80), // Space for bottom nav
+                ],
+              ),
+            ),
+          ),
+          // App bar overlay
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: _buildGlassAppBar(),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildGlassAppBar() {
-    return SafeArea(
-      key: const Key('appbar-safe-area'),
-      bottom: false,
-      child: Container(
+    final statusBarHeight = MediaQuery.of(context).padding.top;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        top: statusBarHeight + 16,
+        left: 16,
+        right: 16,
+      ),
+      child: SizedBox(
         key: const Key('appbar-container'),
         height: 64,
-        margin: const EdgeInsets.all(16),
-        color: Colors.transparent,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(20),
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
             child: Container(
               key: const Key('appbar-glass'),
               decoration: BoxDecoration(
@@ -906,41 +1254,41 @@ class _HomeScreenState extends State<HomeScreen>
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
-                  key: const Key('appbar-content'),
-                  children: [
-                    _buildModeToggle(),
-                    const Spacer(),
-                    // Logo section
-                    Row(
-                      key: const Key('appbar-logo'),
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 24,
-                          height: 24,
-                          decoration: BoxDecoration(
-                            gradient: AppColors.primaryGradient,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(
-                            Icons.nfc,
-                            color: AppColors.textPrimary,
-                            size: 16,
-                          ),
+                key: const Key('appbar-content'),
+                children: [
+                  _buildModeToggle(),
+                  const Spacer(),
+                  // Logo section
+                  Row(
+                    key: const Key('appbar-logo'),
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          gradient: AppColors.primaryGradient,
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Tap Card',
-                          style: AppTextStyles.h3.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
+                        child: const Icon(
+                          CupertinoIcons.antenna_radiowaves_left_right,
+                          color: AppColors.textPrimary,
+                          size: 16,
                         ),
-                      ],
-                    ),
-                    const Spacer(),
-                    _buildAppBarIcon(Icons.settings_outlined, _onSettingsTap, 'settings'),
-                  ],
-                ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Tap Card',
+                        style: AppTextStyles.h3.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  _buildAppBarIcon(CupertinoIcons.settings, _onSettingsTap, 'settings'),
+                ],
+              ),
               ),
             ),
           ),
@@ -967,7 +1315,7 @@ class _HomeScreenState extends State<HomeScreen>
           child: Icon(
             icon,
             key: Key('home_appbar_${keyName}_icon'),
-            color: AppColors.textSecondary,
+            color: AppColors.textPrimary,
             size: 20,
           ),
         ),
@@ -991,15 +1339,10 @@ class _HomeScreenState extends State<HomeScreen>
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.2),
-              width: 1,
-            ),
           ),
           child: Icon(
-            _isPreviewMode ? Icons.nfc : Icons.preview,
+            _isPreviewMode ? CupertinoIcons.antenna_radiowaves_left_right : CupertinoIcons.eye,
             key: const Key('home_mode_toggle_icon'),
             color: _isPreviewMode
               ? AppColors.primaryAction
@@ -1121,6 +1464,11 @@ class _HomeScreenState extends State<HomeScreen>
                         developer.log('FAB tapped, calling _onNfcTap()', name: 'Home.NFC');
                         _onNfcTap();
                       },
+                      onLongPress: _isNfcLoading ? null : () {
+                        developer.log('FAB long-pressed, showing mode picker', name: 'Home.NFC');
+                        HapticFeedback.mediumImpact();
+                        _showModePicker();
+                      },
                       borderRadius: BorderRadius.circular(20), // Match container radius
                       child: Center(
                         key: const Key('home_nfc_fab_center'),
@@ -1138,10 +1486,15 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildFabContent() {
+    // Mode-specific icons
+    final IconData modeIcon = _nfcMode == NfcMode.tagWrite
+        ? CupertinoIcons.arrow_up_arrow_down_square
+        : CupertinoIcons.radiowaves_right;
+
     // Special case: NFC disabled
     if (!_nfcAvailable) {
       return Icon(
-        Icons.nfc_outlined,
+        modeIcon,
         key: const Key('home_nfc_fab_disabled'),
         color: AppColors.textSecondary,  // Gray
         size: 56,
@@ -1153,7 +1506,7 @@ class _HomeScreenState extends State<HomeScreen>
       case NfcFabState.inactive:
         // Dull white icon, no animations
         return Icon(
-          Icons.nfc,
+          modeIcon,
           key: const Key('home_nfc_fab_inactive'),
           color: Colors.white.withOpacity(0.5),  // Dull white
           size: 56,
@@ -1165,7 +1518,7 @@ class _HomeScreenState extends State<HomeScreen>
           key: const Key('home_nfc_fab_active'),
           scale: _pulseScale,
           child: Icon(
-            Icons.nfc,
+            modeIcon,
             color: Colors.white,  // Glowing white
             size: 56,
           ),
@@ -1177,9 +1530,9 @@ class _HomeScreenState extends State<HomeScreen>
           key: const Key('home_nfc_fab_writing'),
           width: 32,
           height: 32,
-          child: CircularProgressIndicator(
-            strokeWidth: 3,
-            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+          child: CupertinoActivityIndicator(
+            color: Colors.white,
+            radius: 16,
           ),
         );
 
@@ -1189,7 +1542,7 @@ class _HomeScreenState extends State<HomeScreen>
           key: const Key('home_nfc_fab_success'),
           scale: _successScale,
           child: Icon(
-            Icons.check_circle,
+            CupertinoIcons.check_mark_circled_solid,
             color: Colors.greenAccent,
             size: 56,
           ),
@@ -1198,7 +1551,7 @@ class _HomeScreenState extends State<HomeScreen>
       case NfcFabState.error:
         // Red X icon
         return Icon(
-          Icons.error,
+          CupertinoIcons.exclamationmark_circle_fill,
           key: const Key('home_nfc_fab_error'),
           color: Colors.redAccent,
           size: 56,
@@ -1220,11 +1573,20 @@ class _HomeScreenState extends State<HomeScreen>
       case NfcFabState.inactive:
       case NfcFabState.active:
       case NfcFabState.writing:
-        // All use same orange gradient
-        return {
-          'primary': AppColors.primaryAction,
-          'secondary': AppColors.secondaryAction,
-        };
+        // Mode-specific gradients
+        if (_nfcMode == NfcMode.p2pShare) {
+          // Purple gradient for P2P mode
+          return {
+            'primary': const Color(0xFF9C27B0),  // Material Purple 500
+            'secondary': const Color(0xFF673AB7), // Material Deep Purple 500
+          };
+        } else {
+          // Orange gradient for Tag Write mode (default)
+          return {
+            'primary': AppColors.primaryAction,
+            'secondary': AppColors.secondaryAction,
+          };
+        }
 
       case NfcFabState.success:
         return {
@@ -1241,7 +1603,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildTapToShareText() {
-    // Determine text and color based on state
+    // Determine text and color based on state AND mode
     String text;
     Color textColor;
 
@@ -1249,31 +1611,43 @@ class _HomeScreenState extends State<HomeScreen>
       text = 'NFC not available';
       textColor = AppColors.textSecondary;
     } else {
+      // Mode-specific text
+      final isTagWrite = _nfcMode == NfcMode.tagWrite;
+
       switch (_nfcFabState) {
         case NfcFabState.inactive:
-          text = 'Bring device close to share';
+          text = isTagWrite
+              ? 'Bring device close to share'
+              : 'Hold & tap to switch modes';
           textColor = Colors.white.withOpacity(0.6);  // Dull white
           break;
 
         case NfcFabState.active:
-          text = 'Tap to Share';
+          text = isTagWrite
+              ? 'Tap to Share'
+              : 'Ready for Tap';
           textColor = AppColors.primaryAction;  // Orange
           break;
 
         case NfcFabState.writing:
           // Writing state kept for compatibility but shows same as active
-          // (Writes are instant, so this state is rarely seen)
-          text = 'Tap to Share';
+          text = isTagWrite
+              ? 'Tap to Share'
+              : 'Ready for Tap';
           textColor = AppColors.primaryAction;  // Orange
           break;
 
         case NfcFabState.success:
-          text = 'Written successfully!';
+          text = isTagWrite
+              ? 'Written successfully!'
+              : 'Shared successfully!';
           textColor = Colors.greenAccent;
           break;
 
         case NfcFabState.error:
-          text = 'Write failed';
+          text = isTagWrite
+              ? 'Write failed'
+              : 'Share failed';
           textColor = Colors.redAccent;
           break;
       }
@@ -1304,44 +1678,51 @@ class _HomeScreenState extends State<HomeScreen>
           child: InkWell(
             key: const Key('home_share_options_inkwell'),
             onTap: _showShareModal,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(20),
             child: ClipRRect(
               key: const Key('home_share_options_clip'),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(20),
               child: BackdropFilter(
                 key: const Key('home_share_options_backdrop'),
                 filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                 child: Container(
                   key: const Key('home_share_options_container'),
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
+                    horizontal: 24,
+                    vertical: 14,
                   ),
                   decoration: BoxDecoration(
-                    color: AppColors.glassBackground.withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(16),
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: AppColors.glassBorder,
+                      color: Colors.white.withOpacity(0.2),
                       width: 1,
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 20,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: Row(
                     key: const Key('home_share_options_row'),
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        Icons.share_rounded,
+                        CupertinoIcons.share,
                         key: const Key('home_share_options_icon'),
-                        size: 18,
+                        size: 20,
                         color: AppColors.primaryAction,
                       ),
-                      const SizedBox(key: Key('home_share_options_text_spacing'), width: 8),
+                      const SizedBox(key: Key('home_share_options_text_spacing'), width: 10),
                       Text(
                         'More sharing options',
                         key: const Key('home_share_options_text'),
                         style: AppTextStyles.body.copyWith(
                           color: AppColors.primaryAction,
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
@@ -1377,244 +1758,17 @@ class _HomeScreenState extends State<HomeScreen>
       );
     }
 
-    final aesthetics = activeProfile.cardAesthetics;
-
-    return Container(
+    return Center(
       key: const Key('home_card_preview_container'),
-      width: 300,
-      height: 180,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Stack(
-          children: [
-            // Background with profile colors
-            Container(
-              decoration: BoxDecoration(
-                gradient: aesthetics.backgroundColor != null
-                  ? LinearGradient(
-                      colors: [
-                        aesthetics.backgroundColor!,
-                        aesthetics.backgroundColor!.withOpacity(0.8),
-                      ],
-                    )
-                  : aesthetics.gradient,
-                borderRadius: BorderRadius.circular(20),
-              ),
-            ),
-            // Background image if present
-            if (aesthetics.hasBackgroundImage)
-              Positioned.fill(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: Image.file(
-                    File(aesthetics.backgroundImagePath!),
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              ),
-            // Glassmorphic overlay
-            BackdropFilter(
-              filter: ImageFilter.blur(
-                sigmaX: aesthetics.blurLevel,
-                sigmaY: aesthetics.blurLevel,
-              ),
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Colors.white.withOpacity(aesthetics.hasBackgroundImage ? 0.1 : 0.2),
-                      Colors.white.withOpacity(aesthetics.hasBackgroundImage ? 0.05 : 0.1),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(20),
-                  border: aesthetics.borderColor != Colors.transparent
-                    ? Border.all(
-                        color: aesthetics.borderColor.withOpacity(0.8),
-                        width: 1.5,
-                      )
-                    : null,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            // Content overlay for readability
-            if (aesthetics.hasBackgroundImage)
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Colors.black.withOpacity(0.2),
-                      Colors.black.withOpacity(0.3),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-              ),
-            // Actual content
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Header with avatar and name
-                  Row(
-                    children: [
-                      Container(
-                        width: 45,
-                        height: 45,
-                        decoration: BoxDecoration(
-                          gradient: activeProfile.profileImagePath != null
-                            ? null
-                            : aesthetics.gradient,
-                          borderRadius: BorderRadius.circular(22.5),
-                        ),
-                        child: activeProfile.profileImagePath != null
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(22.5),
-                              child: Image.file(
-                                File(activeProfile.profileImagePath!),
-                                fit: BoxFit.cover,
-                              ),
-                            )
-                          : const Icon(
-                              Icons.person,
-                              color: Colors.white,
-                              size: 24,
-                            ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              activeProfile.name.isNotEmpty ? activeProfile.name : 'Your Name',
-                              key: const Key('home_card_preview_name'),
-                              style: AppTextStyles.body.copyWith(
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                                fontSize: 16,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1,
-                            ),
-                            const SizedBox(height: 2),
-                            if (activeProfile.title != null && activeProfile.title!.isNotEmpty)
-                              Text(
-                                activeProfile.title!,
-                                key: const Key('home_card_preview_title'),
-                                style: AppTextStyles.caption.copyWith(
-                                  color: Colors.white.withOpacity(0.7),
-                                  fontSize: 12,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 1,
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  // Contact info
-                  Flexible(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.email,
-                              key: const Key('home_card_preview_email_icon'),
-                              size: 14,
-                              color: Colors.white.withOpacity(0.7),
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                activeProfile.email ?? 'email@example.com',
-                                key: const Key('home_card_preview_email'),
-                                style: AppTextStyles.caption.copyWith(
-                                  color: Colors.white.withOpacity(0.9),
-                                  fontSize: 11,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 1,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.phone,
-                              key: const Key('home_card_preview_phone_icon'),
-                              size: 14,
-                              color: Colors.white.withOpacity(0.7),
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                activeProfile.phone ?? '+1 (555) 123-4567',
-                                key: const Key('home_card_preview_phone'),
-                                style: AppTextStyles.caption.copyWith(
-                                  color: Colors.white.withOpacity(0.9),
-                                  fontSize: 11,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 1,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.business,
-                              key: const Key('home_card_preview_company_icon'),
-                              size: 14,
-                              color: Colors.white.withOpacity(0.7),
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                activeProfile.company ?? 'Company Name',
-                                key: const Key('home_card_preview_company'),
-                                style: AppTextStyles.caption.copyWith(
-                                  color: Colors.white.withOpacity(0.9),
-                                  fontSize: 11,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 1,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+      child: ProfileCardPreview(
+        profile: activeProfile,
+        width: 300,
+        height: 180,
+        borderRadius: 20,
+        onEmailTap: activeProfile.email != null ? () => _launchEmail(activeProfile.email!) : null,
+        onPhoneTap: activeProfile.phone != null ? () => _launchPhone(activeProfile.phone!) : null,
+        onWebsiteTap: activeProfile.website != null ? () => _launchUrl(activeProfile.website!) : null,
+        onSocialTap: (platform, url) => _launchSocialMedia(platform, url),
       ),
     );
   }
@@ -1741,7 +1895,7 @@ class _HomeScreenState extends State<HomeScreen>
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.people_outline,
+            CupertinoIcons.person_2,
             key: const Key('home_contacts_empty_icon'),
             color: AppColors.textTertiary,
             size: 24, // 8px * 3
@@ -1875,24 +2029,99 @@ class _HomeScreenState extends State<HomeScreen>
         Padding(
           key: const Key('home_history_title_padding'),
           padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Text(
-            'Recent Activity',
-            key: const Key('home_history_title'),
-            style: AppTextStyles.h3.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Recent Activity',
+                key: const Key('home_history_title'),
+                style: AppTextStyles.h3.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    context.go(AppRoutes.history);
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    child: Text(
+                      'View All',
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.primaryAction,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(key: Key('home_history_title_spacing'), height: 16),
         Container(
           key: const Key('home_history_list_container'),
-          height: 200, // Increased height for vertical scrolling
+          height: 200,
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: _recentHistory.isEmpty
-              ? _buildHistoryEmpty()
-              : _buildHistoryList(),
+          child: StreamBuilder<List<HistoryEntry>>(
+            stream: HistoryService.historyStream(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return _buildHistoryLoading();
+              }
+
+              if (snapshot.hasError) {
+                return _buildHistoryEmpty();
+              }
+
+              final allHistory = snapshot.data ?? [];
+              // Show only last 5 items
+              final recentHistory = allHistory.take(5).toList();
+
+              if (recentHistory.isEmpty) {
+                return _buildHistoryEmpty();
+              }
+
+              return _buildHistoryList(recentHistory);
+            },
+          ),
         ),
       ],
+    );
+  }
+
+  Widget _buildHistoryLoading() {
+    return ListView.builder(
+      key: const Key('home_history_loading_list'),
+      scrollDirection: Axis.vertical,
+      itemCount: 3,
+      itemBuilder: (context, index) {
+        return Container(
+          key: Key('home_history_loading_item_$index'),
+          width: double.infinity,
+          height: 60,
+          margin: const EdgeInsets.only(bottom: 12),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.1),
+                    width: 1,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -1904,7 +2133,7 @@ class _HomeScreenState extends State<HomeScreen>
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.history,
+            CupertinoIcons.clock,
             key: const Key('home_history_empty_icon'),
             color: AppColors.textTertiary,
             size: 24,
@@ -1922,21 +2151,21 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildHistoryList() {
+  Widget _buildHistoryList(List<HistoryEntry> history) {
     return ListView.builder(
       key: const Key('home_history_list_view'),
       scrollDirection: Axis.vertical,
-      itemCount: _recentHistory.length,
+      itemCount: history.length,
       itemBuilder: (context, index) {
-        final activity = _recentHistory[index];
-        return _buildHistoryCard(activity, index);
+        final entry = history[index];
+        return _buildHistoryCard(entry, index);
       },
     );
   }
 
-  Widget _buildHistoryCard(HistoryActivity activity, int index) {
-    final colors = _getHistoryColors(activity.type);
-    final icon = _getHistoryIcon(activity.type);
+  Widget _buildHistoryCard(HistoryEntry entry, int index) {
+    final colors = _getHistoryColors(entry.type);
+    final icon = _getHistoryIcon(entry.type);
 
     return Container(
       key: Key('home_history_card_$index'),
@@ -1972,7 +2201,7 @@ class _HomeScreenState extends State<HomeScreen>
                 key: Key('home_history_inkwell_$index'),
                 onTap: () {
                   HapticFeedback.lightImpact();
-                  // TODO: Navigate to history details
+                  context.go(AppRoutes.history);
                 },
                 borderRadius: BorderRadius.circular(16),
                 child: Padding(
@@ -2004,7 +2233,7 @@ class _HomeScreenState extends State<HomeScreen>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              _getHistoryTitle(activity.type),
+                              _getHistoryTitle(entry.type),
                               key: Key('home_history_title_$index'),
                               style: AppTextStyles.caption.copyWith(
                                 color: AppColors.textTertiary,
@@ -2012,16 +2241,17 @@ class _HomeScreenState extends State<HomeScreen>
                               ),
                             ),
                             Text(
-                              activity.contactName,
+                              entry.displayName,
                               key: Key('home_history_name_$index'),
                               style: AppTextStyles.body.copyWith(
                                 fontWeight: FontWeight.w500,
                                 fontSize: 14,
                               ),
                               overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
                             ),
                             Text(
-                              _formatHistoryTime(activity.timestamp),
+                              _formatHistoryTime(entry.timestamp),
                               key: Key('home_history_time_$index'),
                               style: AppTextStyles.caption.copyWith(
                                 color: AppColors.textTertiary,
@@ -2031,14 +2261,11 @@ class _HomeScreenState extends State<HomeScreen>
                           ],
                         ),
                       ),
-                      Text(
-                        activity.method,
-                        key: Key('home_history_method_$index'),
-                        style: AppTextStyles.caption.copyWith(
-                          color: colors['text'],
-                          fontWeight: FontWeight.w600,
-                          fontSize: 10,
-                        ),
+                      const SizedBox(width: 8),
+                      MethodChip(
+                        method: entry.method,
+                        fontSize: 9,
+                        iconSize: 10,
                       ),
                     ],
                   ),
@@ -2051,9 +2278,9 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Map<String, Color> _getHistoryColors(HistoryType type) {
+  Map<String, Color> _getHistoryColors(HistoryEntryType type) {
     switch (type) {
-      case HistoryType.sent:
+      case HistoryEntryType.sent:
         return {
           'background': AppColors.primaryAction.withOpacity(0.1),
           'border': AppColors.primaryAction.withOpacity(0.3),
@@ -2061,7 +2288,7 @@ class _HomeScreenState extends State<HomeScreen>
           'icon': AppColors.primaryAction,
           'text': AppColors.primaryAction,
         };
-      case HistoryType.received:
+      case HistoryEntryType.received:
         return {
           'background': AppColors.success.withOpacity(0.1),
           'border': AppColors.success.withOpacity(0.3),
@@ -2069,7 +2296,7 @@ class _HomeScreenState extends State<HomeScreen>
           'icon': AppColors.success,
           'text': AppColors.success,
         };
-      case HistoryType.qr:
+      case HistoryEntryType.tag:
         return {
           'background': AppColors.secondaryAction.withOpacity(0.1),
           'border': AppColors.secondaryAction.withOpacity(0.3),
@@ -2080,25 +2307,25 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  IconData _getHistoryIcon(HistoryType type) {
+  IconData _getHistoryIcon(HistoryEntryType type) {
     switch (type) {
-      case HistoryType.sent:
-        return Icons.send;
-      case HistoryType.received:
-        return Icons.call_received;
-      case HistoryType.qr:
-        return Icons.qr_code_scanner;
+      case HistoryEntryType.sent:
+        return CupertinoIcons.arrow_up_circle_fill;
+      case HistoryEntryType.received:
+        return CupertinoIcons.arrow_down_circle_fill;
+      case HistoryEntryType.tag:
+        return CupertinoIcons.tag_fill;
     }
   }
 
-  String _getHistoryTitle(HistoryType type) {
+  String _getHistoryTitle(HistoryEntryType type) {
     switch (type) {
-      case HistoryType.sent:
+      case HistoryEntryType.sent:
         return 'SENT TO';
-      case HistoryType.received:
+      case HistoryEntryType.received:
         return 'RECEIVED FROM';
-      case HistoryType.qr:
-        return 'QR SCANNED';
+      case HistoryEntryType.tag:
+        return 'WROTE TO TAG';
     }
   }
 
@@ -2126,26 +2353,5 @@ class Contact {
     required this.name,
     required this.avatar,
     required this.lastShared,
-  });
-}
-
-// History model classes
-enum HistoryType {
-  sent,
-  received,
-  qr,
-}
-
-class HistoryActivity {
-  final HistoryType type;
-  final String contactName;
-  final DateTime timestamp;
-  final String method;
-
-  HistoryActivity({
-    required this.type,
-    required this.contactName,
-    required this.timestamp,
-    required this.method,
   });
 }

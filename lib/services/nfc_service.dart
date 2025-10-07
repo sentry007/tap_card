@@ -31,8 +31,15 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:flutter/services.dart';
 import 'package:nfc_manager/nfc_manager.dart';
+import 'package:flutter_nfc_hce/flutter_nfc_hce.dart';
 
 import '../core/constants/app_constants.dart';
+
+/// NFC Operation Mode
+enum NfcMode {
+  tagWrite,  // Write to physical NFC tags (default)
+  p2pShare,  // Phone-to-phone sharing via HCE
+}
 
 /// Singleton service managing all NFC operations
 class NFCService {
@@ -41,6 +48,14 @@ class NFCService {
   static const MethodChannel _channel = MethodChannel('app.tapcard/nfc_write');
   static Completer<NFCResult>? _writeCompleter;
   static DateTime? _writeStartTime;
+
+  // HCE (Host Card Emulation) support
+  static final FlutterNfcHce _hcePlugin = FlutterNfcHce();
+  static bool _isHceActive = false;
+  static bool _isHceSupported = false;
+
+  // NFC Mode Management
+  static NfcMode _currentMode = NfcMode.tagWrite;
 
   /// Initialize NFC service
   static Future<bool> initialize() async {
@@ -64,6 +79,29 @@ class NFCService {
 
       // Set up method call handler for callbacks from native
       _channel.setMethodCallHandler(_handleNativeCallback);
+
+      // Check HCE support
+      try {
+        _isHceSupported = await _hcePlugin.isNfcHceSupported() ?? false;
+        if (_isHceSupported) {
+          developer.log(
+            '✅ NFC HCE (card emulation) supported on this device',
+            name: 'NFC.Initialize'
+          );
+        } else {
+          developer.log(
+            'ℹ️ NFC HCE not supported (device limitation)',
+            name: 'NFC.Initialize'
+          );
+        }
+      } catch (e) {
+        developer.log(
+          '⚠️ Failed to check HCE support: $e',
+          name: 'NFC.Initialize',
+          error: e
+        );
+        _isHceSupported = false;
+      }
 
       return _isAvailable;
     } catch (e) {
@@ -489,6 +527,165 @@ class NFCService {
     _writeStartTime = null;
     developer.log('🧹 Forced cleanup of NFC session state', name: 'NFC.Cleanup');
   }
+
+  // ============================================================================
+  // HCE (Host Card Emulation) Methods - Phone acts as NFC tag
+  // ============================================================================
+
+  /// Enable card emulation mode - phone acts as an NFC tag
+  ///
+  /// This allows other NFC-enabled phones to read your contact data by
+  /// tapping their phone against yours. Your phone emulates an NFC tag.
+  ///
+  /// @param jsonPayload The data to share when another phone reads
+  /// @returns NFCResult with success/failure status
+  static Future<NFCResult> startCardEmulation(String jsonPayload) async {
+    final startTime = DateTime.now();
+
+    // Check HCE support
+    if (!_isHceSupported) {
+      developer.log(
+        '❌ HCE not supported on this device',
+        name: 'NFC.HCE'
+      );
+      return NFCResult.error('Card emulation not supported on this device. Try writing to a physical NFC tag instead.');
+    }
+
+    // Check if already active
+    if (_isHceActive) {
+      developer.log(
+        '⚠️ Card emulation already active',
+        name: 'NFC.HCE'
+      );
+      return NFCResult.error('Card emulation already active');
+    }
+
+    final payloadSizeBytes = utf8.encode(jsonPayload).length;
+
+    developer.log(
+      '📤 Starting card emulation mode\n'
+      '   • Payload size: $payloadSizeBytes bytes\n'
+      '   • Your phone will act as an NFC tag',
+      name: 'NFC.HCE'
+    );
+
+    try {
+      developer.log(
+        '🔧 Calling flutter_nfc_hce plugin startNfcHce()...',
+        name: 'NFC.HCE'
+      );
+
+      // Start HCE with the payload
+      final result = await _hcePlugin.startNfcHce(jsonPayload);
+      final duration = DateTime.now().difference(startTime).inMilliseconds;
+
+      developer.log(
+        '📊 Plugin returned: $result (type: ${result.runtimeType}) in ${duration}ms',
+        name: 'NFC.HCE'
+      );
+
+      // Plugin returns null/true on success, false on failure
+      // Treat anything except explicit false as success
+      if (result != false) {
+        _isHceActive = true;
+        developer.log(
+          '✅ Card emulation started successfully (${duration}ms)\n'
+          '   📲 Other phones can now tap your phone to receive your card\n'
+          '   🔹 Service: com.novice.flutter_nfc_hce.KHostApduService\n'
+          '   🔹 AID: D2760000850101\n'
+          '   🔹 Status: ACTIVE\n'
+          '   🔹 Plugin result: $result',
+          name: 'NFC.HCE'
+        );
+        return NFCResult.success(duration, payloadSizeBytes);
+      } else {
+        developer.log(
+          '❌ Failed to start card emulation (${duration}ms)\n'
+          '   Plugin returned: $result\n'
+          '   Expected: true\n'
+          '   Possible causes:\n'
+          '   - HCE service not properly registered in AndroidManifest\n'
+          '   - Missing permissions\n'
+          '   - NFC disabled on device\n'
+          '   - Device does not support HCE',
+          name: 'NFC.HCE'
+        );
+        return NFCResult.error('Failed to start card emulation. Check logs for details.', duration);
+      }
+    } catch (e, stackTrace) {
+      final duration = DateTime.now().difference(startTime).inMilliseconds;
+      developer.log(
+        '❌ Card emulation exception: $e (${duration}ms)\n'
+        '   Error type: ${e.runtimeType}\n'
+        '   Stack trace:\n$stackTrace',
+        name: 'NFC.HCE',
+        error: e,
+        stackTrace: stackTrace
+      );
+      return NFCResult.error('Exception: ${e.toString()}', duration);
+    }
+  }
+
+  /// Stop card emulation mode
+  static Future<void> stopCardEmulation() async {
+    if (!_isHceActive) {
+      developer.log(
+        'ℹ️ Card emulation not active, nothing to stop',
+        name: 'NFC.HCE'
+      );
+      return;
+    }
+
+    try {
+      await _hcePlugin.stopNfcHce();
+      _isHceActive = false;
+      developer.log(
+        '🛑 Card emulation stopped',
+        name: 'NFC.HCE'
+      );
+    } catch (e) {
+      developer.log(
+        '⚠️ Error stopping card emulation: $e',
+        name: 'NFC.HCE',
+        error: e
+      );
+      // Force cleanup even if stop fails
+      _isHceActive = false;
+    }
+  }
+
+  /// Check if HCE is supported on this device
+  static bool get isHceSupported => _isHceSupported;
+
+  /// Check if card emulation is currently active
+  static bool get isHceActive => _isHceActive;
+
+  // ============================================================================
+  // NFC Mode Management
+  // ============================================================================
+
+  /// Get current NFC mode
+  static NfcMode get currentMode => _currentMode;
+
+  /// Switch NFC operation mode
+  static void switchMode(NfcMode newMode) {
+    final oldMode = _currentMode;
+    _currentMode = newMode;
+
+    developer.log(
+      '🔄 NFC mode switched\n'
+      '   From: ${oldMode == NfcMode.tagWrite ? "Tag Write" : "P2P Share"}\n'
+      '   To: ${newMode == NfcMode.tagWrite ? "Tag Write" : "P2P Share"}\n'
+      '   Status: Mode change complete',
+      name: 'NFC.Mode'
+    );
+  }
+
+  /// Check if currently in Tag Write mode
+  static bool get isTagWriteMode => _currentMode == NfcMode.tagWrite;
+
+  /// Check if currently in P2P Share mode
+  static bool get isP2pMode => _currentMode == NfcMode.p2pShare;
 }
 
 /// Result class for NFC operations
@@ -497,19 +694,25 @@ class NFCResult {
   final String? error;
   final int durationMs;
   final int? dataSizeBytes;
+  final String? tagId;
+  final String? tagType;
 
   const NFCResult._({
     required this.isSuccess,
     this.error,
     required this.durationMs,
     this.dataSizeBytes,
+    this.tagId,
+    this.tagType,
   });
 
-  factory NFCResult.success(int durationMs, int dataSizeBytes) {
+  factory NFCResult.success(int durationMs, int dataSizeBytes, {String? tagId, String? tagType}) {
     return NFCResult._(
       isSuccess: true,
       durationMs: durationMs,
       dataSizeBytes: dataSizeBytes,
+      tagId: tagId,
+      tagType: tagType,
     );
   }
 

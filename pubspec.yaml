@@ -14,6 +14,7 @@ dependencies:
 
   # UI and Icons
   cupertino_icons: ^1.0.8
+  font_awesome_flutter: ^10.7.0  # For social media brand icons
 
   # Glassmorphism UI
   glassmorphism: ^3.0.0
@@ -22,6 +23,7 @@ dependencies:
   nfc_manager: ^4.0.2
   nfc_manager_ndef: ^1.0.1
   ndef: ^0.3.1
+  flutter_nfc_hce: ^0.1.8  # Host Card Emulation for phone-to-phone sharing
 
   # QR Code Generation and Scanning
   qr_flutter: ^4.1.0
@@ -50,6 +52,7 @@ dependencies:
   shared_preferences: ^2.2.2
   path_provider: ^2.1.2
   image_picker: ^1.0.7
+  image_cropper: ^8.0.2
   url_launcher: ^6.2.4
   share_plus: ^7.2.2
   flutter_colorpicker: ^1.1.0
