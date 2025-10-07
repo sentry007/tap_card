@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
+import 'dart:ui';
 
 import '../../theme/theme.dart';
 import '../../widgets/widgets.dart';
 import '../../core/providers/app_state.dart';
 import '../../core/services/profile_service.dart';
+import '../../core/constants/app_constants.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -111,7 +114,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              Icons.warning,
+              CupertinoIcons.exclamationmark_triangle,
               color: AppColors.warning,
               size: 48,
             ),
@@ -171,7 +174,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.group, color: AppColors.success),
+            Icon(CupertinoIcons.group, color: AppColors.success),
             const SizedBox(width: 12),
             Text(
               'Multiple profiles enabled',
@@ -190,7 +193,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.person, color: AppColors.info),
+            Icon(CupertinoIcons.person, color: AppColors.info),
             const SizedBox(width: 12),
             Text(
               'Multiple profiles disabled',
@@ -225,23 +228,23 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             slivers: [
               _buildAppBar(),
               SliverPadding(
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.all(AppSpacing.md),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
                     _buildUserProfileHeader(),
-                    const SizedBox(height: 24),
+                    SizedBox(height: AppSpacing.lg),
                     _buildAccountSettings(),
-                    const SizedBox(height: 24),
+                    SizedBox(height: AppSpacing.lg),
                     _buildPrivacyControls(),
-                    const SizedBox(height: 24),
+                    SizedBox(height: AppSpacing.lg),
                     _buildNotificationPreferences(),
-                    const SizedBox(height: 24),
+                    SizedBox(height: AppSpacing.lg),
                     _buildAppearanceSettings(),
-                    const SizedBox(height: 24),
+                    SizedBox(height: AppSpacing.lg),
                     _buildNFCSettings(),
-                    const SizedBox(height: 24),
+                    SizedBox(height: AppSpacing.lg),
                     _buildAdvancedOptions(),
-                    const SizedBox(height: 100), // Space for bottom nav
+                    SizedBox(height: AppSpacing.bottomNavHeight + AppSpacing.md),
                   ]),
                 ),
               ),
@@ -255,39 +258,83 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
   Widget _buildAppBar() {
     return SliverAppBar(
       key: const Key('settings_sliver_appbar'),
-      expandedHeight: 60,
-      floating: true,
+      expandedHeight: 80,
+      floating: false,
+      pinned: true,
       backgroundColor: Colors.transparent,
-      flexibleSpace: FlexibleSpaceBar(
-        key: const Key('settings_appbar_flexible_space'),
-        titlePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        title: Row(
-          key: const Key('settings_appbar_title_row'),
-          children: [
-            Text(
-              key: const Key('settings_appbar_title_text'),
-              'Settings',
-              style: AppTextStyles.h2.copyWith(
-                fontWeight: FontWeight.w600,
+      flexibleSpace: ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  AppColors.surfaceDark.withOpacity(0.8),
+                  AppColors.surfaceDark.withOpacity(0.5),
+                ],
+              ),
+              border: Border(
+                bottom: BorderSide(
+                  color: AppColors.glassBorder.withOpacity(0.2),
+                  width: 1,
+                ),
               ),
             ),
-            const Spacer(key: Key('settings_appbar_spacer')),
-            GlassCard(
-              key: const Key('settings_appbar_help_card'),
-              padding: const EdgeInsets.all(8),
-              margin: EdgeInsets.zero,
-              borderRadius: 12,
-              onTap: () {
-                // TODO: Show help/support
-              },
-              child: const Icon(
-                key: Key('settings_appbar_help_icon'),
-                Icons.help_outline_rounded,
-                size: 20,
-                color: AppColors.textSecondary,
+            child: FlexibleSpaceBar(
+              key: const Key('settings_appbar_flexible_space'),
+              titlePadding: EdgeInsets.only(
+                left: AppSpacing.md,
+                right: AppSpacing.md,
+                bottom: AppSpacing.md,
+              ),
+              title: Row(
+                key: const Key('settings_appbar_title_row'),
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text(
+                    key: const Key('settings_appbar_title_text'),
+                    'Settings',
+                    style: AppTextStyles.h2.copyWith(
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  Container(
+                    padding: EdgeInsets.all(AppSpacing.sm),
+                    decoration: BoxDecoration(
+                      gradient: AppColors.primaryGradient,
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primaryAction.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                        onTap: () {
+                          // TODO: Show help/support
+                        },
+                        child: const Icon(
+                          key: Key('settings_appbar_help_icon'),
+                          CupertinoIcons.question_circle,
+                          size: 20,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -301,20 +348,32 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           offset: Offset(0, 50 * (1 - _slideController.value)),
           child: Opacity(
             opacity: _fadeController.value,
-            child: GlassCardVariant(
-              type: GlassCardType.elevated,
-              onTap: () => _showEditProfileDialog(),
-              child: Column(
+            child: GlassCard(
+              padding: EdgeInsets.zero,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      AppColors.primaryAction.withOpacity(0.05),
+                      AppColors.secondaryAction.withOpacity(0.05),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(AppRadius.card),
+                ),
+                padding: EdgeInsets.all(AppSpacing.lg),
+                child: Column(
                 children: [
                   Row(
                     children: [
                       Hero(
                         tag: 'profile_image',
                         child: Container(
-                          width: 70,
-                          height: 70,
+                          width: 64,
+                          height: 64,
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(35),
+                            borderRadius: BorderRadius.circular(32),
                             border: Border.all(
                               color: AppColors.primaryAction.withOpacity(0.3),
                               width: 2,
@@ -322,7 +381,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                           ),
                           child: _profileImageUrl != null
                               ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(33),
+                                  borderRadius: BorderRadius.circular(30),
                                   child: Image.network(
                                     _profileImageUrl!,
                                     fit: BoxFit.cover,
@@ -331,17 +390,17 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                               : Container(
                                   decoration: BoxDecoration(
                                     gradient: AppColors.primaryGradient,
-                                    borderRadius: BorderRadius.circular(33),
+                                    borderRadius: BorderRadius.circular(30),
                                   ),
                                   child: const Icon(
-                                    Icons.person,
+                                    CupertinoIcons.person,
                                     color: AppColors.textPrimary,
-                                    size: 35,
+                                    size: 32,
                                   ),
                                 ),
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      SizedBox(width: AppSpacing.md),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -352,41 +411,51 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
-                            const SizedBox(height: 4),
+                            SizedBox(height: AppSpacing.xs),
                             Text(
                               _userEmail,
                               style: AppTextStyles.bodySecondary,
                             ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Tap to edit profile',
-                              style: AppTextStyles.caption.copyWith(
-                                color: AppColors.primaryAction,
-                              ),
-                            ),
                           ],
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryAction.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.edit,
-                          color: AppColors.primaryAction,
-                          size: 20,
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            _showEditProfileDialog();
+                          },
+                          child: Container(
+                            padding: EdgeInsets.all(AppSpacing.md),
+                            decoration: BoxDecoration(
+                              gradient: AppColors.primaryGradient,
+                              borderRadius: BorderRadius.circular(AppRadius.md),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.primaryAction.withOpacity(0.3),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              CupertinoIcons.pencil,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                          ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: AppSpacing.md),
                   const Divider(
                     color: AppColors.glassBorder,
                     height: 1,
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: AppSpacing.md),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
@@ -397,6 +466,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                   ),
                 ],
               ),
+            ),
             ),
           ),
         );
@@ -414,7 +484,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             fontWeight: FontWeight.w600,
           ),
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: AppSpacing.xs),
         Text(
           label,
           style: AppTextStyles.caption,
@@ -426,23 +496,23 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
   Widget _buildAccountSettings() {
     return _buildSettingsSection(
       'Account Settings',
-      Icons.account_circle,
+      CupertinoIcons.person_circle,
       [
         _buildSwitchTile(
-          icon: Icons.group_rounded,
+          icon: CupertinoIcons.person_3,
           title: 'Multiple Profiles',
           subtitle: 'Manage multiple contact profiles',
           value: _multipleProfiles,
           onChanged: _toggleMultipleProfiles,
         ),
         _buildActionTile(
-          icon: Icons.download_rounded,
+          icon: CupertinoIcons.arrow_down_circle,
           title: 'Export Data',
           subtitle: 'Download your data as JSON/CSV',
           onTap: () => _showExportDialog(),
         ),
         _buildActionTile(
-          icon: Icons.backup_rounded,
+          icon: CupertinoIcons.arrow_up_circle,
           title: 'Backup & Sync',
           subtitle: 'Sync data across devices',
           onTap: () {
@@ -456,24 +526,24 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
   Widget _buildPrivacyControls() {
     return _buildSettingsSection(
       'Privacy & Security',
-      Icons.security,
+      CupertinoIcons.lock_shield,
       [
         _buildSwitchTile(
-          icon: Icons.analytics_outlined,
+          icon: CupertinoIcons.chart_bar,
           title: 'Analytics',
           subtitle: 'Help improve the app with usage data',
           value: _analyticsEnabled,
           onChanged: (value) => setState(() => _analyticsEnabled = value),
         ),
         _buildSwitchTile(
-          icon: Icons.bug_report_outlined,
+          icon: CupertinoIcons.ant,
           title: 'Crash Reporting',
           subtitle: 'Send crash reports to help fix issues',
           value: _crashReporting,
           onChanged: (value) => setState(() => _crashReporting = value),
         ),
         _buildSliderTile(
-          icon: Icons.timer_rounded,
+          icon: CupertinoIcons.timer,
           title: 'Share Expiry',
           subtitle: 'Auto-revoke shares after $_shareExpiry days',
           value: _shareExpiry.toDouble(),
@@ -483,14 +553,14 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           onChanged: (value) => setState(() => _shareExpiry = value.round()),
         ),
         _buildActionTile(
-          icon: Icons.block_rounded,
+          icon: CupertinoIcons.hand_raised,
           title: 'Revoke All Shares',
           subtitle: 'Remove access to all shared contacts',
           onTap: () => _showRevokeAllDialog(),
           isDestructive: true,
         ),
         _buildActionTile(
-          icon: Icons.security_rounded,
+          icon: CupertinoIcons.lock_fill,
           title: 'Privacy Policy',
           subtitle: 'View our privacy policy',
           onTap: () {
@@ -504,38 +574,38 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
   Widget _buildNotificationPreferences() {
     return _buildSettingsSection(
       'Notifications',
-      Icons.notifications,
+      CupertinoIcons.bell,
       [
         _buildSwitchTile(
-          icon: Icons.notifications_active_rounded,
+          icon: CupertinoIcons.bell_fill,
           title: 'Push Notifications',
           subtitle: 'Receive notifications from the app',
           value: _pushNotifications,
           onChanged: (value) => setState(() => _pushNotifications = value),
         ),
         _buildSwitchTile(
-          icon: Icons.share_rounded,
+          icon: CupertinoIcons.share,
           title: 'Share Notifications',
           subtitle: 'Notify when you share contact info',
           value: _shareNotifications,
           onChanged: (value) => setState(() => _shareNotifications = value),
         ),
         _buildSwitchTile(
-          icon: Icons.call_received_rounded,
+          icon: CupertinoIcons.arrow_down_left,
           title: 'Receive Notifications',
           subtitle: 'Notify when you receive contact info',
           value: _receiveNotifications,
           onChanged: (value) => setState(() => _receiveNotifications = value),
         ),
         _buildSwitchTile(
-          icon: Icons.volume_up_rounded,
+          icon: CupertinoIcons.speaker_2,
           title: 'Sound',
           subtitle: 'Play sound for sharing events',
           value: _soundEnabled,
           onChanged: (value) => setState(() => _soundEnabled = value),
         ),
         _buildSwitchTile(
-          icon: Icons.vibration_rounded,
+          icon: CupertinoIcons.device_phone_portrait,
           title: 'Vibration',
           subtitle: 'Vibrate on successful sharing',
           value: _vibrationEnabled,
@@ -548,10 +618,10 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
   Widget _buildAppearanceSettings() {
     return _buildSettingsSection(
       'Appearance',
-      Icons.palette,
+      CupertinoIcons.paintbrush,
       [
         _buildSelectionTile(
-          icon: Icons.brightness_6_rounded,
+          icon: CupertinoIcons.moon_stars,
           title: 'Theme',
           subtitle: 'Choose app theme',
           options: const ['Light', 'Dark', 'System'],
@@ -564,7 +634,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           },
         ),
         _buildSliderTile(
-          icon: Icons.blur_on_rounded,
+          icon: CupertinoIcons.circle_lefthalf_fill,
           title: 'Glass Intensity',
           subtitle: 'Adjust glassmorphism effect strength',
           value: _glassIntensity,
@@ -580,24 +650,24 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
   Widget _buildNFCSettings() {
     return _buildSettingsSection(
       'NFC & Sharing',
-      Icons.nfc,
+      CupertinoIcons.antenna_radiowaves_left_right,
       [
         _buildSwitchTile(
-          icon: Icons.nfc_rounded,
+          icon: CupertinoIcons.antenna_radiowaves_left_right,
           title: 'NFC Enabled',
           subtitle: 'Allow NFC sharing and receiving',
           value: _nfcEnabled,
           onChanged: (value) => setState(() => _nfcEnabled = value),
         ),
         _buildSwitchTile(
-          icon: Icons.auto_awesome_rounded,
+          icon: CupertinoIcons.sparkles,
           title: 'Auto Share',
           subtitle: 'Automatically share when NFC is detected',
           value: _autoShare,
           onChanged: (value) => setState(() => _autoShare = value),
         ),
         _buildActionTile(
-          icon: Icons.qr_code_rounded,
+          icon: CupertinoIcons.qrcode,
           title: 'QR Code Settings',
           subtitle: 'Configure QR code generation',
           onTap: () {
@@ -611,16 +681,16 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
   Widget _buildAdvancedOptions() {
     return _buildSettingsSection(
       'Advanced',
-      Icons.settings,
+      CupertinoIcons.settings,
       [
         _buildActionTile(
-          icon: Icons.info_outline_rounded,
+          icon: CupertinoIcons.info_circle,
           title: 'About',
           subtitle: 'App version and information',
           onTap: () => _showAboutDialog(),
         ),
         _buildActionTile(
-          icon: Icons.description_rounded,
+          icon: CupertinoIcons.doc_text,
           title: 'Terms of Service',
           subtitle: 'View terms and conditions',
           onTap: () {
@@ -628,7 +698,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           },
         ),
         _buildActionTile(
-          icon: Icons.support_agent_rounded,
+          icon: CupertinoIcons.chat_bubble_2,
           title: 'Help & Support',
           subtitle: 'Get help or contact support',
           onTap: () {
@@ -636,7 +706,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           },
         ),
         _buildActionTile(
-          icon: Icons.rate_review_outlined,
+          icon: CupertinoIcons.star,
           title: 'Rate App',
           subtitle: 'Rate us on the App Store',
           onTap: () {
@@ -644,7 +714,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           },
         ),
         _buildActionTile(
-          icon: Icons.feedback_rounded,
+          icon: CupertinoIcons.chat_bubble_text,
           title: 'Send Feedback',
           subtitle: 'Share your thoughts with us',
           onTap: () {
@@ -652,14 +722,14 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           },
         ),
         _buildActionTile(
-          icon: Icons.delete_outline_rounded,
+          icon: CupertinoIcons.delete,
           title: 'Clear All Data',
           subtitle: 'Remove all app data permanently',
           onTap: () => _showClearDataDialog(),
           isDestructive: true,
         ),
         _buildActionTile(
-          icon: Icons.logout_rounded,
+          icon: CupertinoIcons.arrow_right_square,
           title: 'Sign Out',
           subtitle: 'Sign out of your account',
           onTap: () => _showSignOutDialog(),
@@ -674,23 +744,43 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
+          padding: EdgeInsets.only(
+            left: AppSpacing.xs,
+            right: AppSpacing.xs,
+            bottom: AppSpacing.sm,
+          ),
           child: Row(
             children: [
-              Icon(
-                icon,
-                size: 20,
-                color: AppColors.primaryAction,
+              Container(
+                padding: EdgeInsets.all(AppSpacing.sm),
+                decoration: BoxDecoration(
+                  gradient: AppColors.primaryGradient,
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primaryAction.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  icon,
+                  size: 18,
+                  color: Colors.white,
+                ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: AppSpacing.md),
               Text(
                 title,
-                style: AppTextStyles.h3,
+                style: AppTextStyles.h3.copyWith(
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
+                ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 12),
         GlassCard(
           padding: EdgeInsets.zero,
           opacity: _glassIntensity,
@@ -707,11 +797,11 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
     for (int i = 0; i < children.length; i++) {
       result.add(children[i]);
       if (i < children.length - 1) {
-        result.add(const Divider(
+        result.add(Divider(
           color: AppColors.glassBorder,
           height: 1,
           indent: 60,
-          endIndent: 16,
+          endIndent: AppSpacing.md,
         ));
       }
     }
@@ -726,14 +816,14 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
     required ValueChanged<bool> onChanged,
   }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(AppSpacing.md),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: EdgeInsets.all(AppSpacing.sm),
             decoration: BoxDecoration(
               color: AppColors.highlight.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
             ),
             child: Icon(
               icon,
@@ -741,7 +831,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
               size: 20,
             ),
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -752,7 +842,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: AppSpacing.xs),
                 Text(
                   subtitle,
                   style: AppTextStyles.caption,
@@ -801,17 +891,17 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           HapticFeedback.lightImpact();
           onTap();
         },
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
         splashColor: iconColor.withOpacity(0.1),
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(AppSpacing.md),
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: EdgeInsets.all(AppSpacing.sm),
                 decoration: BoxDecoration(
                   color: iconColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
                 ),
                 child: Icon(
                   icon,
@@ -819,7 +909,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                   size: 20,
                 ),
               ),
-              const SizedBox(width: 16),
+              SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -831,7 +921,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                         color: titleColor,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: AppSpacing.xs),
                     Text(
                       subtitle,
                       style: AppTextStyles.caption,
@@ -840,7 +930,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                 ),
               ),
               Icon(
-                Icons.chevron_right_rounded,
+                CupertinoIcons.chevron_right,
                 color: AppColors.textTertiary,
                 size: 20,
               ),
@@ -862,16 +952,16 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
     required ValueChanged<double> onChanged,
   }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(AppSpacing.md),
       child: Column(
         children: [
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: EdgeInsets.all(AppSpacing.sm),
                 decoration: BoxDecoration(
                   color: AppColors.highlight.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
                 ),
                 child: Icon(
                   icon,
@@ -879,7 +969,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                   size: 20,
                 ),
               ),
-              const SizedBox(width: 16),
+              SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -890,7 +980,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                         fontWeight: FontWeight.w500,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: AppSpacing.xs),
                     Text(
                       subtitle,
                       style: AppTextStyles.caption,
@@ -900,7 +990,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: AppSpacing.sm),
           SliderTheme(
             data: SliderTheme.of(context).copyWith(
               activeTrackColor: AppColors.primaryAction,
@@ -935,16 +1025,16 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
     required ValueChanged<int> onChanged,
   }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(AppSpacing.md),
       child: Column(
         children: [
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: EdgeInsets.all(AppSpacing.sm),
                 decoration: BoxDecoration(
                   color: AppColors.highlight.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
                 ),
                 child: Icon(
                   icon,
@@ -952,7 +1042,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                   size: 20,
                 ),
               ),
-              const SizedBox(width: 16),
+              SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -963,7 +1053,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                         fontWeight: FontWeight.w500,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: AppSpacing.xs),
                     Text(
                       subtitle,
                       style: AppTextStyles.caption,
@@ -973,7 +1063,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: AppSpacing.sm),
           Row(
             children: options.asMap().entries.map((entry) {
               final index = entry.key;
@@ -989,14 +1079,14 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
                     margin: EdgeInsets.only(
-                      right: index < options.length - 1 ? 8 : 0,
+                      right: index < options.length - 1 ? AppSpacing.sm : 0,
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
                     decoration: BoxDecoration(
                       color: isSelected
                           ? AppColors.primaryAction.withOpacity(0.2)
                           : AppColors.glassBorder.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
                       border: Border.all(
                         color: isSelected
                             ? AppColors.primaryAction
@@ -1026,303 +1116,368 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
     );
   }
 
+  // Glassmorphic dialog helper for consistent styling
+  Future<T?> _showGlassDialog<T>({
+    required String title,
+    required Widget content,
+    List<Widget>? actions,
+  }) {
+    return showDialog<T>(
+      context: context,
+      builder: (context) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 400),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppColors.surfaceDark.withOpacity(0.95),
+                  AppColors.surfaceDark.withOpacity(0.85),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(AppRadius.card),
+              border: Border.all(
+                color: AppColors.glassBorder.withOpacity(0.3),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Title
+                Container(
+                  padding: EdgeInsets.all(AppSpacing.lg),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: AppColors.glassBorder.withOpacity(0.2),
+                        width: 1,
+                      ),
+                    ),
+                  ),
+                  child: Text(
+                    title,
+                    style: AppTextStyles.h3.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                // Content
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.all(AppSpacing.lg),
+                    child: content,
+                  ),
+                ),
+                // Actions
+                if (actions != null && actions.isNotEmpty)
+                  Container(
+                    padding: EdgeInsets.all(AppSpacing.md),
+                    decoration: BoxDecoration(
+                      border: Border(
+                        top: BorderSide(
+                          color: AppColors.glassBorder.withOpacity(0.2),
+                          width: 1,
+                        ),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: actions,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showEditProfileDialog() {
     final nameController = TextEditingController(text: _userName);
     final emailController = TextEditingController(text: _userEmail);
 
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surfaceDark,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'Edit Profile',
-          style: AppTextStyles.h3,
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              style: AppTextStyles.body,
-              decoration: const InputDecoration(
-                labelText: 'Name',
-                prefixIcon: Icon(Icons.person),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: emailController,
-              style: AppTextStyles.body,
-              decoration: const InputDecoration(
-                labelText: 'Email',
-                prefixIcon: Icon(Icons.email),
-              ),
-            ),
-            const SizedBox(height: 16),
-            GlassCard(
-              onTap: () {
-                // TODO: Implement photo picker
-              },
-              child: Row(
-                children: [
-                  const Icon(Icons.photo_camera),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Change Profile Photo',
-                    style: AppTextStyles.body,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: AppTextStyles.body.copyWith(
-                color: AppColors.textSecondary,
-              ),
+    _showGlassDialog(
+      title: 'Edit Profile',
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: nameController,
+            style: AppTextStyles.body,
+            decoration: const InputDecoration(
+              labelText: 'Name',
+              prefixIcon: Icon(CupertinoIcons.person),
             ),
           ),
-          TextButton(
-            onPressed: () {
-              setState(() {
-                _userName = nameController.text;
-                _userEmail = emailController.text;
-              });
-              Navigator.pop(context);
-              _showUpdateSuccessSnackBar();
+          SizedBox(height: AppSpacing.md),
+          TextField(
+            controller: emailController,
+            style: AppTextStyles.body,
+            decoration: const InputDecoration(
+              labelText: 'Email',
+              prefixIcon: Icon(CupertinoIcons.mail),
+            ),
+          ),
+          SizedBox(height: AppSpacing.md),
+          GlassCard(
+            onTap: () {
+              // TODO: Implement photo picker
             },
-            child: Text(
-              'Save',
-              style: AppTextStyles.body.copyWith(
-                color: AppColors.primaryAction,
-              ),
+            child: Row(
+              children: [
+                const Icon(CupertinoIcons.camera),
+                SizedBox(width: AppSpacing.sm),
+                Text(
+                  'Change Profile Photo',
+                  style: AppTextStyles.body,
+                ),
+              ],
             ),
           ),
         ],
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(
+            'Cancel',
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+        SizedBox(width: AppSpacing.sm),
+        TextButton(
+          onPressed: () {
+            setState(() {
+              _userName = nameController.text;
+              _userEmail = emailController.text;
+            });
+            Navigator.pop(context);
+            _showUpdateSuccessSnackBar();
+          },
+          style: TextButton.styleFrom(
+            backgroundColor: AppColors.primaryAction.withOpacity(0.2),
+            padding: EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.sm,
+            ),
+          ),
+          child: Text(
+            'Save',
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.primaryAction,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
   void _showExportDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surfaceDark,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'Export Data',
-          style: AppTextStyles.h3,
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Choose the format for your data export:',
-              style: AppTextStyles.body,
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: GlassCard(
-                    onTap: () {
-                      Navigator.pop(context);
-                      // TODO: Export as JSON
-                      _showExportSuccessSnackBar('JSON');
-                    },
-                    child: Column(
-                      children: [
-                        const Icon(Icons.data_object, size: 32),
-                        const SizedBox(height: 8),
-                        Text(
-                          'JSON',
-                          style: AppTextStyles.body,
-                        ),
-                      ],
-                    ),
+    _showGlassDialog(
+      title: 'Export Data',
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Choose the format for your data export:',
+            style: AppTextStyles.body,
+          ),
+          SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: GlassCard(
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showExportSuccessSnackBar('JSON');
+                  },
+                  child: Column(
+                    children: [
+                      const Icon(CupertinoIcons.doc_on_doc, size: 32),
+                      SizedBox(height: AppSpacing.sm),
+                      Text('JSON', style: AppTextStyles.body),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: GlassCard(
-                    onTap: () {
-                      Navigator.pop(context);
-                      // TODO: Export as CSV
-                      _showExportSuccessSnackBar('CSV');
-                    },
-                    child: Column(
-                      children: [
-                        const Icon(Icons.table_chart, size: 32),
-                        const SizedBox(height: 8),
-                        Text(
-                          'CSV',
-                          style: AppTextStyles.body,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: AppTextStyles.body.copyWith(
-                color: AppColors.textSecondary,
               ),
-            ),
+              SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: GlassCard(
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showExportSuccessSnackBar('CSV');
+                  },
+                  child: Column(
+                    children: [
+                      const Icon(CupertinoIcons.table, size: 32),
+                      SizedBox(height: AppSpacing.sm),
+                      Text('CSV', style: AppTextStyles.body),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(
+            'Cancel',
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
   void _showRevokeAllDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surfaceDark,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'Revoke All Shares',
-          style: AppTextStyles.h3.copyWith(color: AppColors.error),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.warning,
-              color: AppColors.error,
-              size: 48,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'This will immediately revoke access to all your shared contact information. Recipients will no longer be able to view your details.',
-              style: AppTextStyles.body,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'This action cannot be undone.',
-              style: AppTextStyles.body.copyWith(
-                color: AppColors.error,
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: AppTextStyles.body.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
+    _showGlassDialog(
+      title: 'Revoke All Shares',
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(CupertinoIcons.exclamationmark_triangle, color: AppColors.error, size: 48),
+          SizedBox(height: AppSpacing.md),
+          Text(
+            'This will immediately revoke access to all your shared contact information. Recipients will no longer be able to view your details.',
+            style: AppTextStyles.body,
+            textAlign: TextAlign.center,
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // TODO: Revoke all shares
-              _showRevokeSuccessSnackBar();
-            },
-            child: Text(
-              'Revoke All',
-              style: AppTextStyles.body.copyWith(
-                color: AppColors.error,
-                fontWeight: FontWeight.w600,
-              ),
+          SizedBox(height: AppSpacing.md),
+          Text(
+            'This action cannot be undone.',
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.error,
+              fontWeight: FontWeight.w600,
             ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(
+            'Cancel',
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+        SizedBox(width: AppSpacing.sm),
+        TextButton(
+          onPressed: () {
+            Navigator.pop(context);
+            _showRevokeSuccessSnackBar();
+          },
+          style: TextButton.styleFrom(
+            backgroundColor: AppColors.error.withOpacity(0.2),
+            padding: EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.sm,
+            ),
+          ),
+          child: Text(
+            'Revoke All',
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.error,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
   void _showClearDataDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surfaceDark,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'Clear All Data',
-          style: AppTextStyles.h3.copyWith(color: AppColors.error),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.delete_forever,
-              color: AppColors.error,
-              size: 48,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'This will permanently delete all your data including:',
-              style: AppTextStyles.body,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            Column(
-              key: const Key('settings_delete_account_list'),
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(key: const Key('settings_delete_account_contact_info'), '• Contact information', style: AppTextStyles.body),
-                Text(key: const Key('settings_delete_account_sharing_history'), '• Sharing history', style: AppTextStyles.body),
-                Text(key: const Key('settings_delete_account_app_preferences'), '• App preferences', style: AppTextStyles.body),
-                Text(key: const Key('settings_delete_account_account_settings'), '• Account settings', style: AppTextStyles.body),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'This action cannot be undone.',
-              style: AppTextStyles.body.copyWith(
-                color: AppColors.error,
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: AppTextStyles.body.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
+    _showGlassDialog(
+      title: 'Clear All Data',
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(CupertinoIcons.trash, color: AppColors.error, size: 48),
+          SizedBox(height: AppSpacing.md),
+          Text(
+            'This will permanently delete all your data including:',
+            style: AppTextStyles.body,
+            textAlign: TextAlign.center,
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // TODO: Clear all data
-              final appState = context.read<AppState>();
-              appState.resetAppState();
-            },
-            child: Text(
-              'Delete Everything',
-              style: AppTextStyles.body.copyWith(
-                color: AppColors.error,
-                fontWeight: FontWeight.w600,
-              ),
+          SizedBox(height: AppSpacing.sm),
+          Column(
+            key: const Key('settings_delete_account_list'),
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(key: const Key('settings_delete_account_contact_info'), '• Contact information', style: AppTextStyles.body),
+              Text(key: const Key('settings_delete_account_sharing_history'), '• Sharing history', style: AppTextStyles.body),
+              Text(key: const Key('settings_delete_account_app_preferences'), '• App preferences', style: AppTextStyles.body),
+              Text(key: const Key('settings_delete_account_account_settings'), '• Account settings', style: AppTextStyles.body),
+            ],
+          ),
+          SizedBox(height: AppSpacing.md),
+          Text(
+            'This action cannot be undone.',
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.error,
+              fontWeight: FontWeight.w600,
             ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(
+            'Cancel',
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+        SizedBox(width: AppSpacing.sm),
+        TextButton(
+          onPressed: () {
+            Navigator.pop(context);
+            final appState = context.read<AppState>();
+            appState.resetAppState();
+          },
+          style: TextButton.styleFrom(
+            backgroundColor: AppColors.error.withOpacity(0.2),
+            padding: EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.sm,
+            ),
+          ),
+          child: Text(
+            'Delete Everything',
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.error,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1341,7 +1496,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Icon(
-                Icons.nfc,
+                CupertinoIcons.antenna_radiowaves_left_right,
                 color: AppColors.textPrimary,
                 size: 24,
               ),
@@ -1440,58 +1595,54 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
   }
 
   void _showSignOutDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surfaceDark,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'Sign Out',
-          style: AppTextStyles.h3,
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.logout,
-              color: AppColors.primaryAction,
-              size: 48,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Are you sure you want to sign out? Your data will remain safe and you can sign back in anytime.',
-              style: AppTextStyles.body,
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: AppTextStyles.body.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              final appState = context.read<AppState>();
-              appState.signOut();
-              _showSignOutSuccessSnackBar();
-            },
-            child: Text(
-              'Sign Out',
-              style: AppTextStyles.body.copyWith(
-                color: AppColors.primaryAction,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+    _showGlassDialog(
+      title: 'Sign Out',
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(CupertinoIcons.square_arrow_right, color: AppColors.primaryAction, size: 48),
+          SizedBox(height: AppSpacing.md),
+          Text(
+            'Are you sure you want to sign out? Your data will remain safe and you can sign back in anytime.',
+            style: AppTextStyles.body,
+            textAlign: TextAlign.center,
           ),
         ],
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(
+            'Cancel',
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+        SizedBox(width: AppSpacing.sm),
+        TextButton(
+          onPressed: () {
+            Navigator.pop(context);
+            final appState = context.read<AppState>();
+            appState.signOut();
+            _showSignOutSuccessSnackBar();
+          },
+          style: TextButton.styleFrom(
+            backgroundColor: AppColors.primaryAction.withOpacity(0.2),
+            padding: EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.sm,
+            ),
+          ),
+          child: Text(
+            'Sign Out',
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.primaryAction,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1500,7 +1651,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.check_circle, color: AppColors.success),
+            Icon(CupertinoIcons.checkmark_circle, color: AppColors.success),
             const SizedBox(width: 12),
             Text(
               'Profile updated successfully',
@@ -1519,7 +1670,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.download_done, color: AppColors.success),
+            Icon(CupertinoIcons.checkmark_circle, color: AppColors.success),
             const SizedBox(width: 12),
             Text(
               'Data exported as $format',
@@ -1545,7 +1696,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.block, color: AppColors.warning),
+            Icon(CupertinoIcons.hand_raised_fill, color: AppColors.warning),
             const SizedBox(width: 12),
             Text(
               'All shares have been revoked',
@@ -1564,7 +1715,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.logout, color: AppColors.info),
+            Icon(CupertinoIcons.square_arrow_right, color: AppColors.info),
             const SizedBox(width: 12),
             Text(
               'Signed out successfully',
@@ -1583,7 +1734,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.palette, color: AppColors.highlight),
+            Icon(CupertinoIcons.paintbrush, color: AppColors.highlight),
             const SizedBox(width: 12),
             Text(
               'Theme will be applied in next update',

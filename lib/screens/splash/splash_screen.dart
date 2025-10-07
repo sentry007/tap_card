@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
@@ -348,7 +349,7 @@ class _SplashScreenState extends State<SplashScreen>
             ],
           ),
           child: Icon(
-            Icons.nfc,
+            CupertinoIcons.antenna_radiowaves_left_right,
             color: AppColors.textPrimary,
             size: (cardSize * 0.08).clamp(20.0, 30.0),
           ),
@@ -387,7 +388,7 @@ class _SplashScreenState extends State<SplashScreen>
             children: [
               _buildSignInButton(
                 key: 'phone',
-                icon: Icons.phone,
+                icon: CupertinoIcons.phone,
                 text: 'Continue with Phone',
                 onTap: _onPhoneSignIn,
                 cardSize: cardSize,
@@ -395,7 +396,7 @@ class _SplashScreenState extends State<SplashScreen>
               SizedBox(height: (cardSize * 0.02).clamp(4.0, 8.0)),
               _buildSignInButton(
                 key: 'google',
-                icon: Icons.g_mobiledata,
+                icon: CupertinoIcons.circle_fill,
                 text: 'Continue with Google',
                 onTap: _onGoogleSignIn,
                 cardSize: cardSize,
@@ -403,7 +404,7 @@ class _SplashScreenState extends State<SplashScreen>
               SizedBox(height: (cardSize * 0.02).clamp(4.0, 8.0)),
               _buildSignInButton(
                 key: 'apple',
-                icon: Icons.apple,
+                icon: CupertinoIcons.device_phone_portrait,
                 text: 'Continue with Apple',
                 onTap: _onAppleSignIn,
                 cardSize: cardSize,

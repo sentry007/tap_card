@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:ui';
 import 'dart:io';
 
@@ -79,6 +83,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     if (index >= 0 && index < _templates.length) {
       final template = _templates[index];
       _updateCardAesthetics(
+        templateIndex: index,
         primaryColor: template.primaryColor,
         secondaryColor: template.secondaryColor,
       );
@@ -277,23 +282,40 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   /// Update card aesthetics and trigger preview update
   void _updateCardAesthetics({
+    int? templateIndex,
     Color? primaryColor,
     Color? secondaryColor,
     Color? borderColor,
     Color? backgroundColor,
+    bool clearBackgroundColor = false,
     double? blurLevel,
     String? backgroundImagePath,
   }) {
     if (_currentProfile == null) return;
 
-    final updatedAesthetics = _currentProfile!.cardAesthetics.copyWith(
-      primaryColor: primaryColor,
-      secondaryColor: secondaryColor,
-      borderColor: borderColor,
-      backgroundColor: backgroundColor,
-      blurLevel: blurLevel,
-      backgroundImagePath: backgroundImagePath,
-    );
+    // Handle explicit null for backgroundColor
+    final CardAesthetics updatedAesthetics;
+    if (clearBackgroundColor) {
+      updatedAesthetics = CardAesthetics(
+        templateIndex: templateIndex ?? _currentProfile!.cardAesthetics.templateIndex,
+        primaryColor: primaryColor ?? _currentProfile!.cardAesthetics.primaryColor,
+        secondaryColor: secondaryColor ?? _currentProfile!.cardAesthetics.secondaryColor,
+        borderColor: borderColor ?? _currentProfile!.cardAesthetics.borderColor,
+        backgroundColor: null, // Explicitly set to null
+        blurLevel: blurLevel ?? _currentProfile!.cardAesthetics.blurLevel,
+        backgroundImagePath: backgroundImagePath ?? _currentProfile!.cardAesthetics.backgroundImagePath,
+      );
+    } else {
+      updatedAesthetics = _currentProfile!.cardAesthetics.copyWith(
+        templateIndex: templateIndex,
+        primaryColor: primaryColor,
+        secondaryColor: secondaryColor,
+        borderColor: borderColor,
+        backgroundColor: backgroundColor,
+        blurLevel: blurLevel,
+        backgroundImagePath: backgroundImagePath,
+      );
+    }
 
     setState(() {
       _currentProfile = _currentProfile!.copyWith(
@@ -306,24 +328,53 @@ class _ProfileScreenState extends State<ProfileScreen>
     try {
       final XFile? image = await _picker.pickImage(
         source: source,
-        maxWidth: isBackground ? 1024 : 512,
-        maxHeight: isBackground ? 1024 : 512,
-        imageQuality: isBackground ? 90 : 80,
+        imageQuality: 100, // Pick at full quality, will compress after crop
       );
 
       if (image != null) {
-        setState(() {
-          if (isBackground) {
-            _backgroundImage = File(image.path);
-          } else {
-            _profileImage = File(image.path);
-          }
-        });
-        HapticFeedback.lightImpact();
+        // Crop the image
+        final CroppedFile? croppedFile = await ImageCropper().cropImage(
+          sourcePath: image.path,
+          compressFormat: ImageCompressFormat.jpg,
+          compressQuality: isBackground ? 90 : 80,
+          uiSettings: [
+            AndroidUiSettings(
+              toolbarTitle: isBackground ? 'Crop Background' : 'Crop Profile Photo',
+              toolbarColor: AppColors.primaryAction,
+              toolbarWidgetColor: Colors.white,
+              initAspectRatio: isBackground
+                  ? CropAspectRatioPreset.ratio3x2
+                  : CropAspectRatioPreset.square,
+              lockAspectRatio: true,
+              aspectRatioPresets: [
+                isBackground
+                    ? CropAspectRatioPreset.ratio3x2
+                    : CropAspectRatioPreset.square,
+              ],
+            ),
+            IOSUiSettings(
+              title: isBackground ? 'Crop Background' : 'Crop Profile Photo',
+              aspectRatioLockEnabled: true,
+              resetAspectRatioEnabled: false,
+              aspectRatioPickerButtonHidden: true,
+            ),
+          ],
+        );
+
+        if (croppedFile != null) {
+          setState(() {
+            if (isBackground) {
+              _backgroundImage = File(croppedFile.path);
+            } else {
+              _profileImage = File(croppedFile.path);
+            }
+          });
+          HapticFeedback.lightImpact();
+        }
       }
     } catch (e) {
       // Handle error
-      print('Error picking image: $e');
+      print('Error picking/cropping image: $e');
     }
   }
 
@@ -404,6 +455,67 @@ class _ProfileScreenState extends State<ProfileScreen>
     _saveColorCombination();
   }
 
+  // Launch methods for ProfileCardPreview interactions
+  Future<void> _launchEmail(String email) async {
+    final uri = Uri(scheme: 'mailto', path: email);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    }
+  }
+
+  Future<void> _launchPhone(String phone) async {
+    final uri = Uri(scheme: 'tel', path: phone);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    }
+  }
+
+  Future<void> _launchUrl(String url) async {
+    Uri uri;
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      uri = Uri.parse('https://$url');
+    } else {
+      uri = Uri.parse(url);
+    }
+
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  Future<void> _launchSocialMedia(String platform, String url) async {
+    String finalUrl = url;
+    if (!url.startsWith('http')) {
+      finalUrl = _getSocialUrl(platform, url);
+    }
+    await _launchUrl(finalUrl);
+  }
+
+  String _getSocialUrl(String platform, String username) {
+    final cleanUsername = username.startsWith('@') ? username.substring(1) : username;
+    switch (platform.toLowerCase()) {
+      case 'linkedin':
+        return 'https://linkedin.com/in/$cleanUsername';
+      case 'twitter':
+      case 'x':
+        return 'https://twitter.com/$cleanUsername';
+      case 'github':
+        return 'https://github.com/$cleanUsername';
+      case 'instagram':
+        return 'https://instagram.com/$cleanUsername';
+      case 'behance':
+        return 'https://behance.net/$cleanUsername';
+      case 'dribbble':
+        return 'https://dribbble.com/$cleanUsername';
+      case 'tiktok':
+        return 'https://tiktok.com/@$cleanUsername';
+      case 'youtube':
+        return 'https://youtube.com/@$cleanUsername';
+      default:
+        return username;
+    }
+  }
+
   @override
   void dispose() {
     // Remove listeners
@@ -443,77 +555,87 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   @override
   Widget build(BuildContext context) {
+    final statusBarHeight = MediaQuery.of(context).padding.top;
+
     return Scaffold(
       key: const Key('profile_scaffold'),
-      body: Container(
-        key: const Key('profile_main_container'),
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppColors.primaryBackground,
-              AppColors.surfaceDark,
-            ],
-          ),
-        ),
-        child: Column(
-          key: const Key('profile_main_column'),
-          children: [
-            _buildGlassAppBar(),
-            Expanded(
-              key: const Key('profile_expanded_content'),
-              child: SingleChildScrollView(
-                key: const Key('profile_scroll_view'),
-                padding: const EdgeInsets.all(16),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    key: const Key('profile_form_column'),
-                    children: [
-                      const SizedBox(key: Key('profile_top_spacing'), height: 8),
-                      _buildLivePreview(),
-                      const SizedBox(key: Key('profile_preview_spacing'), height: 24),
-                      _buildBlurSlider(),
-                      const SizedBox(key: Key('profile_blur_spacing'), height: 24),
-                      _buildTemplateSelector(),
-                      const SizedBox(key: Key('profile_template_spacing'), height: 24),
-                      if (_profileService.multipleProfilesEnabled) ...[
-                        _buildProfileSelector(),
-                        const SizedBox(key: Key('profile_selector_spacing'), height: 24),
-                      ],
-                      _buildFormSection(),
-                      const SizedBox(key: Key('profile_form_spacing'), height: 32),
-                      _buildSaveButton(),
-                      const SizedBox(key: Key('profile_bottom_spacing'), height: 100),
-                    ],
-                  ),
+      body: Stack(
+        children: [
+          // Background gradient (full screen behind everything)
+          Positioned.fill(
+            child: Container(
+              key: const Key('profile_main_container'),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    AppColors.primaryBackground,
+                    AppColors.surfaceDark,
+                  ],
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+          // Content scrolls from top
+          SingleChildScrollView(
+            key: const Key('profile_scroll_view'),
+            padding: EdgeInsets.only(
+              top: statusBarHeight + 80 + 16 + 8, // App bar + horizontal padding + top spacing
+              left: 16,
+              right: 16,
+              bottom: 100, // Original bottom spacing
+            ),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                key: const Key('profile_form_column'),
+                children: [
+                  _buildLivePreview(),
+                  const SizedBox(key: Key('profile_preview_spacing'), height: 24),
+                  _buildBlurSlider(),
+                  const SizedBox(key: Key('profile_blur_spacing'), height: 24),
+                  _buildTemplateSelector(),
+                  const SizedBox(key: Key('profile_template_spacing'), height: 24),
+                  if (_profileService.multipleProfilesEnabled) ...[
+                    _buildProfileSelector(),
+                    const SizedBox(key: Key('profile_selector_spacing'), height: 24),
+                  ],
+                  _buildFormSection(),
+                  const SizedBox(key: Key('profile_form_spacing'), height: 32),
+                  _buildSaveButton(),
+                ],
+              ),
+            ),
+          ),
+          // App bar overlay
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: _buildGlassAppBar(),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildGlassAppBar() {
-    return SafeArea(
-      key: const Key('profile_appbar_safe_area'),
-      bottom: false,
-      child: Container(
+    final statusBarHeight = MediaQuery.of(context).padding.top;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        top: statusBarHeight + 16,
+        left: 16,
+        right: 16,
+      ),
+      child: SizedBox(
         key: const Key('profile_appbar_container'),
         height: 64,
-        margin: const EdgeInsets.all(16),
-        color: Colors.transparent,
         child: ClipRRect(
-          key: const Key('profile_appbar_clip'),
           borderRadius: BorderRadius.circular(20),
           child: BackdropFilter(
-            key: const Key('profile_appbar_backdrop'),
-            filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
             child: Container(
               key: const Key('profile_appbar_content_container'),
               decoration: BoxDecoration(
@@ -548,7 +670,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                         height: 48,
                         child: const Icon(
                           key: Key('profile_appbar_clear_icon'),
-                          Icons.delete_outline,
+                          CupertinoIcons.delete,
                           color: AppColors.error,
                           size: 20,
                         ),
@@ -579,7 +701,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                         height: 48,
                         child: const Icon(
                           key: Key('profile_appbar_settings_icon'),
-                          Icons.settings_outlined,
+                          CupertinoIcons.settings,
                           color: AppColors.textPrimary,
                           size: 20,
                         ),
@@ -627,7 +749,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   children: [
                     Expanded(
                       child: _buildImagePickerOption(
-                        icon: Icons.camera_alt,
+                        icon: CupertinoIcons.camera,
                         title: 'Camera',
                         onTap: () {
                           Navigator.pop(context);
@@ -638,7 +760,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                     const SizedBox(width: 16),
                     Expanded(
                       child: _buildImagePickerOption(
-                        icon: Icons.photo_library,
+                        icon: CupertinoIcons.photo,
                         title: 'Gallery',
                         onTap: () {
                           Navigator.pop(context);
@@ -651,7 +773,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 if (isBackground && _backgroundImage != null) ...[
                   const SizedBox(height: 16),
                   _buildImagePickerOption(
-                    icon: Icons.clear,
+                    icon: CupertinoIcons.xmark,
                     title: 'Remove Background',
                     onTap: () {
                       Navigator.pop(context);
@@ -829,11 +951,11 @@ class _ProfileScreenState extends State<ProfileScreen>
   IconData _getProfileTypeIcon(ProfileType type) {
     switch (type) {
       case ProfileType.personal:
-        return Icons.person_outline;
+        return CupertinoIcons.person;
       case ProfileType.professional:
-        return Icons.business_center_outlined;
+        return CupertinoIcons.briefcase;
       case ProfileType.custom:
-        return Icons.tune_outlined;
+        return CupertinoIcons.slider_horizontal_3;
     }
   }
 
@@ -902,7 +1024,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         focusNode: _nameFocus,
         nextFocusNode: _getNextFocus('name'),
         label: 'Full Name',
-        icon: Icons.person_outline,
+        icon: CupertinoIcons.person,
         validator: (value) {
           if (value == null || value.isEmpty) {
             return 'Name is required';
@@ -921,7 +1043,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           focusNode: _titleFocus,
           nextFocusNode: _getNextFocus('title'),
           label: 'Title/Position',
-          icon: Icons.work_outline,
+          icon: CupertinoIcons.bag,
         ),
         const SizedBox(height: 16),
       ]);
@@ -935,7 +1057,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           focusNode: _companyFocus,
           nextFocusNode: _getNextFocus('company'),
           label: 'Company',
-          icon: Icons.business_outlined,
+          icon: CupertinoIcons.building_2_fill,
         ),
         const SizedBox(height: 16),
       ]);
@@ -948,7 +1070,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         focusNode: _phoneFocus,
         nextFocusNode: _getNextFocus('phone'),
         label: 'Phone Number',
-        icon: Icons.phone_outlined,
+        icon: CupertinoIcons.phone,
         keyboardType: TextInputType.phone,
       ),
       const SizedBox(height: 16),
@@ -961,7 +1083,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         focusNode: _emailFocus,
         nextFocusNode: _getNextFocus('email'),
         label: 'Email Address',
-        icon: Icons.email_outlined,
+        icon: CupertinoIcons.mail,
         keyboardType: TextInputType.emailAddress,
       ),
       const SizedBox(height: 16),
@@ -975,7 +1097,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           focusNode: _websiteFocus,
           nextFocusNode: _getNextFocus('website'),
           label: 'Website',
-          icon: Icons.language_outlined,
+          icon: CupertinoIcons.globe,
           keyboardType: TextInputType.url,
         ),
         const SizedBox(height: 16),
@@ -1064,19 +1186,19 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   IconData _getSocialIcon(String social) {
     switch (social) {
-      case 'instagram': return Icons.camera_alt_outlined;
-      case 'snapchat': return Icons.camera_outlined;
-      case 'tiktok': return Icons.music_video_outlined;
-      case 'twitter': return Icons.alternate_email;
-      case 'facebook': return Icons.facebook_outlined;
-      case 'linkedin': return Icons.business_center_outlined;
-      case 'github': return Icons.code_outlined;
-      case 'discord': return Icons.chat_outlined;
-      case 'behance': return Icons.palette_outlined;
-      case 'dribbble': return Icons.design_services_outlined;
-      case 'youtube': return Icons.video_library_outlined;
-      case 'twitch': return Icons.live_tv_outlined;
-      default: return Icons.link_outlined;
+      case 'instagram': return FontAwesomeIcons.instagram;
+      case 'snapchat': return FontAwesomeIcons.snapchat;
+      case 'tiktok': return FontAwesomeIcons.tiktok;
+      case 'twitter': return FontAwesomeIcons.xTwitter;
+      case 'facebook': return FontAwesomeIcons.facebook;
+      case 'linkedin': return FontAwesomeIcons.linkedin;
+      case 'github': return FontAwesomeIcons.github;
+      case 'discord': return FontAwesomeIcons.discord;
+      case 'behance': return FontAwesomeIcons.behance;
+      case 'dribbble': return FontAwesomeIcons.dribbble;
+      case 'youtube': return FontAwesomeIcons.youtube;
+      case 'twitch': return FontAwesomeIcons.twitch;
+      default: return CupertinoIcons.link;
     }
   }
 
@@ -1111,64 +1233,69 @@ class _ProfileScreenState extends State<ProfileScreen>
     TextInputAction? textInputAction,
     String? Function(String?)? validator,
   }) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: focusNode.hasFocus
-                  ? AppColors.primaryAction.withOpacity(0.5)
-                  : Colors.white.withOpacity(0.2),
-              width: 1.5,
+    return ValueListenableBuilder<bool>(
+      valueListenable: _FocusNotifier(focusNode),
+      builder: (context, hasFocus, child) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: hasFocus
+                      ? AppColors.primaryAction.withOpacity(0.5)
+                      : Colors.white.withOpacity(0.2),
+                  width: 1.5,
+                ),
+              ),
+              child: TextFormField(
+                controller: controller,
+                focusNode: focusNode,
+                keyboardType: keyboardType,
+                textInputAction: textInputAction ?? TextInputAction.next,
+                validator: validator,
+                style: AppTextStyles.body,
+                decoration: InputDecoration(
+                  labelText: label,
+                  labelStyle: AppTextStyles.body.copyWith(
+                    color: hasFocus ? AppColors.primaryAction : AppColors.textSecondary,
+                  ),
+                  prefixIcon: Icon(
+                    icon,
+                    color: hasFocus ? AppColors.primaryAction : AppColors.textSecondary,
+                    size: 20,
+                  ),
+                  prefixText: prefix,
+                  prefixStyle: AppTextStyles.body.copyWith(
+                    color: AppColors.textTertiary,
+                  ),
+                  border: InputBorder.none,
+                  errorBorder: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  errorStyle: AppTextStyles.caption.copyWith(
+                    color: AppColors.error,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                ),
+                onFieldSubmitted: (value) {
+                  if (nextFocusNode != null) {
+                    nextFocusNode.requestFocus();
+                  } else {
+                    focusNode.unfocus();
+                  }
+                },
+              ),
             ),
           ),
-          child: TextFormField(
-            controller: controller,
-            focusNode: focusNode,
-            keyboardType: keyboardType,
-            textInputAction: textInputAction ?? TextInputAction.next,
-            validator: validator,
-            style: AppTextStyles.body,
-            decoration: InputDecoration(
-              labelText: label,
-              labelStyle: AppTextStyles.body.copyWith(
-                color: AppColors.textSecondary,
-              ),
-              prefixIcon: Icon(
-                icon,
-                color: AppColors.textSecondary,
-                size: 20,
-              ),
-              prefixText: prefix,
-              prefixStyle: AppTextStyles.body.copyWith(
-                color: AppColors.textTertiary,
-              ),
-              border: InputBorder.none,
-              errorBorder: InputBorder.none,
-              enabledBorder: InputBorder.none,
-              focusedBorder: InputBorder.none,
-              errorStyle: AppTextStyles.caption.copyWith(
-                color: AppColors.error,
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 16,
-              ),
-            ),
-            onFieldSubmitted: (value) {
-              if (nextFocusNode != null) {
-                nextFocusNode.requestFocus();
-              } else {
-                focusNode.unfocus();
-              }
-            },
-          ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -1389,7 +1516,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                     ),
                   ),
                   child: Icon(
-                    Icons.palette_outlined,
+                    CupertinoIcons.paintbrush,
                     color: _borderColor.computeLuminance() > 0.5 ? Colors.black : Colors.white,
                     size: 16,
                   ),
@@ -1451,7 +1578,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                     ),
                   ),
                   child: Icon(
-                    Icons.gradient,
+                    CupertinoIcons.slider_horizontal_3,
                     color: _backgroundColor != null
                       ? (_backgroundColor!.computeLuminance() > 0.5 ? Colors.black : Colors.white)
                       : Colors.white,
@@ -1508,7 +1635,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
-                    _backgroundImage == null ? Icons.add_photo_alternate_outlined : Icons.edit,
+                    _backgroundImage == null ? CupertinoIcons.photo_on_rectangle : CupertinoIcons.pencil,
                     color: AppColors.primaryAction,
                     size: 16,
                   ),
@@ -1617,7 +1744,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                 ),
                               ),
                               child: Icon(
-                                Icons.clear,
+                                CupertinoIcons.xmark,
                                 color: _borderColor == Colors.transparent
                                   ? AppColors.primaryAction
                                   : AppColors.textSecondary,
@@ -1671,7 +1798,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                 ),
                                 child: isSelected
                                   ? Icon(
-                                      Icons.check,
+                                      CupertinoIcons.checkmark,
                                       color: color.computeLuminance() > 0.5
                                         ? Colors.black
                                         : Colors.white,
@@ -1998,7 +2125,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                           GestureDetector(
                             onTap: () {
                               _updateCardAesthetics(
-                                backgroundColor: null,
+                                clearBackgroundColor: true,
                               );
                               Navigator.pop(context);
                               HapticFeedback.lightImpact();
@@ -2017,7 +2144,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                 ),
                               ),
                               child: Icon(
-                                Icons.clear,
+                                CupertinoIcons.xmark,
                                 color: _backgroundColor == null
                                   ? AppColors.primaryAction
                                   : AppColors.textSecondary,
@@ -2072,7 +2199,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                 ),
                                 child: isSelected
                                   ? Icon(
-                                      Icons.check,
+                                      CupertinoIcons.checkmark,
                                       color: color.computeLuminance() > 0.5
                                         ? Colors.black
                                         : Colors.white,
@@ -2424,266 +2551,72 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
+  /// Build preview ProfileData from current form state
+  ProfileData _buildPreviewProfile() {
+    final socialMediaData = <String, String>{};
+    for (final entry in _socialControllers.entries) {
+      final value = entry.value.text.trim();
+      if (value.isNotEmpty) {
+        socialMediaData[entry.key] = value;
+      }
+    }
+
+    final updatedAesthetics = _currentAesthetics.copyWith(
+      backgroundImagePath: _backgroundImage?.path,
+      backgroundColor: _backgroundColor,
+      borderColor: _borderColor,
+      blurLevel: _blurLevel,
+    );
+
+    if (_currentProfile == null) {
+      return ProfileData(
+        id: 'preview',
+        type: ProfileType.personal,
+        name: _nameController.text.trim().isEmpty ? 'Your Name' : _nameController.text.trim(),
+        title: _titleController.text.trim().isEmpty ? null : _titleController.text.trim(),
+        company: _companyController.text.trim().isEmpty ? null : _companyController.text.trim(),
+        phone: _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
+        email: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
+        website: _websiteController.text.trim().isEmpty ? null : _websiteController.text.trim(),
+        socialMedia: socialMediaData,
+        profileImagePath: _profileImage?.path,
+        cardAesthetics: updatedAesthetics,
+        lastUpdated: DateTime.now(),
+      );
+    }
+
+    return _currentProfile!.copyWith(
+      name: _nameController.text.trim().isEmpty ? 'Your Name' : _nameController.text.trim(),
+      title: _titleController.text.trim().isEmpty ? null : _titleController.text.trim(),
+      company: _companyController.text.trim().isEmpty ? null : _companyController.text.trim(),
+      phone: _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
+      email: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
+      website: _websiteController.text.trim().isEmpty ? null : _websiteController.text.trim(),
+      socialMedia: socialMediaData,
+      profileImagePath: _profileImage?.path,
+      cardAesthetics: updatedAesthetics,
+    );
+  }
+
   Widget _buildContactCard() {
-    return Container(
-      width: double.infinity,
-      height: 200,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Stack(
-          children: [
-            // Background with CardAesthetics colors
-            Container(
-              decoration: BoxDecoration(
-                gradient: _backgroundColor != null
-                  ? LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        _backgroundColor!,
-                        _backgroundColor!.withOpacity(0.8),
-                      ],
-                    )
-                  : _currentAesthetics.gradient,
-              ),
-            ),
-            // Background image if present
-            if (_backgroundImage != null)
-              Positioned.fill(
-                child: Image.file(
-                  _backgroundImage!,
-                  fit: BoxFit.cover,
-                ),
-              ),
-            // Glassmorphic overlay
-            BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: _blurLevel, sigmaY: _blurLevel),
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Colors.white.withOpacity(_backgroundImage != null ? 0.1 : 0.2),
-                      Colors.white.withOpacity(_backgroundImage != null ? 0.05 : 0.1),
-                    ],
-                  ),
-                  border: _borderColor != Colors.transparent
-                    ? Border.all(
-                        color: _borderColor.withOpacity(0.8),
-                        width: 1.5,
-                      )
-                    : null,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-              ),
-            ),
-            // Content overlay for readability
-            if (_backgroundImage != null)
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Colors.black.withOpacity(0.2),
-                      Colors.black.withOpacity(0.3),
-                    ],
-                  ),
-                ),
-              ),
-            // Content
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                      // Header with avatar and name
-                      Row(
-                        children: [
-                          GestureDetector(
-                            onTap: _showImagePicker,
-                            child: Container(
-                              width: 60,
-                              height: 60,
-                              decoration: BoxDecoration(
-                                gradient: _profileImage == null ? AppColors.primaryGradient : null,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Stack(
-                                children: [
-                                  _profileImage == null
-                                      ? const Icon(
-                                          Icons.person,
-                                          color: Colors.white,
-                                          size: 32,
-                                        )
-                                      : ClipRRect(
-                                          borderRadius: BorderRadius.circular(12),
-                                          child: Image.file(
-                                            _profileImage!,
-                                            fit: BoxFit.cover,
-                                          ),
-                                        ),
-                                  // Edit overlay
-                                  Positioned(
-                                    bottom: 0,
-                                    right: 0,
-                                    child: Container(
-                                      width: 20,
-                                      height: 20,
-                                      decoration: BoxDecoration(
-                                        color: AppColors.primaryAction,
-                                        borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(
-                                          color: Colors.white,
-                                          width: 1.5,
-                                        ),
-                                      ),
-                                      child: const Icon(
-                                        Icons.camera_alt,
-                                        size: 12,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  _nameController.text.isEmpty
-                                      ? 'Your Name'
-                                      : _nameController.text,
-                                  style: AppTextStyles.body.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 1,
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  _titleController.text.isEmpty
-                                      ? (_selectedProfileType == ProfileType.professional || _selectedProfileType == ProfileType.custom
-                                          ? 'Your Title'
-                                          : '')
-                                      : _titleController.text,
-                                  style: AppTextStyles.caption.copyWith(
-                                    color: Colors.white.withOpacity(0.7),
-                                    fontSize: 12,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 1,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      // Contact info
-                      Flexible(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (_emailController.text.isNotEmpty) ...[
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.email,
-                                    size: 14,
-                                    color: Colors.white.withOpacity(0.7),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Expanded(
-                                    child: Text(
-                                      _emailController.text,
-                                      style: AppTextStyles.caption.copyWith(
-                                        color: Colors.white.withOpacity(0.9),
-                                        fontSize: 11,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                      maxLines: 1,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                            ],
-                            if (_phoneController.text.isNotEmpty) ...[
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.phone,
-                                    size: 14,
-                                    color: Colors.white.withOpacity(0.7),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Expanded(
-                                    child: Text(
-                                      _phoneController.text,
-                                      style: AppTextStyles.caption.copyWith(
-                                        color: Colors.white.withOpacity(0.9),
-                                        fontSize: 11,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                      maxLines: 1,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                            ],
-                            if (_companyController.text.isNotEmpty) ...[
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.business,
-                                    size: 14,
-                                    color: Colors.white.withOpacity(0.7),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Expanded(
-                                    child: Text(
-                                      _companyController.text,
-                                      style: AppTextStyles.caption.copyWith(
-                                        color: Colors.white.withOpacity(0.9),
-                                        fontSize: 11,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                      maxLines: 1,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-          ],
-        ),
+    final previewProfile = _buildPreviewProfile();
+    
+    return Center(
+      child: ProfileCardPreview(
+        profile: previewProfile,
+        width: double.infinity,
+        height: 200,
+        borderRadius: 20,
+        onEmailTap: previewProfile.email != null && previewProfile.email!.isNotEmpty 
+            ? () => _launchEmail(previewProfile.email!) 
+            : null,
+        onPhoneTap: previewProfile.phone != null && previewProfile.phone!.isNotEmpty 
+            ? () => _launchPhone(previewProfile.phone!) 
+            : null,
+        onWebsiteTap: previewProfile.website != null && previewProfile.website!.isNotEmpty 
+            ? () => _launchUrl(previewProfile.website!) 
+            : null,
+        onSocialTap: (platform, url) => _launchSocialMedia(platform, url),
       ),
     );
   }
@@ -2703,7 +2636,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               onPressed: _isSaving ? null : _saveProfile,
               icon: _isSaving
                   ? null
-                  : const Icon(Icons.save, size: 20),
+                  : const Icon(CupertinoIcons.floppy_disk, size: 20),
             ),
           ),
         );
@@ -2722,7 +2655,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     GlassmorphicDialog.show(
       context: context,
       icon: Icon(
-        Icons.warning_amber_rounded,
+        CupertinoIcons.exclamationmark_triangle_fill,
         color: AppColors.error,
         size: 48,
       ),
@@ -2805,4 +2738,23 @@ enum TemplateBackground {
   gradient,
   pattern,
   solid,
+}
+
+// Helper class for focus state listening
+class _FocusNotifier extends ValueNotifier<bool> {
+  final FocusNode focusNode;
+
+  _FocusNotifier(this.focusNode) : super(focusNode.hasFocus) {
+    focusNode.addListener(_onFocusChange);
+  }
+
+  void _onFocusChange() {
+    value = focusNode.hasFocus;
+  }
+
+  @override
+  void dispose() {
+    focusNode.removeListener(_onFocusChange);
+    super.dispose();
+  }
 }

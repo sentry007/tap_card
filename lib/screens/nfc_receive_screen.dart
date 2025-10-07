@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -208,7 +209,7 @@ class _NFCReceiveScreenState extends State<NFCReceiveScreen>
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
-                          Icons.nfc,
+                          CupertinoIcons.antenna_radiowaves_left_right,
                           size: 40,
                           color: AppColors.primaryAction,
                         ),
@@ -268,7 +269,7 @@ class _NFCReceiveScreenState extends State<NFCReceiveScreen>
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
-                    Icons.check_circle,
+                    CupertinoIcons.check_mark_circled_solid,
                     size: 40,
                     color: AppColors.success,
                   ),
@@ -384,7 +385,7 @@ class _NFCReceiveScreenState extends State<NFCReceiveScreen>
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
-                    Icons.error_outline,
+                    CupertinoIcons.exclamationmark_circle,
                     size: 40,
                     color: AppColors.error,
                   ),

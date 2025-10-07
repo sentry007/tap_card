@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
 class NotificationService {
@@ -111,7 +112,7 @@ class _CardReceivedModal extends StatelessWidget {
                     borderRadius: BorderRadius.circular(40),
                   ),
                   child: const Icon(
-                    Icons.check_circle,
+                    CupertinoIcons.check_mark_circled_solid,
                     color: Colors.white,
                     size: 40,
                   ),
@@ -156,7 +157,7 @@ class _CardReceivedModal extends StatelessWidget {
                     Expanded(
                       child: _buildActionButton(
                         'Open',
-                        Icons.open_in_new,
+                        CupertinoIcons.arrow_up_right_square,
                         () {
                           Navigator.pop(context);
                           _openContactDetails(context, cardData);
@@ -167,7 +168,7 @@ class _CardReceivedModal extends StatelessWidget {
                     Expanded(
                       child: _buildActionButton(
                         'Add to Contacts',
-                        Icons.person_add,
+                        CupertinoIcons.person_add,
                         () {
                           Navigator.pop(context);
                           _addToContacts(context, cardData);
@@ -183,7 +184,7 @@ class _CardReceivedModal extends StatelessWidget {
                   width: double.infinity,
                   child: _buildActionButton(
                     'Dismiss',
-                    Icons.close,
+                    CupertinoIcons.xmark,
                     () => Navigator.pop(context),
                     outlined: true,
                   ),

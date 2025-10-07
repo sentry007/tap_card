@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/unified_models.dart';
@@ -37,7 +39,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
               Align(
                 alignment: Alignment.topRight,
                 child: IconButton(
-                  icon: Icon(Icons.close, color: Color(0xFF673AB7)),
+                  icon: Icon(CupertinoIcons.xmark, color: Color(0xFF673AB7)),
                   onPressed: () => Navigator.pop(context),
                 ),
               ),
@@ -113,7 +115,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
         // Phone
         if (_contact.contact.phone != null)
           ContactInfoRow(
-            icon: Icons.phone,
+            icon: CupertinoIcons.phone,
             text: _contact.contact.phone!,
             onTap: () => _launchUrl('tel:${_contact.contact.phone}'),
           ),
@@ -121,7 +123,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
         // Email
         if (_contact.contact.email != null)
           ContactInfoRow(
-            icon: Icons.email,
+            icon: CupertinoIcons.mail,
             text: _contact.contact.email!,
             onTap: () => _launchUrl('mailto:${_contact.contact.email}'),
           ),
@@ -129,7 +131,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
         // Website
         if (_contact.contact.website != null)
           ContactInfoRow(
-            icon: Icons.language,
+            icon: CupertinoIcons.globe,
             text: _contact.contact.website!,
             onTap: () => _launchUrl(_contact.contact.website!),
           ),
@@ -195,11 +197,11 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
   // Helper methods for social media icons and URLs
   IconData _getSocialIcon(String platform) {
     switch (platform.toLowerCase()) {
-      case 'linkedin': return Icons.business;
-      case 'twitter': return Icons.alternate_email;
-      case 'instagram': return Icons.camera_alt;
-      case 'github': return Icons.code;
-      default: return Icons.link;
+      case 'linkedin': return FontAwesomeIcons.linkedin;
+      case 'twitter': return FontAwesomeIcons.xTwitter;
+      case 'instagram': return FontAwesomeIcons.instagram;
+      case 'github': return FontAwesomeIcons.github;
+      default: return CupertinoIcons.link;
     }
   }
 
@@ -284,7 +286,7 @@ class ContactInfoRow extends StatelessWidget {
               ),
             ),
             if (onTap != null)
-              Icon(Icons.open_in_new, color: Color(0xFF673AB7), size: 16),
+              Icon(CupertinoIcons.arrow_up_right_square, color: Color(0xFF673AB7), size: 16),
           ],
         ),
       ),

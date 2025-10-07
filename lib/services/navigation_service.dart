@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 
 import '../models/unified_models.dart';
 import '../screens/contact_detail_screen.dart';
@@ -132,7 +133,7 @@ class NavigationService {
       SnackBar(
         content: Row(
           children: [
-            const Icon(Icons.check_circle, color: Colors.white),
+            const Icon(CupertinoIcons.check_mark_circled_solid, color: Colors.white),
             const SizedBox(width: 8),
             Expanded(child: Text(message)),
           ],
@@ -153,7 +154,7 @@ class NavigationService {
       SnackBar(
         content: Row(
           children: [
-            const Icon(Icons.error, color: Colors.white),
+            const Icon(CupertinoIcons.exclamationmark_circle, color: Colors.white),
             const SizedBox(width: 8),
             Expanded(child: Text(message)),
           ],

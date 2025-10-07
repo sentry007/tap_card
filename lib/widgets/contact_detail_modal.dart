@@ -1,6 +1,8 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -238,7 +240,7 @@ class _ContactDetailModalState extends State<ContactDetailModal>
                   ),
                 ),
                 child: const Icon(
-                  Icons.close,
+                  CupertinoIcons.xmark,
                   size: 18,
                   color: AppColors.textSecondary,
                 ),
@@ -363,21 +365,21 @@ class _ContactDetailModalState extends State<ContactDetailModal>
       children: [
         if (widget.contact.email != null)
           _buildInfoRow(
-            Icons.email_outlined,
+            CupertinoIcons.mail,
             'Email',
             widget.contact.email!,
             () => _launchUrl('mailto:${widget.contact.email}'),
           ),
         if (widget.contact.phone != null)
           _buildInfoRow(
-            Icons.phone_outlined,
+            CupertinoIcons.phone,
             'Phone',
             widget.contact.phone!,
             () => _launchUrl('tel:${widget.contact.phone}'),
           ),
         if (widget.contact.website != null)
           _buildInfoRow(
-            Icons.language_outlined,
+            CupertinoIcons.globe,
             'Website',
             widget.contact.website!,
             () => _launchUrl(widget.contact.website!),
@@ -437,7 +439,7 @@ class _ContactDetailModalState extends State<ContactDetailModal>
                   ),
                 ),
                 Icon(
-                  Icons.open_in_new,
+                  CupertinoIcons.arrow_up_right_square,
                   size: 16,
                   color: AppColors.textTertiary,
                 ),
@@ -495,11 +497,15 @@ class _ContactDetailModalState extends State<ContactDetailModal>
                 color: _getSocialColor(link.platform),
               ),
               const SizedBox(width: 6),
-              Text(
-                link.platform,
-                style: AppTextStyles.caption.copyWith(
-                  color: _getSocialColor(link.platform),
-                  fontWeight: FontWeight.w500,
+              Flexible(
+                child: Text(
+                  link.platform,
+                  style: AppTextStyles.caption.copyWith(
+                    color: _getSocialColor(link.platform),
+                    fontWeight: FontWeight.w500,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
               ),
             ],
@@ -532,7 +538,7 @@ class _ContactDetailModalState extends State<ContactDetailModal>
                   child: Padding(
                     padding: const EdgeInsets.all(4),
                     child: Icon(
-                      Icons.edit,
+                      CupertinoIcons.pencil,
                       size: 16,
                       color: AppColors.primaryAction,
                     ),
@@ -644,7 +650,7 @@ class _ContactDetailModalState extends State<ContactDetailModal>
             children: [
               Expanded(
                 child: _buildActionButton(
-                  icon: Icons.person_add,
+                  icon: CupertinoIcons.person_add,
                   label: 'Save Contact',
                   onTap: _saveToContacts,
                   isPrimary: true,
@@ -654,7 +660,7 @@ class _ContactDetailModalState extends State<ContactDetailModal>
               const SizedBox(width: 12),
               Expanded(
                 child: _buildActionButton(
-                  icon: Icons.share,
+                  icon: CupertinoIcons.share,
                   label: 'Share',
                   onTap: _shareContact,
                   isPrimary: false,
@@ -667,7 +673,7 @@ class _ContactDetailModalState extends State<ContactDetailModal>
             SizedBox(
               width: double.infinity,
               child: _buildActionButton(
-                icon: Icons.note_add,
+                icon: CupertinoIcons.doc_text_fill,
                 label: 'Add Note',
                 onTap: () => setState(() => _isAddingNote = true),
                 isPrimary: false,
@@ -810,17 +816,17 @@ class _ContactDetailModalState extends State<ContactDetailModal>
   IconData _getSocialIcon(String platform) {
     switch (platform.toLowerCase()) {
       case 'linkedin':
-        return Icons.work;
+        return FontAwesomeIcons.linkedin;
       case 'twitter':
-        return Icons.alternate_email;
+        return FontAwesomeIcons.xTwitter;
       case 'instagram':
-        return Icons.camera_alt;
+        return FontAwesomeIcons.instagram;
       case 'facebook':
-        return Icons.facebook;
+        return FontAwesomeIcons.facebook;
       case 'github':
-        return Icons.code;
+        return FontAwesomeIcons.github;
       default:
-        return Icons.link;
+        return CupertinoIcons.link;
     }
   }
 
@@ -847,7 +853,7 @@ class _ContactDetailModalState extends State<ContactDetailModal>
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.check_circle, color: AppColors.success),
+            Icon(CupertinoIcons.check_mark_circled_solid, color: AppColors.success),
             const SizedBox(width: 12),
             Text(message, style: AppTextStyles.body),
           ],
@@ -866,7 +872,7 @@ class _ContactDetailModalState extends State<ContactDetailModal>
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.error, color: AppColors.error),
+            Icon(CupertinoIcons.exclamationmark_circle, color: AppColors.error),
             const SizedBox(width: 12),
             Text(message, style: AppTextStyles.body),
           ],

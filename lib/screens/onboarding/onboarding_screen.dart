@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 
@@ -20,25 +21,25 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   final List<OnboardingPage> _pages = [
     OnboardingPage(
-      icon: Icons.nfc_rounded,
+      icon: CupertinoIcons.antenna_radiowaves_left_right,
       title: 'NFC Sharing',
       subtitle: 'Share contacts, photos, and files instantly with just a tap',
       description: 'Hold your phone near another NFC-enabled device to share content seamlessly.',
     ),
     OnboardingPage(
-      icon: Icons.qr_code_rounded,
+      icon: CupertinoIcons.qrcode,
       title: 'QR Code Support',
       subtitle: 'Generate and scan QR codes for quick sharing',
       description: 'Create QR codes for your content or scan others to receive information instantly.',
     ),
     OnboardingPage(
-      icon: Icons.history_rounded,
+      icon: CupertinoIcons.clock,
       title: 'Activity History',
       subtitle: 'Track all your sharing activities',
       description: 'Keep track of what you\'ve shared and received with detailed history logs.',
     ),
     OnboardingPage(
-      icon: Icons.security_rounded,
+      icon: CupertinoIcons.lock_shield,
       title: 'Secure & Private',
       subtitle: 'Your data stays safe with you',
       description: 'All sharing is direct between devices. No cloud storage, maximum privacy.',
@@ -120,7 +121,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               borderRadius: 12,
               onTap: _previousPage,
               child: const Icon(
-                Icons.arrow_back_ios_new_rounded,
+                CupertinoIcons.back,
                 size: 20,
                 color: AppColors.textPrimary,
               ),
@@ -229,8 +230,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               size: AppButtonSize.large,
               icon: Icon(
                 _currentPage == _pages.length - 1
-                    ? Icons.rocket_launch_rounded
-                    : Icons.arrow_forward_rounded,
+                    ? CupertinoIcons.rocket_fill
+                    : CupertinoIcons.arrow_right,
                 size: 24,
               ),
               onPressed: _nextPage,

@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:go_router/go_router.dart';
 import '../../theme/theme.dart';
 import '../constants/routes.dart';
@@ -19,20 +20,20 @@ class _GlassBottomNavState extends State<GlassBottomNav>
 
   final List<NavItem> _navItems = [
     NavItem(
-      icon: Icons.home_rounded,
-      activeIcon: Icons.home,
+      icon: CupertinoIcons.home,
+      activeIcon: CupertinoIcons.house_fill,
       label: 'Home',
       route: AppRoutes.home,
     ),
     NavItem(
-      icon: Icons.person_outline_rounded,
-      activeIcon: Icons.person,
+      icon: CupertinoIcons.person,
+      activeIcon: CupertinoIcons.person_fill,
       label: 'Profile',
       route: AppRoutes.profile,
     ),
     NavItem(
-      icon: Icons.history_rounded,
-      activeIcon: Icons.history,
+      icon: CupertinoIcons.clock,
+      activeIcon: CupertinoIcons.clock_fill,
       label: 'History',
       route: AppRoutes.history,
     ),
@@ -64,6 +65,19 @@ class _GlassBottomNavState extends State<GlassBottomNav>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // Update selected index when route changes (e.g., via programmatic navigation)
+    final currentRoute = GoRouterState.of(context).uri.path;
+    final routeIndex = AppRoutes.getBottomNavIndex(currentRoute);
+
+    if (routeIndex != _currentIndex) {
+      setState(() => _currentIndex = routeIndex);
+    }
+  }
+
+  @override
   void dispose() {
     _animationController.dispose();
     super.dispose();
@@ -85,14 +99,14 @@ class _GlassBottomNavState extends State<GlassBottomNav>
     return Container(
       margin: const EdgeInsets.all(16),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(25),
+        borderRadius: BorderRadius.circular(20),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
             height: 70,
             decoration: BoxDecoration(
               color: Colors.black.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(25),
+              borderRadius: BorderRadius.circular(20),
               border: Border.all(
                 color: Colors.white.withOpacity(0.2),
                 width: 1,
@@ -141,7 +155,7 @@ class _GlassBottomNavState extends State<GlassBottomNav>
                 vertical: 8,
               ),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(16),
                 color: isSelected
                     ? AppColors.primaryAction.withOpacity(0.2)
                     : Colors.transparent,
@@ -157,7 +171,7 @@ class _GlassBottomNavState extends State<GlassBottomNav>
                       size: 24,
                       color: isSelected
                           ? AppColors.primaryAction
-                          : Colors.white.withOpacity(0.6),
+                          : AppColors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -166,7 +180,7 @@ class _GlassBottomNavState extends State<GlassBottomNav>
                     style: AppTextStyles.caption.copyWith(
                       color: isSelected
                           ? AppColors.primaryAction
-                          : Colors.white.withOpacity(0.6),
+                          : AppColors.textPrimary,
                       fontWeight: isSelected
                           ? FontWeight.w600
                           : FontWeight.w400,

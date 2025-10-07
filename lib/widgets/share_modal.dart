@@ -1,5 +1,7 @@
 import 'dart:ui';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
@@ -242,7 +244,7 @@ class _ShareModalState extends State<ShareModal>
                     )
                   : const Icon(
                       key: Key('share_modal_profile_placeholder_icon'),
-                      Icons.person,
+                      CupertinoIcons.person,
                       color: AppColors.textPrimary,
                       size: 28,
                     ),
@@ -289,7 +291,7 @@ class _ShareModalState extends State<ShareModal>
                 ),
                 child: const Icon(
                   key: Key('share_modal_close_icon'),
-                  Icons.close,
+                  CupertinoIcons.xmark,
                   size: 18,
                   color: AppColors.textSecondary,
                 ),
@@ -313,8 +315,8 @@ class _ShareModalState extends State<ShareModal>
       child: Row(
         key: const Key('share_modal_tab_bar_row'),
         children: [
-          _buildTab(ShareTab.qr, 'QR', Icons.qr_code),
-          _buildTab(ShareTab.link, 'Link', Icons.link),
+          _buildTab(ShareTab.qr, 'QR', CupertinoIcons.qrcode),
+          _buildTab(ShareTab.link, 'Link', CupertinoIcons.link),
         ],
       ),
     );
@@ -335,7 +337,7 @@ class _ShareModalState extends State<ShareModal>
           child: AnimatedContainer(
             key: Key('share_modal_tab_container_${tab.name}'),
             duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
             decoration: BoxDecoration(
               color: isSelected
                   ? AppColors.primaryAction.withOpacity(0.2)
@@ -350,6 +352,7 @@ class _ShareModalState extends State<ShareModal>
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
                   icon,
@@ -358,16 +361,20 @@ class _ShareModalState extends State<ShareModal>
                       ? AppColors.primaryAction
                       : AppColors.textSecondary,
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: AppTextStyles.body.copyWith(
-                    color: isSelected
-                        ? AppColors.primaryAction
-                        : AppColors.textSecondary,
-                    fontWeight: isSelected
-                        ? FontWeight.w600
-                        : FontWeight.w400,
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    label,
+                    style: AppTextStyles.body.copyWith(
+                      color: isSelected
+                          ? AppColors.primaryAction
+                          : AppColors.textSecondary,
+                      fontWeight: isSelected
+                          ? FontWeight.w600
+                          : FontWeight.w400,
+                      fontSize: 14,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
@@ -474,7 +481,7 @@ class _ShareModalState extends State<ShareModal>
             Expanded(
               key: const Key('share_modal_qr_save_button_section'),
               child: _buildActionButton(
-                icon: Icons.download,
+                icon: CupertinoIcons.arrow_down_circle,
                 label: 'Save QR',
                 onTap: _saveQRCode,
               ),
@@ -483,7 +490,7 @@ class _ShareModalState extends State<ShareModal>
             Expanded(
               key: const Key('share_modal_qr_share_button_section'),
               child: _buildActionButton(
-                icon: Icons.share,
+                icon: CupertinoIcons.share,
                 label: 'Share QR',
                 onTap: _shareQRCode,
               ),
@@ -515,7 +522,7 @@ class _ShareModalState extends State<ShareModal>
             children: [
               Icon(
                 key: const Key('share_modal_link_icon'),
-                Icons.link,
+                CupertinoIcons.link,
                 size: 48,
                 color: AppColors.primaryAction,
               ),
@@ -569,7 +576,7 @@ class _ShareModalState extends State<ShareModal>
                           padding: const EdgeInsets.all(8),
                           child: Icon(
                             key: const Key('share_modal_link_copy_icon'),
-                            Icons.copy,
+                            CupertinoIcons.doc_on_doc,
                             size: 18,
                             color: AppColors.primaryAction,
                           ),
@@ -599,7 +606,7 @@ class _ShareModalState extends State<ShareModal>
             Expanded(
               key: const Key('share_modal_link_copy_button_section'),
               child: _buildActionButton(
-                icon: Icons.copy,
+                icon: CupertinoIcons.doc_on_doc,
                 label: 'Copy Link',
                 onTap: _copyLink,
               ),
@@ -608,7 +615,7 @@ class _ShareModalState extends State<ShareModal>
             Expanded(
               key: const Key('share_modal_link_share_button_section'),
               child: _buildActionButton(
-                icon: Icons.share,
+                icon: CupertinoIcons.share,
                 label: 'Share Link',
                 onTap: _shareLink,
               ),
@@ -645,6 +652,7 @@ class _ShareModalState extends State<ShareModal>
           child: Row(
             key: Key('share_modal_action_button_${label.toLowerCase().replaceAll(' ', '_')}_row'),
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 key: Key('share_modal_action_button_${label.toLowerCase().replaceAll(' ', '_')}_icon'),
@@ -653,12 +661,16 @@ class _ShareModalState extends State<ShareModal>
                 color: AppColors.primaryAction,
               ),
               SizedBox(key: Key('share_modal_action_button_${label.toLowerCase().replaceAll(' ', '_')}_spacing'), width: 8),
-              Text(
-                key: Key('share_modal_action_button_${label.toLowerCase().replaceAll(' ', '_')}_text'),
-                label,
-                style: AppTextStyles.body.copyWith(
-                  color: AppColors.primaryAction,
-                  fontWeight: FontWeight.w600,
+              Flexible(
+                child: Text(
+                  key: Key('share_modal_action_button_${label.toLowerCase().replaceAll(' ', '_')}_text'),
+                  label,
+                  style: AppTextStyles.body.copyWith(
+                    color: AppColors.primaryAction,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
                 ),
               ),
             ],
@@ -694,25 +706,25 @@ class _ShareModalState extends State<ShareModal>
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               _buildSocialButton(
-                icon: Icons.message_rounded,
+                icon: CupertinoIcons.chat_bubble,
                 label: 'SMS',
                 color: AppColors.success,
                 onTap: _shareViaSMS,
               ),
               _buildSocialButton(
-                icon: Icons.chat_bubble_rounded,
+                icon: CupertinoIcons.chat_bubble_2_fill,
                 label: 'WhatsApp',
                 color: const Color(0xFF25D366),
                 onTap: _shareViaWhatsApp,
               ),
               _buildSocialButton(
-                icon: Icons.email_rounded,
+                icon: CupertinoIcons.mail,
                 label: 'Email',
                 color: AppColors.info,
                 onTap: _shareViaEmail,
               ),
               _buildSocialButton(
-                icon: Icons.share_rounded,
+                icon: CupertinoIcons.share,
                 label: 'More',
                 color: AppColors.textSecondary,
                 onTap: _shareViaOther,
@@ -883,7 +895,7 @@ class _ShareModalState extends State<ShareModal>
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.check_circle, color: AppColors.success),
+            Icon(CupertinoIcons.checkmark_circle, color: AppColors.success),
             const SizedBox(width: 12),
             Text(message, style: AppTextStyles.body),
           ],
@@ -901,7 +913,7 @@ class _ShareModalState extends State<ShareModal>
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.error, color: AppColors.error),
+            Icon(CupertinoIcons.exclamationmark_circle, color: AppColors.error),
             const SizedBox(width: 12),
             Text(message, style: AppTextStyles.body),
           ],
