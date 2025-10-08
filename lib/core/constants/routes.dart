@@ -23,6 +23,6 @@ class AppRoutes {
 
   static int getBottomNavIndex(String route) {
     final index = bottomNavRoutes.indexOf(route);
-    return index >= 0 ? index : 0;
+    return index >= 0 ? index : -1; // Return -1 for non-nav routes
   }
 }

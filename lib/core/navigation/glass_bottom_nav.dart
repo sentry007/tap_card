@@ -58,7 +58,7 @@ class _GlassBottomNavState extends State<GlassBottomNav>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final currentRoute = GoRouterState.of(context).uri.path;
       final index = AppRoutes.getBottomNavIndex(currentRoute);
-      if (index != _currentIndex) {
+      if (index >= 0 && index != _currentIndex) {
         setState(() => _currentIndex = index);
       }
     });
@@ -72,7 +72,8 @@ class _GlassBottomNavState extends State<GlassBottomNav>
     final currentRoute = GoRouterState.of(context).uri.path;
     final routeIndex = AppRoutes.getBottomNavIndex(currentRoute);
 
-    if (routeIndex != _currentIndex) {
+    // Only update if it's a valid nav route, otherwise keep current selection
+    if (routeIndex >= 0 && routeIndex != _currentIndex) {
       setState(() => _currentIndex = routeIndex);
     }
   }
@@ -84,7 +85,12 @@ class _GlassBottomNavState extends State<GlassBottomNav>
   }
 
   void _onItemTapped(int index) {
-    if (index == _currentIndex) return;
+    // Allow re-navigation if coming from non-nav route (_currentIndex could be stale)
+    final currentRoute = GoRouterState.of(context).uri.path;
+    final routeIndex = AppRoutes.getBottomNavIndex(currentRoute);
+
+    // Only prevent re-navigation if we're actually on this nav route
+    if (routeIndex >= 0 && index == routeIndex) return;
 
     setState(() => _currentIndex = index);
     _animationController.forward().then((_) {

@@ -1,13 +1,19 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../models/unified_models.dart';
+import '../models/history_models.dart';
 import '../services/nfc_service.dart';
+import '../services/history_service.dart';
+import '../services/nfc_settings_service.dart';
 import '../core/constants/routes.dart';
 import '../core/providers/app_state.dart';
+import '../core/models/profile_models.dart';
 import '../widgets/widgets.dart';
 import '../theme/theme.dart';
 
@@ -97,6 +103,9 @@ class _NFCReceiveScreenState extends State<NFCReceiveScreen>
         _isProcessing = false;
       });
 
+      // Add to history
+      await _addReceivedContactToHistory(contact);
+
       // Mark that user has received a card (this is correct usage)
       if (mounted) {
         final appState = context.read<AppState>();
@@ -115,6 +124,85 @@ class _NFCReceiveScreenState extends State<NFCReceiveScreen>
         _errorMessage = e.toString();
         _isProcessing = false;
       });
+    }
+  }
+
+  /// Get current location if tracking is enabled
+  Future<String?> _getCurrentLocation() async {
+    try {
+      // Check if location tracking is enabled in settings
+      final isEnabled = await NfcSettingsService.getLocationTrackingEnabled();
+      if (!isEnabled) {
+        return null;
+      }
+
+      // Check location permission
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          developer.log('Location permission denied', name: 'Receive.Location');
+          return null;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        developer.log('Location permission denied forever', name: 'Receive.Location');
+        return null;
+      }
+
+      // Get location with timeout
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.low,
+        timeLimit: const Duration(seconds: 5),
+      );
+
+      // Format as "Lat, Lng"
+      final location = '${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}';
+      developer.log('📍 Location acquired: $location', name: 'Receive.Location');
+      return location;
+    } catch (e) {
+      developer.log('Failed to get location: $e', name: 'Receive.Location', error: e);
+      return null;
+    }
+  }
+
+  /// Add received contact to history
+  Future<void> _addReceivedContactToHistory(ContactData contact) async {
+    try {
+      final location = await _getCurrentLocation();
+
+      // Convert ContactData to ProfileData for history
+      final senderProfile = ProfileData(
+        id: ReceivedContact.generateId(),
+        type: ProfileType.custom,
+        name: contact.name,
+        title: contact.title,
+        company: contact.company,
+        phone: contact.phone,
+        email: contact.email,
+        website: contact.website,
+        socialMedia: contact.socialMedia,
+        lastUpdated: DateTime.now(),
+      );
+
+      await HistoryService.addReceivedEntry(
+        senderProfile: senderProfile,
+        method: ShareMethod.nfc,
+        location: location,
+      );
+
+      final locationStr = location != null ? ' at $location' : '';
+      developer.log(
+        '✅ NFC receive added to history: ${contact.name}$locationStr',
+        name: 'Receive.History'
+      );
+    } catch (e) {
+      developer.log(
+        '❌ Error adding NFC receive to history: $e',
+        name: 'Receive.History',
+        error: e
+      );
     }
   }
 

@@ -10,6 +10,10 @@ class AppColors {
   static const Color secondaryAction = Color(0xFF673AB7);
   static const Color highlight = Color(0xFFFFEB3B);
 
+  // P2P Mode Colors
+  static const Color p2pPrimary = Color(0xFF9C27B0);    // Material Purple 500
+  static const Color p2pSecondary = Color(0xFF673AB7);  // Deep Purple 500
+
   // Glassmorphism Colors
   static const Color glassBackground = Color(0x20FFFFFF);
   static const Color glassBorder = Color(0x30FFFFFF);
@@ -40,6 +44,12 @@ class AppColors {
   // Gradient Colors
   static const LinearGradient primaryGradient = LinearGradient(
     colors: [primaryAction, secondaryAction],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  static const LinearGradient p2pGradient = LinearGradient(
+    colors: [p2pPrimary, p2pSecondary],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );

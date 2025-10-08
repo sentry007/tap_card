@@ -9,6 +9,8 @@ import '../../widgets/widgets.dart';
 import '../../core/providers/app_state.dart';
 import '../../core/services/profile_service.dart';
 import '../../core/constants/app_constants.dart';
+import '../../services/nfc_service.dart';
+import '../../services/nfc_settings_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -48,6 +50,8 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
   // NFC settings (moved from old version)
   bool _nfcEnabled = true;
   bool _autoShare = false;
+  NfcMode _defaultNfcMode = NfcMode.tagWrite;
+  bool _locationTracking = false;
 
   // Animation controllers
   late AnimationController _slideController;
@@ -72,6 +76,12 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
 
   Future<void> _initializeServices() async {
     await _profileService.initialize();
+    await NfcSettingsService.initialize();
+
+    // Load NFC settings
+    final defaultMode = await NfcSettingsService.getDefaultMode();
+    final locationEnabled = await NfcSettingsService.getLocationTrackingEnabled();
+
     if (mounted) {
       setState(() {
         _multipleProfiles = _profileService.multipleProfilesEnabled;
@@ -81,6 +91,9 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           _userName = activeProfile.name.isNotEmpty ? activeProfile.name : 'John Doe';
           _userEmail = activeProfile.email ?? 'john.doe@example.com';
         }
+        // Update NFC settings
+        _defaultNfcMode = defaultMode;
+        _locationTracking = locationEnabled;
       });
     }
   }
@@ -666,6 +679,17 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           value: _autoShare,
           onChanged: (value) => setState(() => _autoShare = value),
         ),
+        _buildDefaultNfcModeTile(),
+        _buildSwitchTile(
+          icon: CupertinoIcons.location_fill,
+          title: 'Track Location',
+          subtitle: 'Save location when sharing cards',
+          value: _locationTracking,
+          onChanged: (value) async {
+            setState(() => _locationTracking = value);
+            await NfcSettingsService.setLocationTrackingEnabled(value);
+          },
+        ),
         _buildActionTile(
           icon: CupertinoIcons.qrcode,
           title: 'QR Code Settings',
@@ -806,6 +830,128 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
       }
     }
     return result;
+  }
+
+  Widget _buildDefaultNfcModeTile() {
+    return Container(
+      padding: EdgeInsets.all(AppSpacing.md),
+      child: Row(
+        children: [
+          Container(
+            padding: EdgeInsets.all(AppSpacing.sm),
+            decoration: BoxDecoration(
+              color: AppColors.highlight.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+            ),
+            child: Icon(
+              CupertinoIcons.arrow_up_arrow_down_square,
+              color: AppColors.highlight,
+              size: 20,
+            ),
+          ),
+          SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Default NFC Mode',
+                  style: AppTextStyles.body.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Choose your preferred FAB mode',
+                  style: AppTextStyles.caption,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.surfaceDark.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: AppColors.glassBorder.withOpacity(0.2),
+                width: 0.5,
+              ),
+            ),
+            padding: EdgeInsets.all(3),
+            child: Column(
+              children: [
+                _buildToggleOption(
+                  icon: CupertinoIcons.tag_fill,
+                  label: 'Tag',
+                  isSelected: _defaultNfcMode == NfcMode.tagWrite,
+                  color: AppColors.primaryAction,
+                  onTap: () async {
+                    HapticFeedback.selectionClick();
+                    setState(() => _defaultNfcMode = NfcMode.tagWrite);
+                    await NfcSettingsService.setDefaultMode(NfcMode.tagWrite);
+                  },
+                ),
+                SizedBox(height: 3),
+                _buildToggleOption(
+                  icon: CupertinoIcons.radiowaves_right,
+                  label: 'P2P',
+                  isSelected: _defaultNfcMode == NfcMode.p2pShare,
+                  color: AppColors.p2pPrimary,
+                  onTap: () async {
+                    HapticFeedback.selectionClick();
+                    setState(() => _defaultNfcMode = NfcMode.p2pShare);
+                    await NfcSettingsService.setDefaultMode(NfcMode.p2pShare);
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToggleOption({
+    required IconData icon,
+    required String label,
+    required bool isSelected,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? color
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(7),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? Colors.white : AppColors.textTertiary,
+              size: 15,
+            ),
+            SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                color: isSelected ? Colors.white : AppColors.textTertiary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildSwitchTile({

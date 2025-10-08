@@ -16,6 +16,7 @@ import 'package:go_router/go_router.dart';
 import 'core/providers/app_state.dart';
 import 'core/navigation/app_router.dart';
 import 'core/constants/widget_keys.dart';
+import 'core/services/profile_service.dart';
 import 'theme/theme.dart';
 
 /// Application entry point
@@ -45,6 +46,17 @@ void main() async {
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
+
+  // Initialize ProfileService singleton for all screens
+  developer.log(
+    '🔧 Initializing ProfileService...',
+    name: 'App.Main',
+  );
+  await ProfileService().initialize();
+  developer.log(
+    '✅ ProfileService initialized',
+    name: 'App.Main',
+  );
 
   developer.log(
     '✅ System configuration complete - Launching app',

@@ -17,11 +17,13 @@ import '../../core/services/profile_service.dart';
 import '../../services/token_manager_service.dart';
 import '../../services/nfc_service.dart';
 import '../../services/nfc_discovery_service.dart';
+import '../../services/nfc_settings_service.dart';
 import '../../core/constants/routes.dart';
 import '../../models/unified_models.dart';
 import '../../models/history_models.dart';
 import '../../services/history_service.dart';
 import '../../widgets/history/method_chip.dart';
+import 'package:geolocator/geolocator.dart';
 
 // Five-state NFC FAB system for comprehensive user feedback
 enum NfcFabState {
@@ -106,6 +108,7 @@ class _HomeScreenState extends State<HomeScreen>
     // Initialize services
     _initializeNFC();
     _initializeHistory();
+    _loadNfcSettings();
 
     // Setup notification callback
     _notificationService.setCardReceivedCallback(_handleCardReceived);
@@ -114,6 +117,22 @@ class _HomeScreenState extends State<HomeScreen>
 
     // Clean up expired tokens on app start
     _tokenManager.cleanupExpiredTokens();
+  }
+
+  /// Load NFC settings including default mode
+  Future<void> _loadNfcSettings() async {
+    await NfcSettingsService.initialize();
+    final defaultMode = await NfcSettingsService.getDefaultMode();
+
+    if (mounted) {
+      setState(() {
+        _nfcMode = defaultMode;
+      });
+      developer.log(
+        '⚙️ Loaded default NFC mode: ${defaultMode.name}',
+        name: 'Home.Settings'
+      );
+    }
   }
 
   Future<void> _initializeHistory() async {
@@ -312,39 +331,66 @@ class _HomeScreenState extends State<HomeScreen>
         margin: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppColors.surfaceDark.withOpacity(0.95),
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(color: AppColors.glassBorder, width: 1),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             Text(
               'Select NFC Mode',
-              style: AppTextStyles.h3.copyWith(fontWeight: FontWeight.w600),
+              style: AppTextStyles.body.copyWith(
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+              ),
             ),
-            const SizedBox(height: 20),
-            _buildModeOption(
-              icon: CupertinoIcons.arrow_up_arrow_down_square,
-              title: 'Write to NFC Tag',
-              subtitle: 'Write your card to physical NFC tags',
-              isSelected: _nfcMode == NfcMode.tagWrite,
-              onTap: () {
-                Navigator.pop(context);
-                _switchToMode(NfcMode.tagWrite);
-              },
-            ),
-            const Divider(color: AppColors.glassBorder, height: 1),
-            _buildModeOption(
-              icon: CupertinoIcons.radiowaves_right,
-              title: 'Phone-to-Phone Share',
-              subtitle: 'Let others tap their phone against yours',
-              isSelected: _nfcMode == NfcMode.p2pShare,
-              isAvailable: NFCService.isHceSupported,
-              onTap: () {
-                Navigator.pop(context);
-                _switchToMode(NfcMode.p2pShare);
-              },
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceDark.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.glassBorder.withOpacity(0.2),
+                    width: 0.5,
+                  ),
+                ),
+                padding: const EdgeInsets.all(4),
+                child: Column(
+                  children: [
+                    _buildModeToggleOption(
+                      icon: CupertinoIcons.tag_fill,
+                      title: 'Tag Write',
+                      subtitle: 'Write to physical NFC tags',
+                      isSelected: _nfcMode == NfcMode.tagWrite,
+                      color: AppColors.primaryAction,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _switchToMode(NfcMode.tagWrite);
+                      },
+                    ),
+                    const SizedBox(height: 4),
+                    _buildModeToggleOption(
+                      icon: CupertinoIcons.radiowaves_right,
+                      title: 'P2P Share',
+                      subtitle: 'Phone-to-phone sharing',
+                      isSelected: _nfcMode == NfcMode.p2pShare,
+                      color: AppColors.p2pPrimary,
+                      isAvailable: NFCService.isHceSupported,
+                      onTap: () {
+                        Navigator.pop(context);
+                        if (NFCService.isHceSupported) {
+                          _switchToMode(NfcMode.p2pShare);
+                        } else {
+                          _showErrorMessage('Phone-to-Phone mode not supported on this device');
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
             ),
             SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
           ],
@@ -353,72 +399,80 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildModeOption({
+  Widget _buildModeToggleOption({
     required IconData icon,
     required String title,
     required String subtitle,
     required bool isSelected,
+    required Color color,
     required VoidCallback onTap,
     bool isAvailable = true,
   }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: isAvailable ? onTap : () {
-          Navigator.pop(context);
-          _showErrorMessage('Phone-to-Phone mode not supported on this device');
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? AppColors.primaryAction.withOpacity(0.2)
-                      : AppColors.glassBorder.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  icon,
-                  color: isSelected
-                      ? AppColors.primaryAction
-                      : (isAvailable ? AppColors.textSecondary : AppColors.textTertiary),
-                  size: 24,
-                ),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected ? color : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? Colors.white.withOpacity(0.2)
+                    : AppColors.surfaceMedium.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(8),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: AppTextStyles.body.copyWith(
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                        color: isAvailable ? AppColors.textPrimary : AppColors.textTertiary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: AppTextStyles.caption.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
+              child: Icon(
+                icon,
+                color: isSelected
+                    ? Colors.white
+                    : (isAvailable ? AppColors.textTertiary : AppColors.textDisabled),
+                size: 20,
               ),
-              if (isSelected)
-                Icon(
-                  CupertinoIcons.checkmark_circle_fill,
-                  color: AppColors.primaryAction,
-                  size: 24,
-                ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                      color: isSelected
+                          ? Colors.white
+                          : (isAvailable ? AppColors.textPrimary : AppColors.textDisabled),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isSelected
+                          ? Colors.white.withOpacity(0.8)
+                          : AppColors.textTertiary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              Icon(
+                CupertinoIcons.check_mark_circled_solid,
+                color: Colors.white,
+                size: 20,
+              ),
+          ],
         ),
       ),
     );
@@ -629,6 +683,9 @@ class _HomeScreenState extends State<HomeScreen>
             name: 'Home.P2P'
           );
           _showSuccessMessage('Ready! Hold phones together to share');
+
+          // Add P2P share to history
+          _addP2pShareToHistory();
         } else {
           // ERROR state
           _pulseController.stop();
@@ -1055,18 +1112,91 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  /// Get current location if tracking is enabled
+  Future<String?> _getCurrentLocation() async {
+    try {
+      // Check if location tracking is enabled in settings
+      final isEnabled = await NfcSettingsService.getLocationTrackingEnabled();
+      if (!isEnabled) {
+        return null;
+      }
+
+      // Check location permission
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          developer.log('Location permission denied', name: 'Home.Location');
+          return null;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        developer.log('Location permission denied forever', name: 'Home.Location');
+        return null;
+      }
+
+      // Get location with timeout
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.low,
+        timeLimit: const Duration(seconds: 5),
+      );
+
+      // Format as "Lat, Lng" (backend can resolve to city name later)
+      final location = '${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}';
+      developer.log('📍 Location acquired: $location', name: 'Home.Location');
+      return location;
+    } catch (e) {
+      developer.log('Failed to get location: $e', name: 'Home.Location', error: e);
+      return null;
+    }
+  }
+
   /// Add NFC tag write to history
   Future<void> _addNfcWriteToHistory(String tagId, String tagType) async {
     try {
+      final location = await _getCurrentLocation();
+
       await HistoryService.addTagEntry(
         tagId: tagId,
         tagType: tagType,
         method: ShareMethod.tag,
         tagCapacity: _getTagCapacity(tagType),
+        location: location,
       );
-      developer.log('✅ NFC write added to history: $tagId ($tagType)', name: 'Home.History');
+
+      final locationStr = location != null ? ' at $location' : '';
+      developer.log(
+        '✅ NFC write added to history: $tagId ($tagType)$locationStr',
+        name: 'Home.History'
+      );
     } catch (e) {
       developer.log('❌ Error adding NFC write to history: $e', name: 'Home.History', error: e);
+    }
+  }
+
+  /// Add P2P share to history
+  Future<void> _addP2pShareToHistory() async {
+    try {
+      final location = await _getCurrentLocation();
+
+      await HistoryService.addSentEntry(
+        recipientName: 'Via P2P Share',
+        method: ShareMethod.nfc,
+        location: location,
+        metadata: {
+          'mode': 'p2p_hce',
+          'activationTime': DateTime.now().toIso8601String(),
+        },
+      );
+
+      final locationStr = location != null ? ' at $location' : '';
+      developer.log(
+        '✅ P2P share added to history$locationStr',
+        name: 'Home.History'
+      );
+    } catch (e) {
+      developer.log('❌ Error adding P2P share to history: $e', name: 'Home.History', error: e);
     }
   }
 
@@ -1143,6 +1273,12 @@ class _HomeScreenState extends State<HomeScreen>
   void dispose() {
     // Cancel state reset timer
     _stateResetTimer?.cancel();
+
+    // Stop P2P emulation if active
+    if (_nfcMode == NfcMode.p2pShare && _nfcFabState == NfcFabState.active) {
+      developer.log('🛑 Stopping P2P emulation (leaving page)', name: 'Home.P2P');
+      NFCService.stopCardEmulation();
+    }
 
     // Stop NFC discovery
     NFCDiscoveryService.dispose();

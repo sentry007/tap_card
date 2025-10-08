@@ -45,6 +45,9 @@ dependencies:
   # Permission Handling
   permission_handler: ^11.3.0
 
+  # Location Services
+  geolocator: ^10.1.0
+
   # UUID Generation
   uuid: ^4.3.3
 
