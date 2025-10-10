@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:ui';
 import 'dart:io';
 import '../../theme/theme.dart';
@@ -20,6 +21,7 @@ class ProfileCardPreview extends StatelessWidget {
   final VoidCallback? onPhoneTap;
   final VoidCallback? onWebsiteTap;
   final Function(String platform, String url)? onSocialTap;
+  final VoidCallback? onProfileImageTap;
 
   const ProfileCardPreview({
     Key? key,
@@ -32,7 +34,45 @@ class ProfileCardPreview extends StatelessWidget {
     this.onPhoneTap,
     this.onWebsiteTap,
     this.onSocialTap,
+    this.onProfileImageTap,
   }) : super(key: key);
+
+  /// Helper method to build image from either local file or network URL
+  Widget _buildImage(
+    String imagePath, {
+    required BoxFit fit,
+    BorderRadius? borderRadius,
+  }) {
+    final isNetworkImage = imagePath.startsWith('http://') || imagePath.startsWith('https://');
+
+    if (isNetworkImage) {
+      return CachedNetworkImage(
+        imageUrl: imagePath,
+        fit: fit,
+        placeholder: (context, url) => Container(
+          color: Colors.grey.withOpacity(0.2),
+          child: const Center(
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+        errorWidget: (context, url, error) => Container(
+          color: Colors.grey.withOpacity(0.2),
+          child: const Icon(Icons.error_outline, color: Colors.red),
+        ),
+      );
+    } else {
+      return Image.file(
+        File(imagePath),
+        fit: fit,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            color: Colors.grey.withOpacity(0.2),
+            child: const Icon(Icons.broken_image, color: Colors.red),
+          );
+        },
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,8 +108,8 @@ class ProfileCardPreview extends StatelessWidget {
               Positioned.fill(
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(borderRadius),
-                  child: Image.file(
-                    File(aesthetics.backgroundImagePath!),
+                  child: _buildImage(
+                    aesthetics.backgroundImagePath!,
                     fit: BoxFit.cover,
                   ),
                 ),
@@ -139,28 +179,60 @@ class ProfileCardPreview extends StatelessWidget {
                   // Header with avatar and name
                   Row(
                     children: [
-                      Container(
-                        width: height * 0.25, // Proportional avatar size
-                        height: height * 0.25,
-                        decoration: BoxDecoration(
-                          gradient: profile.profileImagePath != null
-                            ? null
-                            : aesthetics.gradient,
-                          borderRadius: BorderRadius.circular(height * 0.125),
-                        ),
-                        child: profile.profileImagePath != null
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(height * 0.125),
-                              child: Image.file(
-                                File(profile.profileImagePath!),
-                                fit: BoxFit.cover,
+                      GestureDetector(
+                        onTap: onProfileImageTap,
+                        child: Stack(
+                          children: [
+                            Container(
+                              width: height * 0.25, // Proportional avatar size
+                              height: height * 0.25,
+                              decoration: BoxDecoration(
+                                gradient: profile.profileImagePath != null
+                                  ? null
+                                  : aesthetics.gradient,
+                                borderRadius: BorderRadius.circular(height * 0.125),
                               ),
-                            )
-                          : Icon(
-                              CupertinoIcons.person,
-                              color: Colors.white,
-                              size: height * 0.13,
+                              child: profile.profileImagePath != null
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(height * 0.125),
+                                    child: _buildImage(
+                                      profile.profileImagePath!,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  )
+                                : Icon(
+                                    CupertinoIcons.person,
+                                    color: Colors.white,
+                                    size: height * 0.13,
+                                  ),
                             ),
+                            // Edit icon overlay (only show if tappable)
+                            if (onProfileImageTap != null)
+                              Positioned(
+                                bottom: 0,
+                                right: 0,
+                                child: Container(
+                                  width: height * 0.08,
+                                  height: height * 0.08,
+                                  decoration: BoxDecoration(
+                                    color: aesthetics.borderColor != Colors.transparent
+                                        ? aesthetics.borderColor
+                                        : AppColors.primaryAction,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  child: Icon(
+                                    CupertinoIcons.camera_fill,
+                                    color: Colors.white,
+                                    size: height * 0.045,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                       SizedBox(width: height * 0.067),
                       Expanded(
@@ -319,6 +391,10 @@ class ProfileCardPreview extends StatelessWidget {
 
   Widget _buildSocialIcon(String platform, String url, double size) {
     final iconData = _getSocialIconData(platform);
+    // Use card border color instead of brand colors for a more cohesive look
+    final iconColor = profile.cardAesthetics.borderColor != Colors.transparent
+        ? profile.cardAesthetics.borderColor
+        : Colors.white;
 
     return Material(
       color: Colors.transparent,
@@ -329,7 +405,7 @@ class ProfileCardPreview extends StatelessWidget {
           padding: const EdgeInsets.all(4),
           child: Icon(
             iconData['icon'],
-            color: iconData['color'].withOpacity(0.9),
+            color: iconColor.withOpacity(0.9),
             size: size * 0.8,
           ),
         ),
