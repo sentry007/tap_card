@@ -17,6 +17,8 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/profile_models.dart';
 import '../constants/app_constants.dart';
+import '../../services/firestore_sync_service.dart';
+import '../../services/firebase_config.dart';
 
 /// Manages user profiles with local storage and future cloud sync
 class ProfileService extends ChangeNotifier {
@@ -407,10 +409,10 @@ class ProfileService extends ChangeNotifier {
     final index = _profiles.indexWhere((p) => p.id == updatedProfile.id);
 
     if (index != -1) {
-      // Regenerate NFC cache if profile data changed
+      // Regenerate NFC cache if profile data changed (includes dual-payload)
       final needsCacheUpdate = updatedProfile.needsNfcCacheUpdate;
       final finalProfile = needsCacheUpdate
-          ? updatedProfile.regenerateNfcCache()
+          ? updatedProfile.regenerateDualPayloadCache()
           : updatedProfile.copyWith(lastUpdated: DateTime.now());
 
       _profiles[index] = finalProfile;
@@ -425,8 +427,10 @@ class ProfileService extends ChangeNotifier {
       await _saveProfiles();
       notifyListeners();
 
-      // TODO: Firebase - Sync to Firestore
-      // await _syncProfileToFirestore(finalProfile);
+      // Sync to Firestore (non-blocking background operation)
+      if (FirebaseConfig.useFirestoreForProfiles) {
+        _syncProfileToFirestore(finalProfile);
+      }
     } else {
       developer.log(
         '⚠️  Profile not found for update: ${updatedProfile.id}',
@@ -483,8 +487,10 @@ class ProfileService extends ChangeNotifier {
     await _saveSettings();
     notifyListeners();
 
-    // TODO: Firebase - Sync deletion to Firestore
-    // await _deleteProfileFromFirestore(profileId);
+    // Sync deletion to Firestore (non-blocking)
+    if (FirebaseConfig.useFirestoreForProfiles) {
+      _deleteProfileFromFirestore(profileId);
+    }
   }
 
   /// Reorder profiles in the UI
@@ -539,5 +545,135 @@ class ProfileService extends ChangeNotifier {
     } catch (e) {
       return null;
     }
+  }
+
+  // ========== Firebase Sync Methods ==========
+
+  /// Sync profile to Firestore (background, non-blocking)
+  ///
+  /// Uploads profile data to Firebase Firestore
+  /// Updates local profile with Firebase URLs after successful upload
+  /// Errors are logged but don't block the user
+  void _syncProfileToFirestore(ProfileData profile) {
+    FirestoreSyncService.syncProfileToFirestore(profile).then((urls) {
+      if (urls != null) {
+        // Update local profile with Firebase URLs
+        final index = _profiles.indexWhere((p) => p.id == profile.id);
+        if (index != -1) {
+          var updatedProfile = _profiles[index];
+          bool needsUpdate = false;
+
+          // Update profile image URL if uploaded
+          if (urls['profileImageUrl'] != null &&
+              urls['profileImageUrl']!.isNotEmpty &&
+              urls['profileImageUrl'] != updatedProfile.profileImagePath) {
+            updatedProfile = updatedProfile.copyWith(
+              profileImagePath: urls['profileImageUrl'],
+            );
+            needsUpdate = true;
+            developer.log(
+              '📸 Profile image URL updated to Firebase URL',
+              name: 'ProfileService.Sync',
+            );
+          }
+
+          // Update background image URL if uploaded
+          if (urls['backgroundImageUrl'] != null &&
+              urls['backgroundImageUrl']!.isNotEmpty &&
+              urls['backgroundImageUrl'] != updatedProfile.cardAesthetics.backgroundImagePath) {
+            final updatedAesthetics = updatedProfile.cardAesthetics.copyWith(
+              backgroundImagePath: urls['backgroundImageUrl'],
+            );
+            updatedProfile = updatedProfile.copyWith(
+              cardAesthetics: updatedAesthetics,
+            );
+            needsUpdate = true;
+            developer.log(
+              '🖼️ Background image URL updated to Firebase URL',
+              name: 'ProfileService.Sync',
+            );
+          }
+
+          // Save updated profile with Firebase URLs
+          if (needsUpdate) {
+            _profiles[index] = updatedProfile;
+            _saveProfiles();
+            notifyListeners();
+          }
+        }
+
+        developer.log(
+          '✅ Background sync complete for ${profile.name}',
+          name: 'ProfileService.Sync',
+        );
+      } else {
+        developer.log(
+          '⚠️ Background sync failed for ${profile.name} - Profile saved locally',
+          name: 'ProfileService.Sync',
+        );
+      }
+    }).catchError((error, stackTrace) {
+      developer.log(
+        '❌ Background sync error for ${profile.name} - Profile saved locally',
+        name: 'ProfileService.Sync',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    });
+  }
+
+  /// Delete profile from Firestore (background, non-blocking)
+  ///
+  /// Removes profile from Firebase Firestore and Storage
+  /// Errors are logged but don't block the user
+  void _deleteProfileFromFirestore(String profileId) {
+    FirestoreSyncService.deleteProfileFromFirestore(profileId).then((success) {
+      if (success) {
+        developer.log(
+          '✅ Background deletion complete for profile $profileId',
+          name: 'ProfileService.Sync',
+        );
+      } else {
+        developer.log(
+          '⚠️ Background deletion failed for $profileId',
+          name: 'ProfileService.Sync',
+        );
+      }
+    }).catchError((error, stackTrace) {
+      developer.log(
+        '❌ Background deletion error for $profileId',
+        name: 'ProfileService.Sync',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    });
+  }
+
+  /// Batch sync all profiles to Firestore
+  ///
+  /// Useful for initial migration or recovery
+  /// Returns number of successfully synced profiles
+  Future<int> syncAllProfilesToFirestore() async {
+    if (!FirebaseConfig.useFirestoreForProfiles) {
+      developer.log(
+        '⚠️ Firestore sync disabled in config',
+        name: 'ProfileService.BatchSync',
+      );
+      return 0;
+    }
+
+    developer.log(
+      '📦 Starting batch sync of ${_profiles.length} profiles...',
+      name: 'ProfileService.BatchSync',
+    );
+
+    final count = await FirestoreSyncService.batchSyncProfiles(_profiles);
+
+    developer.log(
+      '✅ Batch sync complete: $count/${_profiles.length} profiles synced',
+      name: 'ProfileService.BatchSync',
+    );
+
+    return count;
   }
 }

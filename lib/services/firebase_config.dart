@@ -1,11 +1,11 @@
 /// Firebase configuration and feature flags for seamless integration
 class FirebaseConfig {
   // Feature flags for gradual Firebase rollout
-  static const bool _isFirebaseEnabled = false; // Set to true when Firebase is integrated
+  static const bool _isFirebaseEnabled = true; // Enabled for testing
   static const bool _useFirestoreForTokens = false;
-  static const bool _useFirestoreForProfiles = false;
+  static const bool _useFirestoreForProfiles = true; // Enabled for profile sync
   static const bool _useCloudFunctions = false;
-  static const bool _useFirebaseAuth = false;
+  static const bool _useFirebaseAuth = false; // Will enable in Phase 2
 
   // Firebase project configuration (to be filled when setting up Firebase)
   static const String projectId = 'tap-card-app'; // TODO: Replace with actual project ID

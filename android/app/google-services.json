@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "319083477759",
+    "project_id": "tap-card-app-75c37",
+    "storage_bucket": "tap-card-app-75c37.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:319083477759:android:376364b1e3056c3629aaca",
+        "android_client_info": {
+          "package_name": "com.example.tap_card"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD814d7qbqzeAlMTIgMSIzWiWnidBLJt60"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

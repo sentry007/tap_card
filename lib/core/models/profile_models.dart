@@ -25,6 +25,7 @@
 library;
 
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 
 /// Card aesthetic settings for each profile
@@ -58,6 +59,7 @@ class CardAesthetics {
     Color? backgroundColor,
     double? blurLevel,
     String? backgroundImagePath,
+    bool clearBackgroundImagePath = false,
   }) {
     return CardAesthetics(
       templateIndex: templateIndex ?? this.templateIndex,
@@ -66,7 +68,9 @@ class CardAesthetics {
       borderColor: borderColor ?? this.borderColor,
       backgroundColor: backgroundColor ?? this.backgroundColor,
       blurLevel: blurLevel ?? this.blurLevel,
-      backgroundImagePath: backgroundImagePath ?? this.backgroundImagePath,
+      backgroundImagePath: clearBackgroundImagePath
+        ? null
+        : (backgroundImagePath ?? this.backgroundImagePath),
     );
   }
 
@@ -163,7 +167,10 @@ class ProfileData {
   final CardAesthetics cardAesthetics; // Color-based aesthetics
   final DateTime lastUpdated;
   final bool isActive;
-  final String? _cachedNfcPayload; // Pre-computed JSON for instant NFC sharing
+  final String? _cachedNfcPayload; // Pre-computed JSON for instant NFC sharing (legacy)
+  final String? _cachedVCard; // Pre-computed vCard for dual-payload NFC
+  final String? _cachedCardUrl; // Pre-computed URL for dual-payload NFC
+  final DateTime? _dualPayloadCacheTime; // When dual payload was last generated
 
   ProfileData({
     required this.id,
@@ -181,8 +188,14 @@ class ProfileData {
     required this.lastUpdated,
     this.isActive = false,
     String? cachedNfcPayload,
+    String? cachedVCard,
+    String? cachedCardUrl,
+    DateTime? dualPayloadCacheTime,
   }) : cardAesthetics = cardAesthetics ?? CardAesthetics.defaultForType(type),
-       _cachedNfcPayload = cachedNfcPayload;
+       _cachedNfcPayload = cachedNfcPayload,
+       _cachedVCard = cachedVCard,
+       _cachedCardUrl = cachedCardUrl,
+       _dualPayloadCacheTime = dualPayloadCacheTime;
 
   ProfileData copyWith({
     String? id,
@@ -200,6 +213,9 @@ class ProfileData {
     DateTime? lastUpdated,
     bool? isActive,
     String? cachedNfcPayload,
+    String? cachedVCard,
+    String? cachedCardUrl,
+    DateTime? dualPayloadCacheTime,
   }) {
     return ProfileData(
       id: id ?? this.id,
@@ -217,6 +233,9 @@ class ProfileData {
       lastUpdated: lastUpdated ?? this.lastUpdated,
       isActive: isActive ?? this.isActive,
       cachedNfcPayload: cachedNfcPayload ?? this._cachedNfcPayload,
+      cachedVCard: cachedVCard ?? this._cachedVCard,
+      cachedCardUrl: cachedCardUrl ?? this._cachedCardUrl,
+      dualPayloadCacheTime: dualPayloadCacheTime ?? this._dualPayloadCacheTime,
     );
   }
 
@@ -237,6 +256,9 @@ class ProfileData {
       'lastUpdated': lastUpdated.toIso8601String(),
       'isActive': isActive,
       'cachedNfcPayload': _cachedNfcPayload,
+      'cachedVCard': _cachedVCard,
+      'cachedCardUrl': _cachedCardUrl,
+      'dualPayloadCacheTime': _dualPayloadCacheTime?.toIso8601String(),
     };
   }
 
@@ -260,6 +282,11 @@ class ProfileData {
       lastUpdated: DateTime.parse(json['lastUpdated']),
       isActive: json['isActive'] ?? false,
       cachedNfcPayload: json['cachedNfcPayload'],
+      cachedVCard: json['cachedVCard'],
+      cachedCardUrl: json['cachedCardUrl'],
+      dualPayloadCacheTime: json['dualPayloadCacheTime'] != null
+        ? DateTime.parse(json['dualPayloadCacheTime'])
+        : null,
     );
   }
 
@@ -307,8 +334,8 @@ class ProfileData {
       name: '',
       lastUpdated: DateTime.now(),
     );
-    // Generate initial NFC cache for empty profile
-    return profile.regenerateNfcCache();
+    // Generate initial NFC cache (both legacy and dual-payload)
+    return profile.regenerateDualPayloadCache();
   }
 
   /// Get essential fields for NFC transmission (ultra-compact for NTAG213)
@@ -453,6 +480,164 @@ class ProfileData {
     }
     // Regenerate only if cache is stale or missing
     return _generateNfcPayload();
+  }
+
+  // ============================================================================
+  // DUAL-PAYLOAD NFC OPTIMIZATION (vCard + URL)
+  // ============================================================================
+
+  /// Generate optimized vCard 3.0 for NFC transmission
+  ///
+  /// Optimizations:
+  /// - Uses \n instead of writeln() (saves ~15 bytes)
+  /// - Skips empty optional fields
+  /// - Truncates long titles (>20 chars)
+  /// - Minimal formatting for maximum space efficiency
+  String _generateOptimizedVCard() {
+    final buffer = StringBuffer();
+    buffer.write('BEGIN:VCARD\n');
+    buffer.write('VERSION:3.0\n');
+    buffer.write('FN:$name\n');
+
+    // Structured name parsing (trim whitespace)
+    final nameParts = name.split(' ').map((part) => part.trim()).where((part) => part.isNotEmpty).toList();
+    if (nameParts.length >= 2) {
+      buffer.write('N:${nameParts.last};${nameParts.first};;;\n');
+    } else {
+      buffer.write('N:$name;;;;\n');
+    }
+
+    // Title (truncated if too long)
+    if (title != null && title!.isNotEmpty) {
+      final truncatedTitle = title!.length > 20 ? title!.substring(0, 20) : title;
+      buffer.write('TITLE:$truncatedTitle\n');
+    }
+
+    // Organization
+    if (company != null && company!.isNotEmpty) {
+      buffer.write('ORG:$company\n');
+    }
+
+    // Phone
+    if (phone != null && phone!.isNotEmpty) {
+      buffer.write('TEL;TYPE=CELL:$phone\n');
+    }
+
+    // Email
+    if (email != null && email!.isNotEmpty) {
+      buffer.write('EMAIL:$email\n');
+    }
+
+    // Card URL - Primary link to full digital profile
+    // Always include this as the main URL (replaces social media URLs)
+    // When saved as contact, user can tap this to open full card online
+    buffer.write('URL:${_generateCardUrl()}\n');
+
+    buffer.write('END:VCARD');
+    return buffer.toString();
+  }
+
+  /// Generate full URL from social media handle
+  String? _generateSocialUrl(String platform, String handle) {
+    // Trim whitespace and remove @ prefix
+    final trimmedHandle = handle.trim();
+    final cleanHandle = trimmedHandle.startsWith('@') ? trimmedHandle.substring(1).trim() : trimmedHandle;
+
+    // If already a URL, return as-is
+    if (trimmedHandle.startsWith('http://') || trimmedHandle.startsWith('https://')) {
+      return trimmedHandle;
+    }
+
+    switch (platform.toLowerCase()) {
+      case 'linkedin':
+        return 'https://linkedin.com/in/$cleanHandle';
+      case 'twitter':
+      case 'x':
+        return 'https://x.com/$cleanHandle';
+      case 'instagram':
+        return 'https://instagram.com/$cleanHandle';
+      case 'github':
+        return 'https://github.com/$cleanHandle';
+      default:
+        return null;
+    }
+  }
+
+  /// Generate custom URL for full digital profile using unique UUID
+  /// URL pattern: https://tap-card-site.vercel.app/share/[uuid]
+  ///
+  /// Benefits:
+  /// - Globally unique (no collisions for same names)
+  /// - Backend-ready (UUID = Firebase document ID)
+  /// - Enables proper contact-to-profile linking
+  /// - Ready for web profile viewer and analytics
+  ///
+  /// URL is clickable in saved contact → opens full card with all info, analytics
+  String _generateCardUrl() {
+    return 'https://tap-card-site.vercel.app/share/$id';
+  }
+
+  /// Check if dual payload cache is stale (>5 minutes old or missing)
+  bool get needsDualPayloadCacheUpdate {
+    if (_cachedVCard == null || _cachedCardUrl == null) return true;
+    if (_dualPayloadCacheTime == null) return true;
+
+    final age = DateTime.now().difference(_dualPayloadCacheTime!);
+    return age.inMinutes > 5;
+  }
+
+  /// Regenerate dual-payload cache (vCard + URL)
+  ProfileData regenerateDualPayloadCache() {
+    final vCard = _generateOptimizedVCard();
+    final url = _generateCardUrl();
+    final now = DateTime.now();
+
+    developer.log(
+      '🔄 Regenerating dual-payload cache\n'
+      '   • vCard: ${vCard.length} bytes\n'
+      '   • URL: ${url.length} bytes\n'
+      '   • Total: ${vCard.length + url.length} bytes',
+      name: 'ProfileData.Cache'
+    );
+
+    return copyWith(
+      cachedVCard: vCard,
+      cachedCardUrl: url,
+      dualPayloadCacheTime: now,
+      cachedNfcPayload: _generateNfcPayload(), // Also refresh legacy payload
+      lastUpdated: now,
+    );
+  }
+
+  /// Get dual payload (vCard + URL) for instant NFC sharing
+  ///
+  /// Performance: Returns cached version if available (0ms lag!)
+  /// Only regenerates if cache is stale or missing.
+  Map<String, String> get dualPayload {
+    // Use cached version if available and fresh
+    if (_cachedVCard != null && _cachedCardUrl != null && !needsDualPayloadCacheUpdate) {
+      developer.log(
+        '✅ Using cached dual-payload (instant!)\n'
+        '   • vCard: ${_cachedVCard!.length} bytes\n'
+        '   • URL: ${_cachedCardUrl!.length} bytes',
+        name: 'ProfileData.DualPayload'
+      );
+      return {
+        'vcard': _cachedVCard!,
+        'url': _cachedCardUrl!,
+      };
+    }
+
+    // Cache is stale/missing - regenerate
+    developer.log(
+      '⚠️ Dual-payload cache expired, regenerating...',
+      name: 'ProfileData.DualPayload'
+    );
+    final freshProfile = regenerateDualPayloadCache();
+    return {
+      'vcard': freshProfile._cachedVCard!,
+      'url': freshProfile._cachedCardUrl!,
+    };
   }
 }
 
