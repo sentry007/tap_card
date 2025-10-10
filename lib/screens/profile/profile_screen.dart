@@ -16,6 +16,9 @@ import '../../core/constants/routes.dart';
 import '../../core/models/profile_models.dart';
 import '../../core/services/profile_service.dart';
 
+/// Enum for background color picker mode
+enum BackgroundMode { solid, gradient }
+
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
 
@@ -49,6 +52,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   // Social media controllers
   final Map<String, TextEditingController> _socialControllers = {};
   final Map<String, FocusNode> _socialFocusNodes = {};
+  String? _selectedSocialPlatform; // Currently selected social platform for editing
 
   // Focus nodes for basic fields
   final _nameFocus = FocusNode();
@@ -62,7 +66,9 @@ class _ProfileScreenState extends State<ProfileScreen>
   File? _profileImage;
   File? _backgroundImage;
   bool _isSaving = false;
+  bool _hasUnsavedChanges = false; // Track if form has unsaved changes
   ProfileData? _currentProfile;
+  ProfileData? _initialProfile; // Snapshot of profile when loaded for comparison
   ProfileType _selectedProfileType = ProfileType.personal;
   final ImagePicker _picker = ImagePicker();
   List<Map<String, Color?>> _recentCombinations = [];
@@ -150,10 +156,13 @@ class _ProfileScreenState extends State<ProfileScreen>
     final activeProfile = _profileService.activeProfile;
     if (activeProfile != null) {
       _currentProfile = activeProfile;
+      _initialProfile = activeProfile.copyWith(); // Store initial snapshot for comparison
       _selectedProfileType = activeProfile.type;
       _populateFormFromProfile(activeProfile);
       _setupSocialControllers();
-      setState(() {});
+      setState(() {
+        _hasUnsavedChanges = false; // Reset when loading profile
+      });
     }
   }
 
@@ -204,8 +213,8 @@ class _ProfileScreenState extends State<ProfileScreen>
       _socialControllers[social] = TextEditingController();
       _socialFocusNodes[social] = FocusNode();
 
-      // Add listeners
-      _socialControllers[social]!.addListener(_updatePreview);
+      // Add listeners for change tracking and preview updates
+      _socialControllers[social]!.addListener(_onFormChanged);
     }
 
     // Populate with existing data
@@ -267,13 +276,53 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   void _initTextControllerListeners() {
-    // Add listeners for real-time preview updates
-    _nameController.addListener(_updatePreview);
-    _titleController.addListener(_updatePreview);
-    _companyController.addListener(_updatePreview);
-    _phoneController.addListener(_updatePreview);
-    _emailController.addListener(_updatePreview);
-    _websiteController.addListener(_updatePreview);
+    // Add listeners for real-time preview updates and change tracking
+    _nameController.addListener(_onFormChanged);
+    _titleController.addListener(_onFormChanged);
+    _companyController.addListener(_onFormChanged);
+    _phoneController.addListener(_onFormChanged);
+    _emailController.addListener(_onFormChanged);
+    _websiteController.addListener(_onFormChanged);
+  }
+
+  void _onFormChanged() {
+    setState(() {
+      _hasUnsavedChanges = _hasActualChanges(); // Only mark if actual changes exist
+    });
+  }
+
+  /// Check if current form state differs from initial profile
+  bool _hasActualChanges() {
+    if (_initialProfile == null || _currentProfile == null) return false;
+
+    // Check basic fields
+    if (_nameController.text.trim() != _initialProfile!.name) return true;
+    if (_titleController.text.trim() != (_initialProfile!.title ?? '')) return true;
+    if (_companyController.text.trim() != (_initialProfile!.company ?? '')) return true;
+    if (_phoneController.text.trim() != (_initialProfile!.phone ?? '')) return true;
+    if (_emailController.text.trim() != (_initialProfile!.email ?? '')) return true;
+    if (_websiteController.text.trim() != (_initialProfile!.website ?? '')) return true;
+
+    // Check images
+    if (_profileImage?.path != _initialProfile!.profileImagePath) return true;
+    if (_backgroundImage?.path != _initialProfile!.cardAesthetics.backgroundImagePath) return true;
+
+    // Check card aesthetics
+    final initialAesthetics = _initialProfile!.cardAesthetics;
+    final currentAesthetics = _currentAesthetics;
+    if (currentAesthetics.templateIndex != initialAesthetics.templateIndex) return true;
+    if (currentAesthetics.blurLevel != initialAesthetics.blurLevel) return true;
+    if (currentAesthetics.borderColor.value != initialAesthetics.borderColor.value) return true;
+    if ((currentAesthetics.backgroundColor?.value ?? 0) != (initialAesthetics.backgroundColor?.value ?? 0)) return true;
+
+    // Check social media
+    for (final entry in _socialControllers.entries) {
+      final currentValue = entry.value.text.trim();
+      final initialValue = _initialProfile!.socialMedia[entry.key] ?? '';
+      if (currentValue != initialValue) return true;
+    }
+
+    return false;
   }
 
   void _updatePreview() {
@@ -290,20 +339,21 @@ class _ProfileScreenState extends State<ProfileScreen>
     bool clearBackgroundColor = false,
     double? blurLevel,
     String? backgroundImagePath,
+    bool clearBackgroundImage = false,
   }) {
     if (_currentProfile == null) return;
 
-    // Handle explicit null for backgroundColor
+    // Handle explicit null values
     final CardAesthetics updatedAesthetics;
-    if (clearBackgroundColor) {
+    if (clearBackgroundColor || clearBackgroundImage) {
       updatedAesthetics = CardAesthetics(
         templateIndex: templateIndex ?? _currentProfile!.cardAesthetics.templateIndex,
         primaryColor: primaryColor ?? _currentProfile!.cardAesthetics.primaryColor,
         secondaryColor: secondaryColor ?? _currentProfile!.cardAesthetics.secondaryColor,
         borderColor: borderColor ?? _currentProfile!.cardAesthetics.borderColor,
-        backgroundColor: null, // Explicitly set to null
+        backgroundColor: clearBackgroundColor ? null : (backgroundColor ?? _currentProfile!.cardAesthetics.backgroundColor),
         blurLevel: blurLevel ?? _currentProfile!.cardAesthetics.blurLevel,
-        backgroundImagePath: backgroundImagePath ?? _currentProfile!.cardAesthetics.backgroundImagePath,
+        backgroundImagePath: clearBackgroundImage ? null : (backgroundImagePath ?? _currentProfile!.cardAesthetics.backgroundImagePath),
       );
     } else {
       updatedAesthetics = _currentProfile!.cardAesthetics.copyWith(
@@ -321,6 +371,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       _currentProfile = _currentProfile!.copyWith(
         cardAesthetics: updatedAesthetics,
       );
+      _hasUnsavedChanges = _hasActualChanges(); // Check for changes
     });
   }
 
@@ -368,6 +419,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             } else {
               _profileImage = File(croppedFile.path);
             }
+            _hasUnsavedChanges = _hasActualChanges(); // Check for changes
           });
           HapticFeedback.lightImpact();
         }
@@ -382,7 +434,11 @@ class _ProfileScreenState extends State<ProfileScreen>
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => _buildImagePickerModal(isBackground: isBackground),
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (context) => SafeArea(
+        child: _buildImagePickerModal(isBackground: isBackground),
+      ),
     );
   }
 
@@ -397,7 +453,10 @@ class _ProfileScreenState extends State<ProfileScreen>
     await _saveCurrentProfile();
 
     if (mounted) {
-      setState(() => _isSaving = false);
+      setState(() {
+        _isSaving = false;
+        _hasUnsavedChanges = false; // Reset unsaved changes flag
+      });
 
       // Show success feedback
       ScaffoldMessenger.of(context).showSnackBar(
@@ -425,11 +484,6 @@ class _ProfileScreenState extends State<ProfileScreen>
       }
     }
 
-    // Add background image to social media data if present
-    if (_backgroundImage != null) {
-      socialMediaData['backgroundImage'] = _backgroundImage!.path;
-    }
-
     // Create updated profile with CardAesthetics
     final updatedAesthetics = _currentAesthetics.copyWith(
       backgroundImagePath: _backgroundImage?.path,
@@ -447,8 +501,8 @@ class _ProfileScreenState extends State<ProfileScreen>
       cardAesthetics: updatedAesthetics,
     );
 
-    // Regenerate NFC cache when profile data changes for instant sharing
-    final profileWithFreshCache = updatedProfile.regenerateNfcCache();
+    // Regenerate NFC cache when profile data changes for instant sharing (includes dual-payload)
+    final profileWithFreshCache = updatedProfile.regenerateDualPayloadCache();
     await _profileService.updateProfile(profileWithFreshCache);
 
     // Save color combination after successful profile save
@@ -724,14 +778,14 @@ class _ProfileScreenState extends State<ProfileScreen>
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withOpacity(0.06),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withOpacity(0.25),
                 width: 1,
               ),
             ),
@@ -771,17 +825,50 @@ class _ProfileScreenState extends State<ProfileScreen>
                   ],
                 ),
                 if (isBackground && _backgroundImage != null) ...[
-                  const SizedBox(height: 16),
-                  _buildImagePickerOption(
-                    icon: CupertinoIcons.xmark,
-                    title: 'Remove Background',
-                    onTap: () {
-                      Navigator.pop(context);
-                      setState(() {
-                        _backgroundImage = null;
-                      });
-                      HapticFeedback.lightImpact();
-                    },
+                  const SizedBox(height: 20),
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        Navigator.pop(context);
+                        setState(() {
+                          _backgroundImage = null;
+                        });
+                        // Update card aesthetics to clear backgroundImagePath
+                        _updateCardAesthetics(clearBackgroundImage: true);
+                        HapticFeedback.lightImpact();
+                      },
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: AppColors.error.withOpacity(0.3),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              CupertinoIcons.trash,
+                              color: AppColors.error,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              'Remove Background',
+                              style: AppTextStyles.body.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.error,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ],
@@ -805,10 +892,10 @@ class _ProfileScreenState extends State<ProfileScreen>
         child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
+            color: Colors.white.withOpacity(0.06),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withOpacity(0.25),
               width: 1,
             ),
           ),
@@ -1108,35 +1195,150 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   List<Widget> _buildSocialFields() {
-    final fields = <Widget>[];
     final availableSocials = _getAvailableSocialPlatforms();
 
-    for (int i = 0; i < availableSocials.length; i++) {
-      final social = availableSocials[i];
-      final controller = _socialControllers[social];
-      final focusNode = _socialFocusNodes[social];
+    return [
+      // Horizontal scrollable chips
+      SizedBox(
+        height: 56,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          itemCount: availableSocials.length,
+          itemBuilder: (context, index) {
+            final social = availableSocials[index];
+            final isSelected = _selectedSocialPlatform == social;
+            final hasValue = _socialControllers[social]?.text.isNotEmpty ?? false;
 
-      if (controller != null && focusNode != null) {
-        fields.addAll([
-          _buildGlassTextField(
-            controller: controller,
-            focusNode: focusNode,
-            nextFocusNode: i < availableSocials.length - 1
-                ? _socialFocusNodes[availableSocials[i + 1]]
-                : null,
-            label: _getSocialLabel(social),
-            icon: _getSocialIcon(social),
-            prefix: _getSocialPrefix(social),
-            textInputAction: i == availableSocials.length - 1
-                ? TextInputAction.done
-                : TextInputAction.next,
+            return Padding(
+              padding: EdgeInsets.only(right: index < availableSocials.length - 1 ? 8 : 0),
+              child: _buildSocialChip(social, isSelected, hasValue),
+            );
+          },
+        ),
+      ),
+      // Show text field below if a platform is selected
+      if (_selectedSocialPlatform != null) ...[
+        const SizedBox(height: 16),
+        _buildGlassTextField(
+          controller: _socialControllers[_selectedSocialPlatform]!,
+          focusNode: _socialFocusNodes[_selectedSocialPlatform]!,
+          nextFocusNode: null,
+          label: _getSocialLabel(_selectedSocialPlatform!),
+          icon: _getSocialIcon(_selectedSocialPlatform!),
+          prefix: _getSocialPrefix(_selectedSocialPlatform!),
+          textInputAction: TextInputAction.done,
+          accentColor: _getSocialBrandColor(_selectedSocialPlatform!), // Brand color
+          showClearButton: true, // Show clear button
+        ),
+        const SizedBox(height: 16),
+      ],
+    ];
+  }
+
+  /// Build a social media chip with brand colors
+  Widget _buildSocialChip(String social, bool isSelected, bool hasValue) {
+    final brandColor = _getSocialBrandColor(social);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            // Toggle selection: if already selected, deselect; otherwise select
+            _selectedSocialPlatform = isSelected ? null : social;
+            // Focus the text field if selecting
+            if (_selectedSocialPlatform != null) {
+              Future.delayed(const Duration(milliseconds: 100), () {
+                _socialFocusNodes[social]?.requestFocus();
+              });
+            }
+          });
+          HapticFeedback.lightImpact();
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+            child: Container(
+              width: 60, // Fixed width for consistent sizing
+              height: 54, // Fixed height
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? brandColor.withOpacity(0.15)
+                    : Colors.white.withOpacity(0.06),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: brandColor.withOpacity(isSelected ? 0.6 : 0.4),
+                  width: isSelected ? 2 : 1.5,
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Centered icon takes up available space
+                  Expanded(
+                    child: Center(
+                      child: Icon(
+                        _getSocialIcon(social),
+                        color: brandColor,
+                        size: 22,
+                      ),
+                    ),
+                  ),
+                  // Green pill indicator at bottom - always present
+                  Container(
+                    width: 18,
+                    height: 3,
+                    decoration: BoxDecoration(
+                      color: hasValue
+                          ? AppColors.success
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(1.5),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-          const SizedBox(height: 16),
-        ]);
-      }
-    }
+        ),
+      ),
+    );
+  }
 
-    return fields;
+  /// Get brand color for social platform (used in chips only)
+  Color _getSocialBrandColor(String social) {
+    switch (social.toLowerCase()) {
+      case 'linkedin':
+        return const Color(0xFF0077B5);
+      case 'twitter':
+      case 'x':
+        return const Color(0xFF000000);
+      case 'github':
+        return const Color(0xFF333333);
+      case 'instagram':
+        return const Color(0xFFE4405F);
+      case 'snapchat':
+        return const Color(0xFFFFFC00);
+      case 'facebook':
+        return const Color(0xFF1877F2);
+      case 'discord':
+        return const Color(0xFF5865F2);
+      case 'behance':
+        return const Color(0xFF1769FF);
+      case 'dribbble':
+        return const Color(0xFFEA4C89);
+      case 'tiktok':
+        return const Color(0xFF000000);
+      case 'youtube':
+        return const Color(0xFFFF0000);
+      case 'twitch':
+        return const Color(0xFF9146FF);
+      default:
+        return AppColors.primaryAction;
+    }
   }
 
   List<String> _getAvailableSocialPlatforms() {
@@ -1232,22 +1434,28 @@ class _ProfileScreenState extends State<ProfileScreen>
     TextInputType? keyboardType,
     TextInputAction? textInputAction,
     String? Function(String?)? validator,
+    Color? accentColor, // Brand color for focused state
+    bool showClearButton = false, // Show clear button when field has content
   }) {
+    final effectiveAccentColor = accentColor ?? AppColors.primaryAction;
+
     return ValueListenableBuilder<bool>(
       valueListenable: _FocusNotifier(focusNode),
       builder: (context, hasFocus, child) {
+        final hasContent = controller.text.isNotEmpty;
+
         return ClipRRect(
           borderRadius: BorderRadius.circular(16),
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
+                color: Colors.white.withOpacity(0.06),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: hasFocus
-                      ? AppColors.primaryAction.withOpacity(0.5)
-                      : Colors.white.withOpacity(0.2),
+                      ? effectiveAccentColor.withOpacity(0.5)
+                      : Colors.white.withOpacity(0.25),
                   width: 1.5,
                 ),
               ),
@@ -1261,13 +1469,27 @@ class _ProfileScreenState extends State<ProfileScreen>
                 decoration: InputDecoration(
                   labelText: label,
                   labelStyle: AppTextStyles.body.copyWith(
-                    color: hasFocus ? AppColors.primaryAction : AppColors.textSecondary,
+                    color: hasFocus ? effectiveAccentColor : AppColors.textSecondary,
                   ),
                   prefixIcon: Icon(
                     icon,
-                    color: hasFocus ? AppColors.primaryAction : AppColors.textSecondary,
+                    color: hasFocus ? effectiveAccentColor : AppColors.textSecondary,
                     size: 20,
                   ),
+                  suffixIcon: showClearButton && hasContent
+                      ? IconButton(
+                          icon: Icon(
+                            CupertinoIcons.xmark_circle_fill,
+                            color: AppColors.textSecondary,
+                            size: 20,
+                          ),
+                          onPressed: () {
+                            controller.clear();
+                            focusNode.unfocus();
+                            _onFormChanged(); // Trigger change detection
+                          },
+                        )
+                      : null,
                   prefixText: prefix,
                   prefixStyle: AppTextStyles.body.copyWith(
                     color: AppColors.textTertiary,
@@ -1319,7 +1541,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           height: 80,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
-            itemCount: _recentCombinations.length + _templates.length + 3, // recent + templates + border + bg + add bg
+            itemCount: _recentCombinations.length + _templates.length + 3, // recent + templates + border + background + add bg
             itemBuilder: (context, index) {
               if (index < _recentCombinations.length && _recentCombinations.isNotEmpty) {
                 return _buildRecentCombination(index);
@@ -1329,7 +1551,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               } else if (index == _recentCombinations.length + _templates.length) {
                 return _buildBorderColorPicker();
               } else if (index == _recentCombinations.length + _templates.length + 1) {
-                return _buildBackgroundColorPicker();
+                return _buildBackgroundPicker();
               } else {
                 return _buildAddBackgroundButton();
               }
@@ -1355,15 +1577,15 @@ class _ProfileScreenState extends State<ProfileScreen>
         child: ClipRRect(
           borderRadius: BorderRadius.circular(12),
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
+                color: Colors.white.withOpacity(0.05),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: isSelected
                       ? AppColors.primaryAction
-                      : Colors.white.withOpacity(0.2),
+                      : Colors.white.withOpacity(0.3),
                   width: isSelected ? 2 : 1,
                 ),
                 boxShadow: isSelected
@@ -1539,24 +1761,27 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  Widget _buildBackgroundColorPicker() {
+  Widget _buildBackgroundPicker() {
     return Container(
       width: 120,
       margin: const EdgeInsets.only(right: 12),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: _showBackgroundColorPicker,
+          onTap: _showUnifiedBackgroundPicker,
           borderRadius: BorderRadius.circular(12),
           child: Container(
             decoration: BoxDecoration(
               gradient: _backgroundColor != null
                 ? LinearGradient(colors: [_backgroundColor!, _backgroundColor!.withOpacity(0.8)])
-                : null,
-              color: _backgroundColor == null ? Colors.white.withOpacity(0.1) : null,
+                : LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [_primaryColor, _secondaryColor],
+                  ),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: _backgroundColor?.withOpacity(0.5) ?? AppColors.primaryAction.withOpacity(0.5),
+                color: Colors.white.withOpacity(0.5),
                 width: 2,
                 strokeAlign: BorderSide.strokeAlignInside,
               ),
@@ -1570,29 +1795,29 @@ class _ProfileScreenState extends State<ProfileScreen>
                   decoration: BoxDecoration(
                     gradient: _backgroundColor != null
                       ? LinearGradient(colors: [_backgroundColor!, _backgroundColor!.withOpacity(0.8)])
-                      : AppColors.primaryGradient,
+                      : LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [_primaryColor, _secondaryColor],
+                        ),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: Colors.white.withOpacity(0.3),
                       width: 1,
                     ),
                   ),
-                  child: Icon(
-                    CupertinoIcons.slider_horizontal_3,
-                    color: _backgroundColor != null
-                      ? (_backgroundColor!.computeLuminance() > 0.5 ? Colors.black : Colors.white)
-                      : Colors.white,
+                  child: const Icon(
+                    CupertinoIcons.paintbrush_fill,
+                    color: Colors.white,
                     size: 16,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Background\nColor',
+                  'Background',
                   style: AppTextStyles.caption.copyWith(
                     fontWeight: FontWeight.w500,
-                    color: _backgroundColor != null
-                      ? (_backgroundColor!.computeLuminance() > 0.5 ? Colors.black : Colors.white)
-                      : AppColors.primaryAction,
+                    color: Colors.white,
                     fontSize: 10,
                   ),
                   textAlign: TextAlign.center,
@@ -1606,6 +1831,8 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _buildAddBackgroundButton() {
+    final hasBackground = _backgroundImage != null;
+
     return Container(
       width: 120,
       margin: const EdgeInsets.only(right: 12),
@@ -1619,8 +1846,10 @@ class _ProfileScreenState extends State<ProfileScreen>
               color: Colors.white.withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: AppColors.primaryAction.withOpacity(0.5),
-                width: 2,
+                color: hasBackground
+                    ? AppColors.primaryAction.withOpacity(0.5)
+                    : Colors.white.withOpacity(0.3),
+                width: hasBackground ? 2 : 1,
                 strokeAlign: BorderSide.strokeAlignInside,
               ),
             ),
@@ -1642,7 +1871,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  _backgroundImage == null ? 'Add\nBackground' : 'Edit\nBackground',
+                  'Background\nImage',
                   style: AppTextStyles.caption.copyWith(
                     fontWeight: FontWeight.w500,
                     color: AppColors.primaryAction,
@@ -2056,10 +2285,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   void _showBackgroundColorPicker() async {
-    Color selectedColor = _backgroundColor ?? _templates[_selectedTemplate].primaryColor;
-
-    // Get template colors for presets
-    final templateColors = _templates.map((t) => [t.primaryColor, t.secondaryColor]).expand((x) => x).toList();
+    Color selectedColor = _backgroundColor ?? _primaryColor;
 
     showDialog(
       context: context,
@@ -2152,9 +2378,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                               ),
                             ),
                           ),
-                          // Template and other colors
-                          ...([
-                            ...templateColors,
+                          // Standard color options
+                          ...[
                             Colors.white,
                             Colors.blue,
                             Colors.purple,
@@ -2167,8 +2392,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                             Colors.indigo,
                             Colors.teal,
                             Colors.lime,
-                          ]).map((color) {
-                            final isSelected = color.value == (_backgroundColor?.value ?? _templates[_selectedTemplate].primaryColor.value);
+                          ].map((color) {
+                            final isSelected = _backgroundColor != null && color.value == _backgroundColor!.value;
                             return GestureDetector(
                               onTap: () {
                                 _updateCardAesthetics(
@@ -2456,6 +2681,903 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
+  void _showGradientBackgroundPicker() {
+    Color startColor = _primaryColor;
+    Color endColor = _secondaryColor;
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+          child: Dialog(
+            backgroundColor: Colors.transparent,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  constraints: const BoxConstraints(maxWidth: 400),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.white.withOpacity(0.2),
+                        Colors.white.withOpacity(0.1),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.3),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Gradient Background',
+                        style: AppTextStyles.h3.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Live gradient preview
+                      Container(
+                        height: 80,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [startColor, endColor],
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.3),
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Start color section
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Start Color',
+                            style: AppTextStyles.body.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          GestureDetector(
+                            onTap: () {
+                              _showColorPickerForGradient(
+                                initialColor: startColor,
+                                title: 'Start Color',
+                                onColorSelected: (color) {
+                                  setDialogState(() {
+                                    startColor = color;
+                                  });
+                                },
+                              );
+                            },
+                            child: Container(
+                              height: 50,
+                              decoration: BoxDecoration(
+                                color: startColor,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.3),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  'Tap to change',
+                                  style: AppTextStyles.body.copyWith(
+                                    color: startColor.computeLuminance() > 0.5 ? Colors.black : Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+
+                      // End color section
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'End Color',
+                            style: AppTextStyles.body.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          GestureDetector(
+                            onTap: () {
+                              _showColorPickerForGradient(
+                                initialColor: endColor,
+                                title: 'End Color',
+                                onColorSelected: (color) {
+                                  setDialogState(() {
+                                    endColor = color;
+                                  });
+                                },
+                              );
+                            },
+                            child: Container(
+                              height: 50,
+                              decoration: BoxDecoration(
+                                color: endColor,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.3),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  'Tap to change',
+                                  style: AppTextStyles.body.copyWith(
+                                    color: endColor.computeLuminance() > 0.5 ? Colors.black : Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Action buttons
+                      Row(
+                        children: [
+                          Expanded(
+                            child: SizedBox(
+                              height: 48,
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: () => Navigator.pop(context),
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: Colors.white.withOpacity(0.2),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        'Cancel',
+                                        style: AppTextStyles.body.copyWith(
+                                          color: AppColors.textSecondary,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: SizedBox(
+                              height: 48,
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: () {
+                                    // Clear solid backgroundColor and set gradient
+                                    _updateCardAesthetics(
+                                      clearBackgroundColor: true,
+                                      primaryColor: startColor,
+                                      secondaryColor: endColor,
+                                    );
+                                    Navigator.pop(context);
+                                    HapticFeedback.lightImpact();
+                                  },
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      gradient: AppColors.primaryGradient,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        'Apply',
+                                        style: AppTextStyles.body.copyWith(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showColorPickerForGradient({
+    required Color initialColor,
+    required String title,
+    required Function(Color) onColorSelected,
+  }) {
+    Color selectedColor = initialColor;
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (context) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+        child: Dialog(
+          backgroundColor: Colors.transparent,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.white.withOpacity(0.2),
+                      Colors.white.withOpacity(0.1),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.3),
+                    width: 1.5,
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      style: AppTextStyles.h3.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.2),
+                          width: 1,
+                        ),
+                      ),
+                      child: ColorPicker(
+                        pickerColor: selectedColor,
+                        onColorChanged: (color) {
+                          selectedColor = color;
+                        },
+                        colorPickerWidth: 250,
+                        pickerAreaHeightPercent: 0.7,
+                        enableAlpha: false,
+                        displayThumbColor: true,
+                        paletteType: PaletteType.hsvWithHue,
+                        labelTypes: const [],
+                        pickerAreaBorderRadius: BorderRadius.circular(12),
+                        hexInputBar: false,
+                        portraitOnly: true,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SizedBox(
+                            height: 48,
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () => Navigator.pop(context),
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(0.2),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      'Cancel',
+                                      style: AppTextStyles.body.copyWith(
+                                        color: AppColors.textSecondary,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: SizedBox(
+                            height: 48,
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () {
+                                  onColorSelected(selectedColor);
+                                  Navigator.pop(context);
+                                  HapticFeedback.lightImpact();
+                                },
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    gradient: AppColors.primaryGradient,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      'Select',
+                                      style: AppTextStyles.body.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Unified background color picker with solid/gradient toggle
+  void _showUnifiedBackgroundPicker() {
+    BackgroundMode mode = _backgroundColor != null
+      ? BackgroundMode.solid
+      : BackgroundMode.gradient;
+
+    Color solidColor = _backgroundColor ?? _primaryColor;
+    Color gradientStart = _primaryColor;
+    Color gradientEnd = _secondaryColor;
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+          child: Dialog(
+            backgroundColor: Colors.transparent,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  constraints: const BoxConstraints(maxWidth: 400),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.white.withOpacity(0.2),
+                        Colors.white.withOpacity(0.1),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.3),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Title
+                      Text(
+                        'Background',
+                        style: AppTextStyles.h3.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Toggle Switch
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.2),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: () {
+                                    setDialogState(() {
+                                      mode = BackgroundMode.solid;
+                                    });
+                                    HapticFeedback.lightImpact();
+                                  },
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    decoration: BoxDecoration(
+                                      gradient: mode == BackgroundMode.solid
+                                        ? AppColors.primaryGradient
+                                        : null,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        'Solid',
+                                        style: AppTextStyles.body.copyWith(
+                                          fontWeight: mode == BackgroundMode.solid
+                                            ? FontWeight.bold
+                                            : FontWeight.w500,
+                                          color: mode == BackgroundMode.solid
+                                            ? Colors.white
+                                            : AppColors.textSecondary,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: () {
+                                    setDialogState(() {
+                                      mode = BackgroundMode.gradient;
+                                    });
+                                    HapticFeedback.lightImpact();
+                                  },
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    decoration: BoxDecoration(
+                                      gradient: mode == BackgroundMode.gradient
+                                        ? AppColors.primaryGradient
+                                        : null,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        'Gradient',
+                                        style: AppTextStyles.body.copyWith(
+                                          fontWeight: mode == BackgroundMode.gradient
+                                            ? FontWeight.bold
+                                            : FontWeight.w500,
+                                          color: mode == BackgroundMode.gradient
+                                            ? Colors.white
+                                            : AppColors.textSecondary,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Dynamic Content
+                      if (mode == BackgroundMode.solid)
+                        _buildSolidColorContent(
+                          solidColor,
+                          (color) {
+                            setDialogState(() {
+                              solidColor = color;
+                            });
+                          },
+                        )
+                      else
+                        _buildGradientColorContent(
+                          gradientStart,
+                          gradientEnd,
+                          (start, end) {
+                            setDialogState(() {
+                              gradientStart = start;
+                              gradientEnd = end;
+                            });
+                          },
+                        ),
+
+                      const SizedBox(height: 24),
+
+                      // Action Buttons
+                      Row(
+                        children: [
+                          Expanded(
+                            child: SizedBox(
+                              height: 48,
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: () => Navigator.pop(context),
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: Colors.white.withOpacity(0.2),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        'Cancel',
+                                        style: AppTextStyles.body.copyWith(
+                                          color: AppColors.textSecondary,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: SizedBox(
+                              height: 48,
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: () {
+                                    if (mode == BackgroundMode.solid) {
+                                      _updateCardAesthetics(backgroundColor: solidColor);
+                                    } else {
+                                      _updateCardAesthetics(
+                                        clearBackgroundColor: true,
+                                        primaryColor: gradientStart,
+                                        secondaryColor: gradientEnd,
+                                      );
+                                    }
+                                    Navigator.pop(context);
+                                    HapticFeedback.lightImpact();
+                                  },
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      gradient: AppColors.primaryGradient,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        'Apply',
+                                        style: AppTextStyles.body.copyWith(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Build solid color picker content
+  Widget _buildSolidColorContent(Color selected, Function(Color) onColorSelected) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.2),
+          width: 1,
+        ),
+      ),
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 12,
+        children: [
+          // Transparent/Remove option first
+          GestureDetector(
+            onTap: () {
+              _updateCardAesthetics(clearBackgroundColor: true);
+              Navigator.pop(context);
+              HapticFeedback.lightImpact();
+            },
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _backgroundColor == null
+                    ? AppColors.primaryAction
+                    : Colors.white.withOpacity(0.3),
+                  width: _backgroundColor == null ? 3 : 1.5,
+                ),
+              ),
+              child: Icon(
+                CupertinoIcons.xmark,
+                color: _backgroundColor == null
+                  ? AppColors.primaryAction
+                  : AppColors.textSecondary,
+                size: 20,
+              ),
+            ),
+          ),
+          // Standard color options
+          ...[
+            Colors.white,
+            Colors.blue,
+            Colors.purple,
+            Colors.pink,
+            Colors.orange,
+            Colors.green,
+            Colors.red,
+            Colors.yellow,
+            Colors.cyan,
+            Colors.indigo,
+            Colors.teal,
+            Colors.lime,
+          ].map((color) {
+            final isSelected = selected.value == color.value;
+            return GestureDetector(
+              onTap: () {
+                onColorSelected(color);
+                HapticFeedback.lightImpact();
+              },
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isSelected
+                      ? AppColors.primaryAction
+                      : Colors.white.withOpacity(0.3),
+                    width: isSelected ? 3 : 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: isSelected
+                  ? Icon(
+                      CupertinoIcons.checkmark,
+                      color: color.computeLuminance() > 0.5
+                        ? Colors.black
+                        : Colors.white,
+                      size: 20,
+                    )
+                  : null,
+              ),
+            );
+          }).toList(),
+          // Custom color button
+          GestureDetector(
+            onTap: () {
+              _showCustomBackgroundColorPicker(selected);
+            },
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                gradient: AppColors.primaryGradient,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.5),
+                  width: 1.5,
+                ),
+              ),
+              child: const Icon(
+                CupertinoIcons.add,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build gradient color picker content
+  Widget _buildGradientColorContent(
+    Color start,
+    Color end,
+    Function(Color, Color) onColorsChanged,
+  ) {
+    return Column(
+      children: [
+        // Live gradient preview
+        Container(
+          height: 80,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [start, end],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.3),
+              width: 2,
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // Start color section
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Start Color',
+              style: AppTextStyles.body.copyWith(
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            GestureDetector(
+              onTap: () {
+                _showColorPickerForGradient(
+                  initialColor: start,
+                  title: 'Start Color',
+                  onColorSelected: (color) {
+                    onColorsChanged(color, end);
+                  },
+                );
+              },
+              child: Container(
+                height: 50,
+                decoration: BoxDecoration(
+                  color: start,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.3),
+                    width: 1.5,
+                  ),
+                ),
+                child: Center(
+                  child: Text(
+                    'Tap to change',
+                    style: AppTextStyles.body.copyWith(
+                      color: start.computeLuminance() > 0.5 ? Colors.black : Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // End color section
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'End Color',
+              style: AppTextStyles.body.copyWith(
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            GestureDetector(
+              onTap: () {
+                _showColorPickerForGradient(
+                  initialColor: end,
+                  title: 'End Color',
+                  onColorSelected: (color) {
+                    onColorsChanged(start, color);
+                  },
+                );
+              },
+              child: Container(
+                height: 50,
+                decoration: BoxDecoration(
+                  color: end,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.3),
+                    width: 1.5,
+                  ),
+                ),
+                child: Center(
+                  child: Text(
+                    'Tap to change',
+                    style: AppTextStyles.body.copyWith(
+                      color: end.computeLuminance() > 0.5 ? Colors.black : Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   void _saveColorCombination() {
     // Save combination if either background or border is customized
     if (_backgroundColor != null || _borderColor != Colors.white) {
@@ -2600,21 +3722,22 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Widget _buildContactCard() {
     final previewProfile = _buildPreviewProfile();
-    
+
     return Center(
       child: ProfileCardPreview(
         profile: previewProfile,
         width: double.infinity,
         height: 200,
         borderRadius: 20,
-        onEmailTap: previewProfile.email != null && previewProfile.email!.isNotEmpty 
-            ? () => _launchEmail(previewProfile.email!) 
+        onProfileImageTap: () => _showImagePicker(isBackground: false),
+        onEmailTap: previewProfile.email != null && previewProfile.email!.isNotEmpty
+            ? () => _launchEmail(previewProfile.email!)
             : null,
-        onPhoneTap: previewProfile.phone != null && previewProfile.phone!.isNotEmpty 
-            ? () => _launchPhone(previewProfile.phone!) 
+        onPhoneTap: previewProfile.phone != null && previewProfile.phone!.isNotEmpty
+            ? () => _launchPhone(previewProfile.phone!)
             : null,
-        onWebsiteTap: previewProfile.website != null && previewProfile.website!.isNotEmpty 
-            ? () => _launchUrl(previewProfile.website!) 
+        onWebsiteTap: previewProfile.website != null && previewProfile.website!.isNotEmpty
+            ? () => _launchUrl(previewProfile.website!)
             : null,
         onSocialTap: (platform, url) => _launchSocialMedia(platform, url),
       ),
@@ -2622,6 +3745,11 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _buildSaveButton() {
+    // Use secondary gradient when there are unsaved changes, primary gradient when clean
+    final buttonGradient = _hasUnsavedChanges
+        ? AppColors.secondaryGradient
+        : AppColors.primaryGradient;
+
     return AnimatedBuilder(
       animation: _saveController,
       builder: (context, child) {
@@ -2630,13 +3758,63 @@ class _ProfileScreenState extends State<ProfileScreen>
           child: SizedBox(
             width: double.infinity,
             height: 56,
-            child: AppButton.contained(
-              text: _isSaving ? 'Saving...' : 'Save Profile',
-              loading: _isSaving,
-              onPressed: _isSaving ? null : _saveProfile,
-              icon: _isSaving
-                  ? null
-                  : const Icon(CupertinoIcons.floppy_disk, size: 20),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: _isSaving ? null : _saveProfile,
+                borderRadius: BorderRadius.circular(16),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  decoration: BoxDecoration(
+                    gradient: buttonGradient,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: (_hasUnsavedChanges
+                            ? AppColors.secondaryAction
+                            : AppColors.primaryAction).withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                      const BoxShadow(
+                        color: AppColors.shadowLight,
+                        blurRadius: 12,
+                        offset: Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: _isSaving
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Save Profile',
+                                style: AppTextStyles.buttonLarge.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              const Icon(
+                                CupertinoIcons.floppy_disk,
+                                size: 20,
+                                color: Colors.white,
+                              ),
+                            ],
+                          ),
+                  ),
+                ),
+              ),
             ),
           ),
         );

@@ -48,6 +48,12 @@ class AppColors {
     end: Alignment.bottomRight,
   );
 
+  static const LinearGradient secondaryGradient = LinearGradient(
+    colors: [p2pPrimary, p2pSecondary],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
   static const LinearGradient p2pGradient = LinearGradient(
     colors: [p2pPrimary, p2pSecondary],
     begin: Alignment.topLeft,
