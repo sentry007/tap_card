@@ -45,11 +45,15 @@ dependencies:
   # Permission Handling
   permission_handler: ^11.3.0
 
+  # Settings Access
+  app_settings: ^5.1.1
+
   # Contacts Access (modern, actively maintained)
   flutter_contacts: ^1.1.7+1
 
   # Location Services
   geolocator: ^10.1.0
+  geocoding: ^3.0.0  # Reverse geocoding for human-readable addresses
 
   # UUID Generation
   uuid: ^4.3.3

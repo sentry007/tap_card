@@ -851,16 +851,33 @@ class _ContactDetailModalState extends State<ContactDetailModal>
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Row(
-          children: [
-            Icon(CupertinoIcons.check_mark_circled_solid, color: AppColors.success),
-            const SizedBox(width: 12),
-            Text(message, style: AppTextStyles.body),
-          ],
+        content: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.success.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.success.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(CupertinoIcons.check_mark_circled_solid, color: AppColors.success),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(message, style: AppTextStyles.body)),
+                ],
+              ),
+            ),
+          ),
         ),
-        backgroundColor: AppColors.surfaceDark,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         duration: const Duration(seconds: 2),
       ),
     );
@@ -870,16 +887,33 @@ class _ContactDetailModalState extends State<ContactDetailModal>
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Row(
-          children: [
-            Icon(CupertinoIcons.exclamationmark_circle, color: AppColors.error),
-            const SizedBox(width: 12),
-            Text(message, style: AppTextStyles.body),
-          ],
+        content: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.error.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.error.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(CupertinoIcons.exclamationmark_circle, color: AppColors.error),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(message, style: AppTextStyles.body)),
+                ],
+              ),
+            ),
+          ),
         ),
-        backgroundColor: AppColors.surfaceDark,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         duration: const Duration(seconds: 3),
       ),
     );

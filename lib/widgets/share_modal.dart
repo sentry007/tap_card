@@ -1,21 +1,25 @@
 import 'dart:ui';
-import 'dart:convert';
+import 'dart:io';
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:cross_file/cross_file.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../theme/theme.dart';
-
-enum ShareTab { qr, link }
+import '../core/models/profile_models.dart';
+import '../models/history_models.dart';
 
 class ShareModal extends StatefulWidget {
   final String userName;
   final String userEmail;
   final String? profileImageUrl;
   final VoidCallback? onNFCShare;
+  final ProfileData profile;  // Full profile data for generating metadata
 
   const ShareModal({
     Key? key,
@@ -23,6 +27,7 @@ class ShareModal extends StatefulWidget {
     required this.userEmail,
     this.profileImageUrl,
     this.onNFCShare,
+    required this.profile,
   }) : super(key: key);
 
   @override
@@ -34,6 +39,7 @@ class ShareModal extends StatefulWidget {
     required String userEmail,
     String? profileImageUrl,
     VoidCallback? onNFCShare,
+    required ProfileData profile,
   }) {
     showModalBottomSheet(
       context: context,
@@ -46,23 +52,17 @@ class ShareModal extends StatefulWidget {
         userEmail: userEmail,
         profileImageUrl: profileImageUrl,
         onNFCShare: onNFCShare,
+        profile: profile,
       ),
     );
   }
 }
 
 class _ShareModalState extends State<ShareModal>
-    with TickerProviderStateMixin {
-  ShareTab _currentTab = ShareTab.qr;
-
-  // Animation controllers
+    with SingleTickerProviderStateMixin {
+  // Animation controller (slide-in only)
   late AnimationController _slideController;
-  late AnimationController _tabController;
-  late AnimationController _contentController;
-
-  // Animations
   late Animation<double> _slideAnimation;
-  late Animation<double> _contentFade;
 
   // Generated share data
   String _shareUrl = '';
@@ -71,24 +71,14 @@ class _ShareModalState extends State<ShareModal>
   @override
   void initState() {
     super.initState();
-    _initAnimations();
+    _initAnimation();
     _generateShareData();
-    _startAnimations();
+    _startAnimation();
   }
 
-  void _initAnimations() {
+  void _initAnimation() {
     _slideController = AnimationController(
-      duration: const Duration(milliseconds: 600),
-      vsync: this,
-    );
-
-    _tabController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-
-    _contentController = AnimationController(
-      duration: const Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 500),
       vsync: this,
     );
 
@@ -99,32 +89,35 @@ class _ShareModalState extends State<ShareModal>
       parent: _slideController,
       curve: Curves.easeOutCubic,
     ));
-
-    _contentFade = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _contentController,
-      curve: Curves.easeOut,
-    ));
   }
 
   void _generateShareData() {
-    _shareUrl = 'https://tapcard.app/share/${widget.userName.toLowerCase().replaceAll(' ', '-')}';
-    _qrData = 'BEGIN:VCARD\nVERSION:3.0\nFN:${widget.userName}\nEMAIL:${widget.userEmail}\nURL:$_shareUrl\nEND:VCARD';
+    // Generate URL from profile
+    _shareUrl = widget.profile.dualPayload['url']!;
+
+    // Generate QR code vCard WITH metadata (method: QR, fresh timestamp)
+    final qrContext = ShareContext(
+      method: ShareMethod.qr,
+      timestamp: DateTime.now(),
+    );
+    final qrPayload = widget.profile.getDualPayloadWithContext(qrContext);
+    _qrData = qrPayload['vcard']!;
+
+    developer.log(
+      '✅ Share data generated with metadata\n'
+      '   • URL: $_shareUrl\n'
+      '   • QR vCard: ${_qrData.length} bytes (with X-TC metadata)',
+      name: 'ShareModal'
+    );
   }
 
-  void _startAnimations() {
+  void _startAnimation() {
     _slideController.forward();
-    _tabController.forward();
-    _contentController.forward();
   }
 
   @override
   void dispose() {
     _slideController.dispose();
-    _tabController.dispose();
-    _contentController.dispose();
     super.dispose();
   }
 
@@ -159,37 +152,32 @@ class _ShareModalState extends State<ShareModal>
         borderRadius: BorderRadius.circular(24),
         child: BackdropFilter(
           key: const Key('share_modal_backdrop'),
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
             key: const Key('share_modal_content_container'),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withOpacity(0.05),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withOpacity(0.3),
                 width: 1.5,
               ),
             ),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                return Column(
-                  key: const Key('share_modal_main_column'),
-                  children: [
-                    _buildDragHandle(),
-                    _buildHeader(),
-                    _buildTabBar(),
-                    Expanded(
-                      key: const Key('share_modal_expanded_content'),
-                      child: SingleChildScrollView(
-                        key: const Key('share_modal_scroll_view'),
-                        child: _buildTabContent(),
-                      ),
-                    ),
-                    _buildSocialButtons(),
-                    SizedBox(key: const Key('share_modal_bottom_spacing'), height: MediaQuery.of(context).padding.bottom + 16),
-                  ],
-                );
-              },
+            child: Column(
+              key: const Key('share_modal_main_column'),
+              children: [
+                _buildDragHandle(),
+                _buildHeader(),
+                Expanded(
+                  key: const Key('share_modal_expanded_content'),
+                  child: SingleChildScrollView(
+                    key: const Key('share_modal_scroll_view'),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    child: _buildScrollableContent(),
+                  ),
+                ),
+                SizedBox(key: const Key('share_modal_bottom_spacing'), height: MediaQuery.of(context).padding.bottom + 8),
+              ],
             ),
           ),
         ),
@@ -303,375 +291,112 @@ class _ShareModalState extends State<ShareModal>
     );
   }
 
-  Widget _buildTabBar() {
-    return Container(
-      key: const Key('share_modal_tab_bar_container'),
-      margin: const EdgeInsets.symmetric(horizontal: 24),
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: AppColors.glassBorder.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        key: const Key('share_modal_tab_bar_row'),
-        children: [
-          _buildTab(ShareTab.qr, 'QR', CupertinoIcons.qrcode),
-          _buildTab(ShareTab.link, 'Link', CupertinoIcons.link),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTab(ShareTab tab, String label, IconData icon) {
-    final isSelected = _currentTab == tab;
-
-    return Expanded(
-      key: Key('share_modal_tab_${tab.name}'),
-      child: Material(
-        key: Key('share_modal_tab_material_${tab.name}'),
-        color: Colors.transparent,
-        child: InkWell(
-          key: Key('share_modal_tab_inkwell_${tab.name}'),
-          onTap: () => _switchTab(tab),
-          borderRadius: BorderRadius.circular(12),
-          child: AnimatedContainer(
-            key: Key('share_modal_tab_container_${tab.name}'),
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? AppColors.primaryAction.withOpacity(0.2)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(12),
-              border: isSelected
-                  ? Border.all(
-                      color: AppColors.primaryAction.withOpacity(0.5),
-                      width: 1,
-                    )
-                  : null,
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  icon,
-                  size: 18,
-                  color: isSelected
-                      ? AppColors.primaryAction
-                      : AppColors.textSecondary,
-                ),
-                const SizedBox(width: 4),
-                Flexible(
-                  child: Text(
-                    label,
-                    style: AppTextStyles.body.copyWith(
-                      color: isSelected
-                          ? AppColors.primaryAction
-                          : AppColors.textSecondary,
-                      fontWeight: isSelected
-                          ? FontWeight.w600
-                          : FontWeight.w400,
-                      fontSize: 14,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTabContent() {
-    return AnimatedBuilder(
-      animation: _contentFade,
-      builder: (context, child) {
-        return FadeTransition(
-          opacity: _contentFade,
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: _getTabContent(),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _getTabContent() {
-    switch (_currentTab) {
-      case ShareTab.qr:
-        return _buildQRTab();
-      case ShareTab.link:
-        return _buildLinkTab();
-    }
-  }
-
-
-  Widget _buildQRTab() {
+  // New scrollable content (no tabs - all sections in one scroll)
+  Widget _buildScrollableContent() {
     return Column(
-      key: const Key('share_modal_qr_tab_column'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(key: Key('share_modal_qr_top_spacing'), height: 20),
-        Center(
-          key: const Key('share_modal_qr_center'),
-          child: Container(
-            key: const Key('share_modal_qr_container'),
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.shadowMedium.withOpacity(0.3),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: QrImageView(
-              key: const Key('share_modal_qr_image'),
-              data: _qrData,
-              version: QrVersions.auto,
-              size: 200.0,
-              backgroundColor: Colors.white,
-              foregroundColor: Colors.black,
-              errorStateBuilder: (cxt, err) {
-                return Container(
-                  key: const Key('share_modal_qr_error_container'),
-                  width: 200,
-                  height: 200,
-                  alignment: Alignment.center,
-                  child: Text(
-                    key: const Key('share_modal_qr_error_text'),
-                    'Error generating QR code',
-                    style: AppTextStyles.body.copyWith(
-                      color: AppColors.error,
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-        const SizedBox(key: Key('share_modal_qr_title_spacing'), height: 24),
-        Text(
-          key: const Key('share_modal_qr_title'),
-          'Scan to Connect',
-          style: AppTextStyles.h3.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(key: Key('share_modal_qr_subtitle_spacing'), height: 12),
-        Text(
-          key: const Key('share_modal_qr_subtitle'),
-          'Open any QR scanner or camera app to instantly get my contact details',
-          style: AppTextStyles.body.copyWith(
-            color: AppColors.textSecondary,
-            height: 1.5,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(key: Key('share_modal_qr_buttons_spacing'), height: 24),
-        Row(
-          key: const Key('share_modal_qr_buttons_row'),
-          children: [
-            Expanded(
-              key: const Key('share_modal_qr_save_button_section'),
-              child: _buildActionButton(
-                icon: CupertinoIcons.arrow_down_circle,
-                label: 'Save QR',
-                onTap: _saveQRCode,
-              ),
-            ),
-            const SizedBox(key: Key('share_modal_qr_buttons_spacing_middle'), width: 16),
-            Expanded(
-              key: const Key('share_modal_qr_share_button_section'),
-              child: _buildActionButton(
-                icon: CupertinoIcons.share,
-                label: 'Share QR',
-                onTap: _shareQRCode,
-              ),
-            ),
-          ],
-        ),
+        // PRIMARY: Nearby Share (compact)
+        _buildCompactNearbyShare(),
+
+        const SizedBox(height: 16),
+        _buildSectionDivider(),
+        const SizedBox(height: 16),
+
+        // SECONDARY: QR Code (compact)
+        _buildCompactQRCode(),
+
+        const SizedBox(height: 16),
+        _buildSectionDivider(),
+        const SizedBox(height: 16),
+
+        // TERTIARY: Link Section (compact)
+        _buildCompactLinkSection(),
+
+        const SizedBox(height: 16),
+        _buildSectionDivider(),
+        const SizedBox(height: 16),
+
+        // QUATERNARY: Social Share
+        _buildSocialButtons(),
+
+        const SizedBox(height: 12),
       ],
     );
   }
 
-  Widget _buildLinkTab() {
-    return Column(
-      key: const Key('share_modal_link_tab_column'),
-      children: [
-        const SizedBox(key: Key('share_modal_link_top_spacing'), height: 20),
-        Container(
-          key: const Key('share_modal_link_main_container'),
-          padding: const EdgeInsets.all(20),
+  Widget _buildSectionDivider() {
+    return Divider(
+      height: 1,
+      thickness: 1,
+      color: AppColors.glassBorder.withOpacity(0.3),
+    );
+  }
+
+  // ==================== COMPACT SECTION BUILDERS ====================
+
+  Widget _buildCompactNearbyShare() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _shareContactViaNearbyShare,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.glassBorder.withOpacity(0.1),
+            gradient: AppColors.primaryGradient,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: AppColors.glassBorder.withOpacity(0.3),
-              width: 1,
-            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primaryAction.withOpacity(0.3),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+              ),
+            ],
           ),
-          child: Column(
-            key: const Key('share_modal_link_content_column'),
+          child: Row(
             children: [
-              Icon(
-                key: const Key('share_modal_link_icon'),
-                CupertinoIcons.link,
-                size: 48,
-                color: AppColors.primaryAction,
-              ),
-              const SizedBox(key: Key('share_modal_link_icon_spacing'), height: 16),
-              Text(
-                key: const Key('share_modal_link_title'),
-                'Share Link',
-                style: AppTextStyles.h3.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(key: Key('share_modal_link_title_spacing'), height: 12),
+              // Icon
               Container(
-                key: const Key('share_modal_link_url_container'),
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceDark.withOpacity(0.5),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: AppColors.glassBorder,
-                    width: 1,
-                  ),
+                  color: Colors.white.withOpacity(0.2),
+                  shape: BoxShape.circle,
                 ),
-                child: Row(
-                  key: const Key('share_modal_link_url_row'),
+                child: const Icon(
+                  CupertinoIcons.arrow_up_right_circle_fill,
+                  size: 32,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 16),
+              // Text
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      key: const Key('share_modal_link_url_text_section'),
-                      child: Text(
-                        key: const Key('share_modal_link_url_text'),
-                        _shareUrl,
-                        style: AppTextStyles.body.copyWith(
-                          color: AppColors.textSecondary,
-                          fontFamily: 'monospace',
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                    Text(
+                      'Share Contact',
+                      style: AppTextStyles.h3.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(key: Key('share_modal_link_url_spacing'), width: 12),
-                    Material(
-                      key: const Key('share_modal_link_copy_button_material'),
-                      color: Colors.transparent,
-                      child: InkWell(
-                        key: const Key('share_modal_link_copy_button_inkwell'),
-                        onTap: _copyLink,
-                        borderRadius: BorderRadius.circular(8),
-                        child: Container(
-                          key: const Key('share_modal_link_copy_button_container'),
-                          padding: const EdgeInsets.all(8),
-                          child: Icon(
-                            key: const Key('share_modal_link_copy_icon'),
-                            CupertinoIcons.doc_on_doc,
-                            size: 18,
-                            color: AppColors.primaryAction,
-                          ),
-                        ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Choose AirDrop, Nearby Share & more',
+                      style: AppTextStyles.caption.copyWith(
+                        color: Colors.white.withOpacity(0.85),
                       ),
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
-        ),
-        const SizedBox(key: Key('share_modal_link_info_spacing'), height: 24),
-        Text(
-          key: const Key('share_modal_link_info_text'),
-          'Anyone with this link can view and save your contact information',
-          style: AppTextStyles.body.copyWith(
-            color: AppColors.textSecondary,
-            height: 1.5,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(key: Key('share_modal_link_buttons_spacing'), height: 24),
-        Row(
-          key: const Key('share_modal_link_buttons_row'),
-          children: [
-            Expanded(
-              key: const Key('share_modal_link_copy_button_section'),
-              child: _buildActionButton(
-                icon: CupertinoIcons.doc_on_doc,
-                label: 'Copy Link',
-                onTap: _copyLink,
-              ),
-            ),
-            const SizedBox(key: Key('share_modal_link_buttons_spacing_middle'), width: 16),
-            Expanded(
-              key: const Key('share_modal_link_share_button_section'),
-              child: _buildActionButton(
-                icon: CupertinoIcons.share,
-                label: 'Share Link',
-                onTap: _shareLink,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      key: Key('share_modal_action_button_${label.toLowerCase().replaceAll(' ', '_')}_material'),
-      color: Colors.transparent,
-      child: InkWell(
-        key: Key('share_modal_action_button_${label.toLowerCase().replaceAll(' ', '_')}_inkwell'),
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          key: Key('share_modal_action_button_${label.toLowerCase().replaceAll(' ', '_')}_container'),
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-          decoration: BoxDecoration(
-            color: AppColors.primaryAction.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: AppColors.primaryAction.withOpacity(0.3),
-              width: 1,
-            ),
-          ),
-          child: Row(
-            key: Key('share_modal_action_button_${label.toLowerCase().replaceAll(' ', '_')}_row'),
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
+              // Arrow
               Icon(
-                key: Key('share_modal_action_button_${label.toLowerCase().replaceAll(' ', '_')}_icon'),
-                icon,
+                CupertinoIcons.chevron_right,
+                color: Colors.white.withOpacity(0.7),
                 size: 20,
-                color: AppColors.primaryAction,
-              ),
-              SizedBox(key: Key('share_modal_action_button_${label.toLowerCase().replaceAll(' ', '_')}_spacing'), width: 8),
-              Flexible(
-                child: Text(
-                  key: Key('share_modal_action_button_${label.toLowerCase().replaceAll(' ', '_')}_text'),
-                  label,
-                  style: AppTextStyles.body.copyWith(
-                    color: AppColors.primaryAction,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                ),
               ),
             ],
           ),
@@ -679,6 +404,114 @@ class _ShareModalState extends State<ShareModal>
       ),
     );
   }
+
+  Widget _buildCompactQRCode() {
+    return Column(
+      children: [
+        Text(
+          'QR Code',
+          style: AppTextStyles.h3.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.shadowMedium.withOpacity(0.2),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: QrImageView(
+            data: _qrData,
+            version: QrVersions.auto,
+            size: 140,
+            backgroundColor: Colors.white,
+            errorCorrectionLevel: QrErrorCorrectLevel.M,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'Scan to save contact',
+          style: AppTextStyles.caption.copyWith(
+            color: AppColors.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCompactLinkSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Share Link',
+          style: AppTextStyles.h3.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceDark.withOpacity(0.5),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: AppColors.glassBorder,
+              width: 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _shareUrl,
+                  style: AppTextStyles.body.copyWith(
+                    color: AppColors.textSecondary,
+                    fontFamily: 'monospace',
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _copyLink,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Icon(
+                      CupertinoIcons.doc_on_doc,
+                      size: 18,
+                      color: AppColors.primaryAction,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'Anyone with this link can view your contact information',
+          style: AppTextStyles.caption.copyWith(
+            color: AppColors.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ==================== SOCIAL SHARE BUTTONS ====================
 
   Widget _buildSocialButtons() {
     return Container(
@@ -687,12 +520,6 @@ class _ShareModalState extends State<ShareModal>
       child: Column(
         key: const Key('share_modal_social_buttons_column'),
         children: [
-          const Divider(
-            key: Key('share_modal_social_divider'),
-            color: AppColors.glassBorder,
-            height: 1,
-          ),
-          const SizedBox(key: Key('share_modal_social_divider_spacing'), height: 16),
           Text(
             key: const Key('share_modal_social_title'),
             'Share via',
@@ -768,17 +595,63 @@ class _ShareModalState extends State<ShareModal>
     );
   }
 
-  void _switchTab(ShareTab tab) {
-    if (_currentTab == tab) return;
+  // ==================== VCARD FILE CREATION ====================
 
-    setState(() => _currentTab = tab);
-    HapticFeedback.lightImpact();
+  /// Create vCard file with metadata for AirDrop/Nearby Share
+  /// Generates fresh vCard with metadata (method: link, timestamp)
+  Future<XFile?> _createVCardFile() async {
+    try {
+      // Generate fresh vCard with metadata for Nearby Share
+      final shareContext = ShareContext(
+        method: ShareMethod.web,  // Web-based sharing (URL/nearby)
+        timestamp: DateTime.now(),
+      );
+      final payload = widget.profile.getDualPayloadWithContext(shareContext);
+      final vCard = payload['vcard']!;
 
-    // Animate content transition
-    _contentController.reset();
-    _contentController.forward();
+      final fileName = '${widget.userName.replaceAll(' ', '_')}.vcf';
+      final tempDir = await getTemporaryDirectory();
+      final filePath = '${tempDir.path}/$fileName';
+
+      final file = File(filePath);
+      await file.writeAsString(vCard);
+
+      developer.log(
+        '✅ vCard file created with metadata: ${vCard.length} bytes → $fileName\n'
+        '   • Method: ${shareContext.method.label}\n'
+        '   • Timestamp: ${shareContext.timestamp}',
+        name: 'ShareModal'
+      );
+
+      return XFile(filePath, mimeType: 'text/x-vcard', name: fileName);
+    } catch (e) {
+      developer.log('❌ Error creating vCard file: $e', name: 'ShareModal');
+      return null;
+    }
   }
 
+  /// Share contact via AirDrop/Nearby Share (vCard file only)
+  Future<void> _shareContactViaNearbyShare() async {
+    try {
+      HapticFeedback.mediumImpact();
+
+      final vcf = await _createVCardFile();
+
+      if (vcf != null) {
+        // Share vCard file WITHOUT text - clean AirDrop/Nearby Share UX
+        await Share.shareXFiles([vcf]);
+        developer.log('✅ Shared vCard via Nearby Share/AirDrop', name: 'ShareModal');
+        _showSuccessSnackBar('Contact shared successfully');
+      } else {
+        _showErrorSnackBar('Failed to create contact file');
+      }
+    } catch (e) {
+      developer.log('❌ Nearby Share failed: $e', name: 'ShareModal');
+      _showErrorSnackBar('Failed to share contact');
+    }
+  }
+
+  // ==================== ACTION HANDLERS ====================
 
   Future<void> _copyLink() async {
     try {
@@ -793,32 +666,17 @@ class _ShareModalState extends State<ShareModal>
   Future<void> _shareLink() async {
     try {
       HapticFeedback.lightImpact();
+
+      // Share LINK ONLY (no vCard file)
+      // This is for passing around URLs via text/social
       await Share.share(
         'Check out ${widget.userName}\'s contact card: $_shareUrl',
         subject: '${widget.userName}\'s Contact Card',
       );
+      developer.log('✅ Shared link only', name: 'ShareModal');
     } catch (e) {
+      developer.log('❌ Share failed: $e', name: 'ShareModal');
       _showErrorSnackBar('Failed to share link');
-    }
-  }
-
-  Future<void> _saveQRCode() async {
-    try {
-      HapticFeedback.lightImpact();
-      // TODO: Implement QR code saving to gallery
-      _showSuccessSnackBar('QR code saved to gallery');
-    } catch (e) {
-      _showErrorSnackBar('Failed to save QR code');
-    }
-  }
-
-  Future<void> _shareQRCode() async {
-    try {
-      HapticFeedback.lightImpact();
-      // TODO: Implement QR code sharing
-      _showSuccessSnackBar('QR code shared');
-    } catch (e) {
-      _showErrorSnackBar('Failed to share QR code');
     }
   }
 
@@ -879,30 +737,40 @@ class _ShareModalState extends State<ShareModal>
   }
 
   Future<void> _shareViaOther() async {
-    try {
-      HapticFeedback.lightImpact();
-      await Share.share(
-        'Check out ${widget.userName}\'s contact card: $_shareUrl',
-        subject: '${widget.userName}\'s Contact Card',
-      );
-    } catch (e) {
-      _showErrorSnackBar('Sharing not available');
-    }
+    // Share link only (not vCard) - for generic "More" sharing
+    await _shareLink();
   }
 
   void _showSuccessSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Row(
-          children: [
-            Icon(CupertinoIcons.checkmark_circle, color: AppColors.success),
-            const SizedBox(width: 12),
-            Text(message, style: AppTextStyles.body),
-          ],
+        content: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.success.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.success.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(CupertinoIcons.checkmark_circle, color: AppColors.success),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(message, style: AppTextStyles.body)),
+                ],
+              ),
+            ),
+          ),
         ),
-        backgroundColor: AppColors.surfaceDark,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         duration: const Duration(seconds: 2),
       ),
     );
@@ -911,16 +779,33 @@ class _ShareModalState extends State<ShareModal>
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Row(
-          children: [
-            Icon(CupertinoIcons.exclamationmark_circle, color: AppColors.error),
-            const SizedBox(width: 12),
-            Text(message, style: AppTextStyles.body),
-          ],
+        content: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.error.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.error.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(CupertinoIcons.exclamationmark_circle, color: AppColors.error),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(message, style: AppTextStyles.body)),
+                ],
+              ),
+            ),
+          ),
         ),
-        backgroundColor: AppColors.surfaceDark,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         duration: const Duration(seconds: 3),
       ),
     );
