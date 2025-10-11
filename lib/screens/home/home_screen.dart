@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:app_settings/app_settings.dart';
 import 'dart:ui';
 import 'dart:io';
 import 'dart:async';
@@ -19,11 +20,13 @@ import '../../services/nfc_service.dart';
 import '../../services/nfc_discovery_service.dart';
 import '../../services/nfc_settings_service.dart';
 import '../../core/constants/routes.dart';
+import '../../core/constants/app_constants.dart';
 import '../../models/unified_models.dart';
 import '../../models/history_models.dart';
 import '../../services/history_service.dart';
 import '../../widgets/history/method_chip.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 
 // Five-state NFC FAB system for comprehensive user feedback
 enum NfcFabState {
@@ -72,9 +75,9 @@ class _HomeScreenState extends State<HomeScreen>
   late TokenManagerService _tokenManager;
 
   // NFC Performance Optimization: Pre-cached data for instant sharing
-  ProfileData? _cachedActiveProfile;  // Pre-cached active profile
-  String? _cachedNfcPayload;          // Pre-cached JSON payload
-  bool _isPayloadReady = false;       // True when payload is cached and ready
+  ProfileData? _cachedActiveProfile;       // Pre-cached active profile
+  Map<String, String>? _cachedDualPayload; // Pre-cached dual-payload (vCard + URL)
+  bool _isPayloadReady = false;            // True when payload is cached and ready
 
   // State reset timer for success/error states
   Timer? _stateResetTimer;
@@ -505,18 +508,23 @@ class _HomeScreenState extends State<HomeScreen>
       return;
     }
 
-    // ⚡ PERFORMANCE: Check if payload is cached and ready (INSTANT check)
-    developer.log('🔍 Checking cached payload - _isPayloadReady: $_isPayloadReady', name: 'Home.NFC');
-    if (!_isPayloadReady || _cachedNfcPayload == null) {
-      developer.log('⚠️ Payload not ready, attempting to cache now...', name: 'Home.NFC');
+    // ⚡ PERFORMANCE: Check if dual-payload is cached and ready (INSTANT check)
+    developer.log('🔍 Checking cached dual-payload - _isPayloadReady: $_isPayloadReady', name: 'Home.NFC');
+    if (!_isPayloadReady || _cachedDualPayload == null) {
+      developer.log('⚠️ Dual-payload not ready, attempting to cache now...', name: 'Home.NFC');
       _showErrorMessage('Profile not ready. Please wait a moment...');
       await _preCacheNfcPayload(); // Try to cache now
-      if (!_isPayloadReady || _cachedNfcPayload == null) {
+      if (!_isPayloadReady || _cachedDualPayload == null) {
         return;
       }
     }
 
-    developer.log('✅ Using cached payload (INSTANT) - ${_cachedNfcPayload!.length} chars', name: 'Home.NFC');
+    developer.log(
+      '✅ Using cached DUAL-PAYLOAD (INSTANT - 0ms lag!)\n'
+      '   • vCard: ${_cachedDualPayload!['vcard']!.length} bytes\n'
+      '   • URL: ${_cachedDualPayload!['url']!.length} bytes',
+      name: 'Home.NFC'
+    );
 
     // CRITICAL: Pause NFC discovery service to prevent session conflicts
     developer.log('⏸️ Pausing NFC discovery service before write...', name: 'Home.NFC');
@@ -535,13 +543,22 @@ class _HomeScreenState extends State<HomeScreen>
       // IMPORTANT: Don't show dialog - it pauses the activity and breaks foreground dispatch!
       // Show visual feedback on FAB instead
 
-      // ⚡ Share via instant NFC service with PRE-CACHED payload (NO async calls!)
-      developer.log('🚀 Calling NFCService.shareProfileInstant() with cached payload...', name: 'Home.NFC');
+      // ⚡ Generate payload WITH METADATA (share context includes timestamp & method)
+      developer.log('🚀 Generating payload with share context...', name: 'Home.NFC');
       final startTime = DateTime.now();
+
+      // Create share context with current timestamp
+      final shareContext = ShareContext(
+        method: ShareMethod.nfc,
+        timestamp: DateTime.now(),
+      );
+
+      // Generate fresh payload WITH metadata (adds ~40 bytes)
+      final payload = _cachedActiveProfile!.getDualPayloadWithContext(shareContext);
 
       // Stay in ACTIVE state (breathing + ripples) until write completes
       // Writes are instant once tag is detected, so no loading state needed
-      final result = await NFCService.shareProfileInstant(_cachedNfcPayload!);
+      final result = await NFCService.writeData(payload);
 
       final duration = DateTime.now().difference(startTime).inMilliseconds;
       developer.log('⏱️ NFC operation completed in ${duration}ms', name: 'Home.NFC');
@@ -561,10 +578,8 @@ class _HomeScreenState extends State<HomeScreen>
           _showSuccessMessage('Written to NFC tag! 🎉');
           _scheduleStateReset(duration: const Duration(seconds: 2));
 
-          // Add to history
-          final tagId = result.tagId ?? 'TAG_${DateTime.now().millisecondsSinceEpoch}';
-          final tagType = result.tagType ?? 'NTAG';
-          _addNfcWriteToHistory(tagId, tagType);
+          // Add to history with actual tag metadata from hardware
+          _addNfcWriteToHistory(result);
         } else {
           // ERROR state - instant transition from active
           setState(() {
@@ -634,18 +649,23 @@ class _HomeScreenState extends State<HomeScreen>
       return;
     }
 
-    // Check if payload is ready
-    developer.log('🔍 Checking cached payload - _isPayloadReady: $_isPayloadReady', name: 'Home.P2P');
-    if (!_isPayloadReady || _cachedNfcPayload == null) {
-      developer.log('⚠️ Payload not ready, attempting to cache now...', name: 'Home.P2P');
+    // Check if dual-payload is ready
+    developer.log('🔍 Checking cached dual-payload - _isPayloadReady: $_isPayloadReady', name: 'Home.P2P');
+    if (!_isPayloadReady || _cachedDualPayload == null) {
+      developer.log('⚠️ Dual-payload not ready, attempting to cache now...', name: 'Home.P2P');
       _showErrorMessage('Profile not ready. Please wait a moment...');
       await _preCacheNfcPayload();
-      if (!_isPayloadReady || _cachedNfcPayload == null) {
+      if (!_isPayloadReady || _cachedDualPayload == null) {
         return;
       }
     }
 
-    developer.log('✅ Using cached payload (INSTANT) - ${_cachedNfcPayload!.length} chars', name: 'Home.P2P');
+    developer.log(
+      '✅ Using cached DUAL-PAYLOAD for P2P (INSTANT - 0ms lag!)\n'
+      '   • vCard: ${_cachedDualPayload!['vcard']!.length} bytes\n'
+      '   • URL: ${_cachedDualPayload!['url']!.length} bytes',
+      name: 'Home.P2P'
+    );
 
     // CRITICAL: Pause NFC discovery service to prevent conflicts
     developer.log('⏸️ Pausing NFC discovery service before HCE...', name: 'Home.P2P');
@@ -661,11 +681,28 @@ class _HomeScreenState extends State<HomeScreen>
     _rippleController.repeat();
 
     try {
-      developer.log('🚀 Calling NFCService.startCardEmulation() with cached payload...', name: 'Home.P2P');
+      developer.log(
+        '🚀 Starting P2P Card Emulation with vCard (Universal Compatibility)\n'
+        '   📇 Payload: vCard 3.0 format\n'
+        '   🌐 Any phone can now save contact - no app needed!',
+        name: 'Home.P2P'
+      );
       final startTime = DateTime.now();
 
-      // Start HCE card emulation
-      final result = await NFCService.startCardEmulation(_cachedNfcPayload!);
+      // For P2P/HCE, use vCard for universal compatibility
+      // Any phone can now save the contact, even without our app installed!
+      // The vCard includes URL field that opens full digital card in browser
+      final vCardPayload = _cachedDualPayload!['vcard']!;
+
+      developer.log(
+        '📦 P2P vCard payload ready\n'
+        '   • Size: ${vCardPayload.length} bytes\n'
+        '   • Format: vCard 3.0 (universal standard)\n'
+        '   • Contains: Name, Phone, Email, Company, URL',
+        name: 'Home.P2P'
+      );
+
+      final result = await NFCService.startCardEmulation(vCardPayload);
 
       final duration = DateTime.now().difference(startTime).inMilliseconds;
       developer.log('⏱️ P2P operation completed in ${duration}ms', name: 'Home.P2P');
@@ -764,45 +801,105 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _showShareModal() {
+    // ✅ Ensure profile is ready before showing modal
+    if (_cachedActiveProfile == null) {
+      _showErrorMessage('Profile not ready. Please wait...');
+      _preCacheNfcPayload();
+      return;
+    }
+
     ShareModal.show(
       context,
-      userName: 'John Doe',
-      userEmail: 'john.doe@example.com',
+      userName: _cachedActiveProfile!.name,
+      userEmail: _cachedActiveProfile!.email ?? '',
+      profileImageUrl: _cachedActiveProfile!.profileImagePath,
+      profile: _cachedActiveProfile!,  // Pass full profile for metadata generation
       onNFCShare: _onNfcTap,
     );
   }
 
   void _showNfcSetupDialog() {
-    final dialogContext = context;
-
-    GlassmorphicDialog.show(
+    showModalBottomSheet(
       context: context,
-      icon: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppColors.primaryAction.withOpacity(0.2),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Icon(
-          CupertinoIcons.antenna_radiowaves_left_right,
-          color: AppColors.primaryAction,
-          size: 32,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        margin: const EdgeInsets.all(16),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadius.card),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceLight.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(AppRadius.card),
+                border: Border.all(
+                  color: AppColors.primaryAction.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        CupertinoIcons.antenna_radiowaves_left_right,
+                        color: AppColors.primaryAction,
+                        size: 24,
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: Text(
+                          'Enable NFC',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    'NFC is required to share your contact card. Please enable NFC in your device settings to continue.',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.7),
+                      fontSize: 14,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  SizedBox(
+                    width: double.infinity,
+                    child: CupertinoButton(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      color: AppColors.primaryAction,
+                      borderRadius: BorderRadius.circular(AppRadius.button),
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        _openNfcSettings();
+                      },
+                      child: const Text(
+                        'Open Settings',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: MediaQuery.of(context).padding.bottom),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
-      title: 'Enable NFC',
-      content: 'NFC is required to share your contact card. Please enable NFC in your device settings to continue.',
-      actions: [
-        DialogAction.secondary(
-          text: 'Cancel',
-          onPressed: () {
-            Navigator.of(dialogContext, rootNavigator: true).pop();
-          },
-        ),
-        DialogAction.primary(
-          text: 'Settings',
-          onPressed: () => _openNfcSettings(),
-        ),
-      ],
     );
   }
 
@@ -840,11 +937,11 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _openNfcSettings() async {
     try {
-      // Close the current dialog first
-      Navigator.of(context, rootNavigator: true).pop();
-
-      // Try to open NFC settings using platform channels
+      // Try to open NFC settings using app_settings
       await _tryOpenNfcSettings();
+
+      // Add a delay to give user time to toggle NFC
+      await Future.delayed(const Duration(milliseconds: 500));
 
       // After user returns from settings, refresh NFC status
       if (mounted) {
@@ -854,23 +951,23 @@ class _HomeScreenState extends State<HomeScreen>
         if (_nfcAvailable) {
           _showSuccessMessage('NFC is now enabled! You can share your card.');
         } else {
-          _showNfcInstructionsDialog();
+          _showInfoMessage('Please enable NFC in settings to use tap-to-share features.');
         }
       }
     } catch (e) {
       debugPrint('Error opening NFC settings: $e');
       if (mounted) {
-        _showNfcInstructionsDialog();
+        _showErrorMessage('Could not open settings. Please enable NFC manually.');
       }
     }
   }
 
   Future<void> _tryOpenNfcSettings() async {
-    // For now, we'll show instructions since platform-specific settings
-    // opening requires additional native code setup
-    // In a production app, you could use packages like 'app_settings'
-    // or implement platform channels
-    throw Exception('Settings opening not implemented - showing manual instructions');
+    // Open app settings or NFC-specific settings
+    // Note: On Android, AppSettings.openAppSettings() opens the app settings page
+    // Users can then navigate to NFC settings from there
+    // iOS doesn't support NFC settings programmatically
+    await AppSettings.openAppSettings();
   }
 
   void _showNfcInstructionsDialog() {
@@ -918,25 +1015,40 @@ class _HomeScreenState extends State<HomeScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Row(
-              children: [
-                SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
+            content: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryAction.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppColors.primaryAction.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text('Checking NFC status...'),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 12),
-                Text('Checking NFC status...'),
-              ],
+              ),
             ),
-            backgroundColor: AppColors.primaryAction,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
             duration: const Duration(seconds: 2),
           ),
         );
@@ -962,16 +1074,33 @@ class _HomeScreenState extends State<HomeScreen>
   void _showSuccessMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Row(
-          children: [
-            Icon(CupertinoIcons.check_mark_circled_solid, color: AppColors.success),
-            const SizedBox(width: 12),
-            Text(message),
-          ],
+        content: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.success.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.success.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(CupertinoIcons.check_mark_circled_solid, color: AppColors.success),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(message)),
+                ],
+              ),
+            ),
+          ),
         ),
-        backgroundColor: AppColors.surfaceDark,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         duration: const Duration(seconds: 3),
       ),
     );
@@ -980,16 +1109,33 @@ class _HomeScreenState extends State<HomeScreen>
   void _showErrorMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Row(
-          children: [
-            Icon(CupertinoIcons.exclamationmark_circle_fill, color: AppColors.error),
-            const SizedBox(width: 12),
-            Expanded(child: Text(message)),
-          ],
+        content: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.error.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.error.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(CupertinoIcons.exclamationmark_circle_fill, color: AppColors.error),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(message)),
+                ],
+              ),
+            ),
+          ),
         ),
-        backgroundColor: AppColors.surfaceDark,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         duration: const Duration(seconds: 4),
       ),
     );
@@ -998,16 +1144,33 @@ class _HomeScreenState extends State<HomeScreen>
   void _showInfoMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Row(
-          children: [
-            Icon(CupertinoIcons.info_circle_fill, color: Colors.blueAccent),
-            const SizedBox(width: 12),
-            Expanded(child: Text(message)),
-          ],
+        content: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.blueAccent.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.blueAccent.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(CupertinoIcons.info_circle_fill, color: Colors.blueAccent),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(message)),
+                ],
+              ),
+            ),
+          ),
         ),
-        backgroundColor: AppColors.surfaceDark,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         duration: const Duration(seconds: 3),
       ),
     );
@@ -1050,7 +1213,7 @@ class _HomeScreenState extends State<HomeScreen>
   /// ensuring the NFC tap handler has everything ready immediately.
   Future<void> _preCacheNfcPayload() async {
     try {
-      developer.log('⚡ Pre-caching NFC payload for instant sharing...', name: 'Home.NFC');
+      developer.log('⚡ Pre-caching DUAL-PAYLOAD for instant NFC sharing...', name: 'Home.NFC');
       final startTime = DateTime.now();
 
       // Get active profile (synchronous from service)
@@ -1061,20 +1224,22 @@ class _HomeScreenState extends State<HomeScreen>
         if (mounted) {
           setState(() {
             _cachedActiveProfile = null;
-            _cachedNfcPayload = null;
+            _cachedDualPayload = null;
             _isPayloadReady = false;
           });
         }
         return;
       }
 
-      // Get cached NFC payload (should be pre-generated)
-      final payload = profile.getFreshNfcPayload();
+      // Get cached DUAL-PAYLOAD (vCard + URL) - should be pre-generated for 0ms lag!
+      final dualPayload = profile.dualPayload;
 
       final duration = DateTime.now().difference(startTime).inMilliseconds;
       developer.log(
-        '✅ NFC payload cached in ${duration}ms\n'
-        '   • Payload size: ${payload.length} chars\n'
+        '✅ Dual-payload cached in ${duration}ms (INSTANT!)\n'
+        '   • vCard: ${dualPayload['vcard']!.length} bytes\n'
+        '   • URL: ${dualPayload['url']!.length} bytes\n'
+        '   • Total: ${dualPayload['vcard']!.length + dualPayload['url']!.length} bytes\n'
         '   • Profile: ${profile.name}',
         name: 'Home.NFC'
       );
@@ -1082,16 +1247,16 @@ class _HomeScreenState extends State<HomeScreen>
       if (mounted) {
         setState(() {
           _cachedActiveProfile = profile;
-          _cachedNfcPayload = payload;
+          _cachedDualPayload = dualPayload;
           _isPayloadReady = true;
         });
       }
     } catch (e) {
-      developer.log('❌ Error pre-caching NFC payload: $e', name: 'Home.NFC', error: e);
+      developer.log('❌ Error pre-caching dual-payload: $e', name: 'Home.NFC', error: e);
       if (mounted) {
         setState(() {
           _cachedActiveProfile = null;
-          _cachedNfcPayload = null;
+          _cachedDualPayload = null;
           _isPayloadReady = false;
         });
       }
@@ -1142,9 +1307,37 @@ class _HomeScreenState extends State<HomeScreen>
         timeLimit: const Duration(seconds: 5),
       );
 
-      // Format as "Lat, Lng" (backend can resolve to city name later)
+      // Attempt reverse geocoding to get human-readable location
+      try {
+        final placemarks = await placemarkFromCoordinates(
+          position.latitude,
+          position.longitude,
+        );
+
+        if (placemarks.isNotEmpty) {
+          final place = placemarks.first;
+          // Format: "City, State" or "City, Country"
+          final locationParts = [
+            place.locality,          // City
+            place.administrativeArea // State/Province
+          ].where((e) => e != null && e.isNotEmpty).toList();
+
+          if (locationParts.isNotEmpty) {
+            final location = locationParts.join(', ');
+            developer.log('📍 Location: $location', name: 'Home.Location');
+            return location;
+          }
+        }
+
+        developer.log('⚠️ Reverse geocoding returned no placemarks', name: 'Home.Location');
+      } catch (geocodeError) {
+        developer.log('⚠️ Reverse geocoding failed, using coordinates',
+          name: 'Home.Location', error: geocodeError);
+      }
+
+      // Fallback to coordinates if reverse geocoding fails
       final location = '${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}';
-      developer.log('📍 Location acquired: $location', name: 'Home.Location');
+      developer.log('📍 Location (coordinates): $location', name: 'Home.Location');
       return location;
     } catch (e) {
       developer.log('Failed to get location: $e', name: 'Home.Location', error: e);
@@ -1152,22 +1345,29 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  /// Add NFC tag write to history
-  Future<void> _addNfcWriteToHistory(String tagId, String tagType) async {
+  /// Add NFC tag write to history with actual tag metadata from hardware
+  Future<void> _addNfcWriteToHistory(NFCResult result) async {
     try {
       final location = await _getCurrentLocation();
 
+      // Use actual tag data from NFCResult, with fallbacks
+      final tagId = result.tagId ?? 'TAG_${DateTime.now().millisecondsSinceEpoch}';
+      final tagCapacity = result.tagCapacity;
+      final tagType = _inferTagTypeFromCapacity(tagCapacity);
+
       await HistoryService.addTagEntry(
+        profileName: _profileService.activeProfile?.name ?? 'Unknown Profile',
         tagId: tagId,
         tagType: tagType,
         method: ShareMethod.tag,
-        tagCapacity: _getTagCapacity(tagType),
+        tagCapacity: tagCapacity,
         location: location,
       );
 
       final locationStr = location != null ? ' at $location' : '';
+      final capacityStr = tagCapacity != null ? ' ($tagCapacity bytes)' : '';
       developer.log(
-        '✅ NFC write added to history: $tagId ($tagType)$locationStr',
+        '✅ NFC write added to history: $tagId ($tagType$capacityStr)$locationStr',
         name: 'Home.History'
       );
     } catch (e) {
@@ -1200,12 +1400,13 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  /// Get tag capacity based on tag type
-  int? _getTagCapacity(String tagType) {
-    if (tagType.contains('213')) return 144;
-    if (tagType.contains('215')) return 504;
-    if (tagType.contains('216')) return 888;
-    return null;
+  /// Infer tag type from actual hardware capacity
+  String _inferTagTypeFromCapacity(int? capacity) {
+    if (capacity == null) return 'NTAG';
+    if (capacity >= 888) return 'NTAG216';
+    if (capacity >= 504) return 'NTAG215';
+    if (capacity >= 144) return 'NTAG213';
+    return 'NTAG';
   }
 
   // Launch methods for ProfileCardPreview interactions
@@ -1224,24 +1425,100 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _launchUrl(String url) async {
-    Uri uri;
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      uri = Uri.parse('https://$url');
-    } else {
-      uri = Uri.parse(url);
-    }
+    try {
+      Uri uri;
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        uri = Uri.parse('https://$url');
+      } else {
+        uri = Uri.parse(url);
+      }
 
-    if (await canLaunchUrl(uri)) {
+      // Skip canLaunchUrl check - it's unreliable and may return false even when launchUrl works
+      // Just try to launch directly and handle errors
       await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      // Show error only if launchUrl actually fails
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not open link: $url'),
+            backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 
   Future<void> _launchSocialMedia(String platform, String url) async {
-    String finalUrl = url;
-    if (!url.startsWith('http')) {
-      finalUrl = _getSocialUrl(platform, url);
+    try {
+      // 1. Try to open native app first
+      final appUri = _getSocialAppUri(platform, url);
+      if (appUri != null && await canLaunchUrl(appUri)) {
+        await launchUrl(appUri, mode: LaunchMode.externalApplication);
+        return;
+      }
+
+      // 2. Fall back to web URL
+      String finalUrl = url;
+      if (!url.startsWith('http')) {
+        finalUrl = _getSocialUrl(platform, url);
+      }
+      await _launchUrl(finalUrl);
+    } catch (e) {
+      // If all fails, show error
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not open $platform link'),
+            backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
-    await _launchUrl(finalUrl);
+  }
+
+  /// Get native app URI for social platform
+  /// Returns null if platform doesn't support app schemes
+  Uri? _getSocialAppUri(String platform, String username) {
+    final cleanUsername = username.startsWith('@')
+      ? username.substring(1)
+      : username;
+
+    // Skip if already a full URL
+    if (username.startsWith('http')) return null;
+
+    try {
+      switch (platform.toLowerCase()) {
+        case 'instagram':
+          return Uri.parse('instagram://user?username=$cleanUsername');
+        case 'twitter':
+        case 'x':
+          return Uri.parse('twitter://user?screen_name=$cleanUsername');
+        case 'linkedin':
+          return Uri.parse('linkedin://profile/$cleanUsername');
+        case 'github':
+          return Uri.parse('github://$cleanUsername');
+        case 'tiktok':
+          return Uri.parse('tiktok://user?username=$cleanUsername');
+        case 'youtube':
+          return Uri.parse('youtube://user/$cleanUsername');
+        case 'facebook':
+          return Uri.parse('fb://profile/$cleanUsername');
+        case 'snapchat':
+          return Uri.parse('snapchat://add/$cleanUsername');
+        case 'behance':
+        case 'dribbble':
+        case 'discord':
+          // These don't have reliable user schemes
+          return null;
+        default:
+          return null;
+      }
+    } catch (e) {
+      return null;
+    }
   }
 
   String _getSocialUrl(String platform, String username) {

@@ -34,6 +34,7 @@ import 'package:nfc_manager/nfc_manager.dart';
 import 'package:flutter_nfc_hce/flutter_nfc_hce.dart';
 
 import '../core/constants/app_constants.dart';
+import '../models/unified_models.dart';
 
 /// NFC Operation Mode
 enum NfcMode {
@@ -126,12 +127,20 @@ class NFCService {
       case 'onWriteSuccess':
         if (_writeCompleter != null && !_writeCompleter!.isCompleted && _writeStartTime != null) {
           final duration = DateTime.now().difference(_writeStartTime!).inMilliseconds;
-          final bytesWritten = call.arguments as int? ?? 0;
+
+          // Handle map argument from Android with tag metadata
+          final data = call.arguments is Map ? call.arguments as Map : {'bytesWritten': call.arguments as int};
+          final bytesWritten = data['bytesWritten'] as int? ?? 0;
+          final tagId = data['tagId'] as String?;
+          final tagCapacity = data['tagCapacity'] as int?;
+
           developer.log(
-            '✅ Native write succeeded: $bytesWritten bytes in ${duration}ms',
+            '✅ Native write succeeded: $bytesWritten bytes in ${duration}ms\n'
+            '   • Tag ID: ${tagId ?? "unknown"}\n'
+            '   • Tag Capacity: ${tagCapacity ?? "unknown"} bytes',
             name: 'NFC.Callback'
           );
-          _writeCompleter!.complete(NFCResult.success(duration, bytesWritten));
+          _writeCompleter!.complete(NFCResult.success(duration, bytesWritten, tagId: tagId, tagCapacity: tagCapacity));
           _writeCompleter = null;
           _writeStartTime = null;
         }
@@ -213,11 +222,17 @@ class NFCService {
   /// This method uses pure native Android NFC instead of nfc_manager session
   /// to avoid conflicts between Flutter and native NFC handling.
   ///
+  /// **Dual-Payload Strategy:**
+  /// Writes TWO NDEF records to the tag:
+  /// 1. vCard record - Basic contact info (name, phone, email) for universal compatibility
+  /// 2. URL record - Link to full digital card with all information
+  ///
   /// **Process:**
-  /// 1. Call native Android to enable foreground dispatch
-  /// 2. Native waits for tag via onNewIntent()
-  /// 3. Native writes NDEF message and sends callback
-  /// 4. Return result based on native callback
+  /// 1. Prepare dual payload (vCard + URL)
+  /// 2. Call native Android to enable foreground dispatch
+  /// 3. Native waits for tag via onNewIntent()
+  /// 4. Native writes NDEF message with both records and sends callback
+  /// 5. Return result based on native callback
   ///
   /// @param data Contact data as Map
   /// @param timeout Maximum wait time for NFC discovery (default: 10s)
@@ -245,15 +260,127 @@ class NFCService {
     }
 
     final startTime = DateTime.now();
-    final jsonPayload = jsonEncode(data);
-    final payloadSizeBytes = utf8.encode(jsonPayload).length;
+
+    // Extract pre-cached dual payload (vCard + URL)
+    // This should already be generated and cached in ProfileData for instant sharing!
+    final String vCard;
+    final String cardUrl;
 
     developer.log(
-      '📤 Starting native NFC write\n'
-      '   • Payload size: $payloadSizeBytes bytes\n'
-      '   • Timeout: ${timeout.inSeconds}s',
-      name: 'NFC.Write'
+      '🔍 Extracting dual-payload from data...\n'
+      '   • Data keys: ${data.keys.toList()}',
+      name: 'NFC.Write.Extract'
     );
+
+    if (data.containsKey('vcard') && data.containsKey('url')) {
+      // ✅ OPTIMIZED PATH: Pre-cached payload passed directly
+      vCard = data['vcard'] as String;
+      cardUrl = data['url'] as String;
+
+      developer.log(
+        '✅ Using PRE-CACHED dual-payload (0ms lag!)\n'
+        '   • vCard: ${vCard.length} bytes (from cache)\n'
+        '   • URL: ${cardUrl.length} bytes (from cache)\n'
+        '   • Total: ${vCard.length + cardUrl.length} bytes\n'
+        '   🚀 Performance: INSTANT (no generation overhead)',
+        name: 'NFC.Write.Cached'
+      );
+    } else {
+      // ⚠️ FALLBACK PATH: Generate on-demand (backwards compatibility)
+      developer.log(
+        '⚠️ No pre-cached payload found, generating on-demand...\n'
+        '   This is slower! Consider using ProfileData.dualPayload',
+        name: 'NFC.Write.Fallback'
+      );
+
+      final contactData = data['d'] ?? data['data'];
+      final contact = contactData is Map<String, dynamic>
+          ? ContactData.fromJson(contactData)
+          : ContactData.fromJson(data);
+
+      vCard = contact.toVCard();
+      cardUrl = contact.generateCardUrl('user_${DateTime.now().millisecondsSinceEpoch}');
+
+      developer.log(
+        '✅ Generated dual-payload on-demand\n'
+        '   • vCard: ${vCard.length} bytes\n'
+        '   • URL: ${cardUrl.length} bytes',
+        name: 'NFC.Write.Generated'
+      );
+    }
+
+    final vCardBytes = utf8.encode(vCard).length;
+    final urlBytes = utf8.encode(cardUrl).length;
+
+    // Estimate NDEF overhead for accurate size checking
+    // - vCard MIME record: ~13 bytes (TNF + type length + payload length + "text/x-vcard")
+    // - URL record: ~9 bytes (TNF + type length + payload length + protocol byte)
+    const int vCardOverhead = 13;
+    const int urlOverhead = 9;
+    final estimatedDualPayloadSize = vCardBytes + urlBytes + vCardOverhead + urlOverhead;
+    final estimatedUrlOnlySize = urlBytes + urlOverhead;
+
+    // Default to NTAG213 capacity (smallest common tag) for safety
+    // If tag is larger (NTAG215/216), it will work fine
+    const int defaultTagCapacity = NFCConstants.ntag213MaxBytes; // 144 bytes
+
+    // Determine write strategy based on size
+    final bool useDualPayload = estimatedDualPayloadSize <= defaultTagCapacity;
+    final bool useUrlOnly = !useDualPayload && estimatedUrlOnlySize <= defaultTagCapacity;
+
+    if (useDualPayload) {
+      developer.log(
+        '📦 Using DUAL-PAYLOAD strategy (fits in default capacity)\n'
+        '   📇 Record 1 (vCard):\n'
+        '      • Type: MIME (text/x-vcard)\n'
+        '      • Data: $vCardBytes bytes\n'
+        '      • Overhead: ~$vCardOverhead bytes\n'
+        '      • Contains: Basic contact info (auto-saveable)\n'
+        '   🌐 Record 2 (URL):\n'
+        '      • Type: URI\n'
+        '      • Data: $urlBytes bytes\n'
+        '      • Overhead: ~$urlOverhead bytes\n'
+        '      • URL: $cardUrl\n'
+        '   📊 Size Check:\n'
+        '      • Estimated total: $estimatedDualPayloadSize bytes\n'
+        '      • Default capacity: $defaultTagCapacity bytes (NTAG213)\n'
+        '      • Status: ✅ FITS (${((estimatedDualPayloadSize / defaultTagCapacity) * 100).toStringAsFixed(1)}% used)\n'
+        '   ⏱️  Timeout: ${timeout.inSeconds}s',
+        name: 'NFC.Write.DualPayload'
+      );
+    } else if (useUrlOnly) {
+      developer.log(
+        '📦 Using URL-ONLY fallback strategy (dual payload too large)\n'
+        '   ⚠️  Dual payload size: ~$estimatedDualPayloadSize bytes > $defaultTagCapacity bytes\n'
+        '   🌐 Fallback to URL-only:\n'
+        '      • Type: URI\n'
+        '      • Data: $urlBytes bytes\n'
+        '      • Overhead: ~$urlOverhead bytes\n'
+        '      • URL: $cardUrl\n'
+        '   📊 Size Check:\n'
+        '      • Estimated total: $estimatedUrlOnlySize bytes\n'
+        '      • Default capacity: $defaultTagCapacity bytes (NTAG213)\n'
+        '      • Status: ✅ FITS (${((estimatedUrlOnlySize / defaultTagCapacity) * 100).toStringAsFixed(1)}% used)\n'
+        '   💡 Note: URL provides link to full digital card\n'
+        '   ⏱️  Timeout: ${timeout.inSeconds}s',
+        name: 'NFC.Write.UrlOnly'
+      );
+    } else {
+      // Neither strategy fits - this is unlikely with reasonable data
+      final errorDuration = DateTime.now().difference(startTime).inMilliseconds;
+      developer.log(
+        '❌ Payload too large even for URL-only strategy\n'
+        '   • URL size: ~$estimatedUrlOnlySize bytes\n'
+        '   • Default capacity: $defaultTagCapacity bytes (NTAG213)\n'
+        '   💡 Try using a larger tag (NTAG215: 504 bytes, NTAG216: 888 bytes)',
+        name: 'NFC.Write.Error'
+      );
+      return NFCResult.error(
+        'Payload too large for standard NFC tags. URL alone requires $estimatedUrlOnlySize bytes. '
+        'Try using NTAG215 (504 bytes) or NTAG216 (888 bytes) tags.',
+        errorDuration,
+      );
+    }
 
     // Store completer and start time for callback handling
     _writeCompleter = Completer<NFCResult>();
@@ -285,11 +412,29 @@ class NFCService {
         name: 'NFC.Write'
       );
 
-      final success = await _channel.invokeMethod('writeNdefText', {
-        'text': jsonPayload,
-      });
+      // Call appropriate native method based on strategy
+      final bool success;
+      if (useDualPayload) {
+        developer.log(
+          '📤 Calling writeDualPayload with vCard + URL',
+          name: 'NFC.Write'
+        );
+        success = await _channel.invokeMethod('writeDualPayload', {
+          'vcard': vCard,
+          'url': cardUrl,
+        }) == true;
+      } else {
+        // URL-only fallback
+        developer.log(
+          '📤 Calling writeUrlOnly with URL: $cardUrl',
+          name: 'NFC.Write'
+        );
+        success = await _channel.invokeMethod('writeUrlOnly', {
+          'url': cardUrl,
+        }) == true;
+      }
 
-      if (success == true) {
+      if (success) {
         developer.log(
           '✅ Native foreground dispatch enabled, waiting for tag...',
           name: 'NFC.Write'
@@ -571,12 +716,15 @@ class NFCService {
 
     try {
       developer.log(
-        '🔧 Calling flutter_nfc_hce plugin startNfcHce()...',
+        '🔧 Calling flutter_nfc_hce plugin startNfcHce() with vCard MIME type...',
         name: 'NFC.HCE'
       );
 
-      // Start HCE with the payload
-      final result = await _hcePlugin.startNfcHce(jsonPayload);
+      // Start HCE with vCard MIME type - this tells Android to trigger contact save dialog
+      final result = await _hcePlugin.startNfcHce(
+        jsonPayload,
+        mimeType: 'text/x-vcard', // Critical: Use vCard MIME type, not text/plain
+      );
       final duration = DateTime.now().difference(startTime).inMilliseconds;
 
       developer.log(
@@ -584,9 +732,9 @@ class NFCService {
         name: 'NFC.HCE'
       );
 
-      // Plugin returns null/true on success, false on failure
-      // Treat anything except explicit false as success
-      if (result != false) {
+      // Plugin returns String? on success (usually null or empty), throws on failure
+      // If we get here without exception, HCE started successfully
+      if (true) {
         _isHceActive = true;
         developer.log(
           '✅ Card emulation started successfully (${duration}ms)\n'
@@ -696,6 +844,7 @@ class NFCResult {
   final int? dataSizeBytes;
   final String? tagId;
   final String? tagType;
+  final int? tagCapacity;
 
   const NFCResult._({
     required this.isSuccess,
@@ -704,15 +853,17 @@ class NFCResult {
     this.dataSizeBytes,
     this.tagId,
     this.tagType,
+    this.tagCapacity,
   });
 
-  factory NFCResult.success(int durationMs, int dataSizeBytes, {String? tagId, String? tagType}) {
+  factory NFCResult.success(int durationMs, int dataSizeBytes, {String? tagId, String? tagType, int? tagCapacity}) {
     return NFCResult._(
       isSuccess: true,
       durationMs: durationMs,
       dataSizeBytes: dataSizeBytes,
       tagId: tagId,
       tagType: tagType,
+      tagCapacity: tagCapacity,
     );
   }
 

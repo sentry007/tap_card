@@ -27,13 +27,16 @@ library;
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
+import '../../models/history_models.dart';
 
 /// Card aesthetic settings for each profile
 ///
 /// Defines the visual appearance of profile cards including colors,
 /// gradients, blur effects, and background images.
+///
+/// NOTE: Templates are now handled as preset color combinations in the UI,
+/// not stored in the profile data. This simplifies the data model.
 class CardAesthetics {
-  final int templateIndex;     // For UI compatibility (0-3)
   final Color primaryColor;    // Main card color
   final Color secondaryColor;  // Accent/gradient color
   final Color borderColor;     // Border color
@@ -42,7 +45,6 @@ class CardAesthetics {
   final String? backgroundImagePath; // Local path → Future: Firebase URL
 
   const CardAesthetics({
-    this.templateIndex = 0,
     this.primaryColor = const Color(0xFFFF6B35),     // Orange default
     this.secondaryColor = const Color(0xFFFF8E53),   // Light orange
     this.borderColor = Colors.white,
@@ -52,7 +54,6 @@ class CardAesthetics {
   });
 
   CardAesthetics copyWith({
-    int? templateIndex,
     Color? primaryColor,
     Color? secondaryColor,
     Color? borderColor,
@@ -62,7 +63,6 @@ class CardAesthetics {
     bool clearBackgroundImagePath = false,
   }) {
     return CardAesthetics(
-      templateIndex: templateIndex ?? this.templateIndex,
       primaryColor: primaryColor ?? this.primaryColor,
       secondaryColor: secondaryColor ?? this.secondaryColor,
       borderColor: borderColor ?? this.borderColor,
@@ -88,7 +88,6 @@ class CardAesthetics {
 
   Map<String, dynamic> toJson() {
     return {
-      'templateIndex': templateIndex,
       'primaryColor': primaryColor.value,
       'secondaryColor': secondaryColor.value,
       'borderColor': borderColor.value,
@@ -100,13 +99,15 @@ class CardAesthetics {
 
   factory CardAesthetics.fromJson(Map<String, dynamic> json) {
     return CardAesthetics(
-      templateIndex: json['templateIndex'] ?? 0,
       primaryColor: Color(json['primaryColor'] ?? 0xFFFF6B35),
       secondaryColor: Color(json['secondaryColor'] ?? 0xFFFF8E53),
       borderColor: Color(json['borderColor'] ?? 0xFFFFFFFF),
       backgroundColor: json['backgroundColor'] != null ? Color(json['backgroundColor']) : null,
       blurLevel: (json['blurLevel'] ?? 10.0).toDouble(),
-      backgroundImagePath: json['backgroundImagePath'],
+      // Support both field names for backward compatibility:
+      // - 'backgroundImageUrl' from Firestore (Firebase Storage URLs)
+      // - 'backgroundImagePath' from local storage (file paths)
+      backgroundImagePath: json['backgroundImageUrl'] ?? json['backgroundImagePath'],
     );
   }
 
@@ -115,7 +116,6 @@ class CardAesthetics {
     switch (type) {
       case ProfileType.personal:
         return const CardAesthetics(
-          templateIndex: 1, // Creative template for personal
           primaryColor: Color(0xFFFF6B35),   // Orange
           secondaryColor: Color(0xFFFF8E53), // Light orange
           borderColor: Colors.white,
@@ -123,7 +123,6 @@ class CardAesthetics {
         );
       case ProfileType.professional:
         return const CardAesthetics(
-          templateIndex: 0, // Professional template
           primaryColor: Color(0xFF2196F3),   // Blue
           secondaryColor: Color(0xFF64B5F6), // Light blue
           borderColor: Color(0xFF1976D2),   // Dark blue border
@@ -131,7 +130,6 @@ class CardAesthetics {
         );
       case ProfileType.custom:
         return const CardAesthetics(
-          templateIndex: 3, // Modern template for custom
           primaryColor: Color(0xFF9C27B0),   // Purple
           secondaryColor: Color(0xFFBA68C8), // Light purple
           borderColor: Colors.transparent,
@@ -150,6 +148,26 @@ enum ProfileType {
   const ProfileType(this.label, this.description);
   final String label;
   final String description;
+
+  /// Single digit code for compact vCard storage
+  /// 1=Personal, 2=Professional, 3=Custom
+  int get code {
+    switch (this) {
+      case ProfileType.personal:     return 1;
+      case ProfileType.professional: return 2;
+      case ProfileType.custom:       return 3;
+    }
+  }
+
+  /// Decode from single digit
+  static ProfileType fromCode(int code) {
+    switch (code) {
+      case 1: return ProfileType.personal;
+      case 2: return ProfileType.professional;
+      case 3: return ProfileType.custom;
+      default: return ProfileType.personal;
+    }
+  }
 }
 
 class ProfileData {
@@ -493,7 +511,7 @@ class ProfileData {
   /// - Skips empty optional fields
   /// - Truncates long titles (>20 chars)
   /// - Minimal formatting for maximum space efficiency
-  String _generateOptimizedVCard() {
+  String _generateOptimizedVCard({ShareContext? shareContext}) {
     final buffer = StringBuffer();
     buffer.write('BEGIN:VCARD\n');
     buffer.write('VERSION:3.0\n');
@@ -528,10 +546,29 @@ class ProfileData {
       buffer.write('EMAIL:$email\n');
     }
 
-    // Card URL - Primary link to full digital profile
-    // Always include this as the main URL (replaces social media URLs)
-    // When saved as contact, user can tap this to open full card online
-    buffer.write('URL:${_generateCardUrl()}\n');
+    // Website - User's personal website as primary URL (if provided)
+    // Otherwise use TapCard URL as primary
+    if (website != null && website!.isNotEmpty) {
+      buffer.write('URL:$website\n');
+      // Add TapCard URL in NOTE field for full card access
+      buffer.write('NOTE:View full digital card: ${_generateCardUrl()}\\nShared via TapCard\n');
+    } else {
+      // No personal website - use TapCard URL as primary
+      buffer.write('URL:${_generateCardUrl()}\n');
+      buffer.write('NOTE:Shared via TapCard\n');
+    }
+
+    // Add optimized metadata if sharing context provided (~40 bytes overhead)
+    if (shareContext != null) {
+      // X-TC-M: Method code (N/Q/L/T) - ~13 bytes
+      buffer.write('X-TC-M:${shareContext.methodCode}\n');
+
+      // X-TC-T: Unix timestamp - ~20 bytes
+      buffer.write('X-TC-T:${shareContext.unixTimestamp}\n');
+
+      // X-TC-P: Profile type code (1/2/3) - ~9 bytes
+      buffer.write('X-TC-P:${type.code}\n');
+    }
 
     buffer.write('END:VCARD');
     return buffer.toString();
@@ -587,8 +624,8 @@ class ProfileData {
   }
 
   /// Regenerate dual-payload cache (vCard + URL)
-  ProfileData regenerateDualPayloadCache() {
-    final vCard = _generateOptimizedVCard();
+  ProfileData regenerateDualPayloadCache({ShareContext? shareContext}) {
+    final vCard = _generateOptimizedVCard(shareContext: shareContext);
     final url = _generateCardUrl();
     final now = DateTime.now();
 
@@ -596,7 +633,8 @@ class ProfileData {
       '🔄 Regenerating dual-payload cache\n'
       '   • vCard: ${vCard.length} bytes\n'
       '   • URL: ${url.length} bytes\n'
-      '   • Total: ${vCard.length + url.length} bytes',
+      '   • Total: ${vCard.length + url.length} bytes\n'
+      '   • Has metadata: ${shareContext != null}',
       name: 'ProfileData.Cache'
     );
 
@@ -607,6 +645,26 @@ class ProfileData {
       cachedNfcPayload: _generateNfcPayload(), // Also refresh legacy payload
       lastUpdated: now,
     );
+  }
+
+  /// Get dual payload with real-time sharing context (generates fresh metadata)
+  /// Use this when actually sharing to embed current timestamp & method
+  Map<String, String> getDualPayloadWithContext(ShareContext shareContext) {
+    final vCard = _generateOptimizedVCard(shareContext: shareContext);
+    final url = _cachedCardUrl ?? _generateCardUrl();
+
+    developer.log(
+      '📤 Generating payload with context\n'
+      '   • Method: ${shareContext.method.label}\n'
+      '   • Timestamp: ${shareContext.timestamp}\n'
+      '   • vCard size: ${vCard.length} bytes',
+      name: 'ProfileData.DualPayload'
+    );
+
+    return {
+      'vcard': vCard,
+      'url': url,
+    };
   }
 
   /// Get dual payload (vCard + URL) for instant NFC sharing
@@ -696,5 +754,48 @@ class ProfileSettings {
       activeProfileId: json['activeProfileId'],
       profileOrder: List<String>.from(json['profileOrder'] ?? []),
     );
+  }
+}
+
+/// Minimal context for tracking how a profile was shared
+/// Optimized for vCard embedding with minimal byte overhead (~40 bytes)
+class ShareContext {
+  final ShareMethod method;
+  final DateTime timestamp;
+
+  const ShareContext({
+    required this.method,
+    required this.timestamp,
+  });
+
+  /// Encode method to single character for vCard
+  /// N=NFC, Q=QR, W=Web, T=Tag
+  String get methodCode {
+    switch (method) {
+      case ShareMethod.nfc:   return 'N';
+      case ShareMethod.qr:    return 'Q';
+      case ShareMethod.web:   return 'W';
+      case ShareMethod.tag:   return 'T';
+    }
+  }
+
+  /// Decode method from single character
+  static ShareMethod methodFromCode(String code) {
+    switch (code.toUpperCase()) {
+      case 'N': return ShareMethod.nfc;
+      case 'Q': return ShareMethod.qr;
+      case 'W': return ShareMethod.web;
+      case 'T': return ShareMethod.tag;
+      case 'L': return ShareMethod.web; // Legacy: 'L' was link, now web
+      default:  return ShareMethod.nfc; // fallback
+    }
+  }
+
+  /// Unix timestamp for compact storage
+  int get unixTimestamp => timestamp.millisecondsSinceEpoch ~/ 1000;
+
+  /// Create DateTime from unix timestamp
+  static DateTime timestampFromUnix(int unix) {
+    return DateTime.fromMillisecondsSinceEpoch(unix * 1000);
   }
 }
