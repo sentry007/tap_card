@@ -97,6 +97,10 @@ class FirestoreSyncService {
           'ℹ️ No background image to upload for profile: ${profile.id}',
           name: 'FirestoreSync.BackgroundCheck',
         );
+
+        // If there was a previous background, delete it from Storage
+        // This happens when user removes background image
+        deleteBackgroundImage(profile.id); // Non-blocking cleanup
       }
 
       // Build cardAesthetics map without null values
@@ -111,8 +115,17 @@ class FirestoreSyncService {
       if (profile.cardAesthetics.backgroundColor != null) {
         cardAestheticsMap['backgroundColor'] = profile.cardAesthetics.backgroundColor!.value;
       }
+
+      // Handle background image URL - explicitly delete if removed
       if (backgroundImageUrl != null && backgroundImageUrl.isNotEmpty) {
         cardAestheticsMap['backgroundImageUrl'] = backgroundImageUrl;
+      } else if (profile.cardAesthetics.backgroundImagePath == null) {
+        // Explicitly delete the field from Firestore when background is removed
+        cardAestheticsMap['backgroundImageUrl'] = FieldValue.delete();
+        developer.log(
+          '🗑️ Marking backgroundImageUrl for deletion in Firestore',
+          name: 'FirestoreSync.FieldDelete',
+        );
       }
 
       // Convert profile to Firestore document
@@ -316,37 +329,143 @@ class FirestoreSyncService {
     }
   }
 
-  /// Fetch profile from Firestore (for testing)
+  /// Delete background image from Firebase Storage
   ///
-  /// Returns ProfileData or null if not found
-  static Future<ProfileData?> fetchProfileFromFirestore(String uuid) async {
+  /// Removes the background image file from Storage
+  /// Returns true if successful, false otherwise
+  static Future<bool> deleteBackgroundImage(String profileId) async {
     try {
       developer.log(
-        '📥 Fetching profile from Firestore: $uuid',
-        name: 'FirestoreSync.Fetch',
+        '🗑️ Deleting background image for profile: $profileId',
+        name: 'FirestoreSync.BackgroundDelete',
       );
 
-      final doc = await _firestore.collection('profiles').doc(uuid).get();
+      final extensions = ['jpg', 'jpeg', 'png', 'webp'];
+      bool deleted = false;
 
+      for (final ext in extensions) {
+        try {
+          await _storage.ref().child('background_images/${profileId}_bg.$ext').delete();
+          developer.log(
+            '✅ Deleted background image: ${profileId}_bg.$ext',
+            name: 'FirestoreSync.BackgroundDelete',
+          );
+          deleted = true;
+          break; // Stop after first successful deletion
+        } catch (e) {
+          // Continue trying other extensions
+        }
+      }
+
+      if (!deleted) {
+        developer.log(
+          'ℹ️ No background image found to delete for: $profileId',
+          name: 'FirestoreSync.BackgroundDelete',
+        );
+      }
+
+      return deleted;
+    } catch (e, stackTrace) {
+      developer.log(
+        '❌ Background image deletion failed for $profileId',
+        name: 'FirestoreSync.BackgroundDelete',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      return false;
+    }
+  }
+
+  /// Fetch profile from Firestore by profile ID
+  ///
+  /// Production-ready method with comprehensive logging.
+  /// Returns ProfileData or null if not found or on error.
+  ///
+  /// Use cases:
+  /// - Loading received contacts from device contact scan
+  /// - Fetching shared profile details
+  /// - Profile preview in history
+  static Future<ProfileData?> getProfileById(String profileId) async {
+    final fetchStartTime = DateTime.now();
+
+    try {
+      developer.log(
+        '📥 Starting Firestore profile fetch\n'
+        '   • Profile ID: $profileId\n'
+        '   • Collection: profiles\n'
+        '   • Timestamp: ${fetchStartTime.toIso8601String()}',
+        name: 'FirestoreSync.GetProfile',
+      );
+
+      // Attempt to fetch document
+      final doc = await _firestore
+          .collection('profiles')
+          .doc(profileId)
+          .get();
+
+      final fetchDuration = DateTime.now().difference(fetchStartTime).inMilliseconds;
+
+      // Check if document exists
       if (!doc.exists) {
         developer.log(
-          '⚠️ Profile not found in Firestore: $uuid',
-          name: 'FirestoreSync.Fetch',
+          '⚠️ Profile not found in Firestore\n'
+          '   • Profile ID: $profileId\n'
+          '   • Fetch Duration: ${fetchDuration}ms\n'
+          '   • Possible reasons: Profile not synced, deleted, or invalid ID',
+          name: 'FirestoreSync.GetProfile',
         );
         return null;
       }
 
+      developer.log(
+        '✅ Document found in Firestore\n'
+        '   • Profile ID: $profileId\n'
+        '   • Fetch Duration: ${fetchDuration}ms\n'
+        '   • Document Size: ${doc.data().toString().length} bytes\n'
+        '   • Starting deserialization...',
+        name: 'FirestoreSync.GetProfile',
+      );
+
       final data = doc.data()!;
 
+      // Log field presence for debugging
+      developer.log(
+        '📋 Profile data fields:\n'
+        '   • name: ${data['name'] != null ? "✓" : "✗"}\n'
+        '   • email: ${data['email'] != null ? "✓" : "✗"}\n'
+        '   • phone: ${data['phone'] != null ? "✓" : "✗"}\n'
+        '   • company: ${data['company'] != null ? "✓" : "✗"}\n'
+        '   • profileImageUrl: ${data['profileImageUrl'] != null ? "✓" : "✗"}\n'
+        '   • cardAesthetics: ${data['cardAesthetics'] != null ? "✓" : "✗"}\n'
+        '   • socialMedia: ${(data['socialMedia'] as Map?)?.length ?? 0} links',
+        name: 'FirestoreSync.GetProfile',
+      );
+
+      // Determine profile type
+      final profileType = ProfileType.values.firstWhere(
+        (e) => e.name == data['type'],
+        orElse: () => ProfileType.personal,
+      );
+
+      // Log cardAesthetics field presence for debugging
+      if (data['cardAesthetics'] != null) {
+        final aesthetics = data['cardAesthetics'] as Map;
+        developer.log(
+          '🎨 CardAesthetics fields in Firestore:\n'
+          '   • primaryColor: ${aesthetics['primaryColor'] != null ? "✓" : "✗"}\n'
+          '   • secondaryColor: ${aesthetics['secondaryColor'] != null ? "✓" : "✗"}\n'
+          '   • backgroundImageUrl: ${aesthetics['backgroundImageUrl'] != null ? "✓ (${aesthetics['backgroundImageUrl']})" : "✗"}\n'
+          '   • backgroundColor: ${aesthetics['backgroundColor'] != null ? "✓" : "✗"}\n'
+          '   • blurLevel: ${aesthetics['blurLevel']}',
+          name: 'FirestoreSync.GetProfile',
+        );
+      }
+
       // Convert Firestore data back to ProfileData
-      // Note: This is a simplified conversion, adjust as needed
       final profile = ProfileData(
-        id: data['id'] ?? uuid,
+        id: data['id'] ?? profileId,
         uid: data['uid'],
-        type: ProfileType.values.firstWhere(
-          (e) => e.name == data['type'],
-          orElse: () => ProfileType.personal,
-        ),
+        type: profileType,
         name: data['name'] ?? '',
         title: data['title'],
         company: data['company'],
@@ -354,35 +473,65 @@ class FirestoreSyncService {
         email: data['email'],
         website: data['website'],
         socialMedia: Map<String, String>.from(data['socialMedia'] ?? {}),
-        profileImagePath: data['profileImageUrl'],
+        profileImagePath: data['profileImageUrl'], // Firestore uses 'profileImageUrl'
         cardAesthetics: data['cardAesthetics'] != null
             ? CardAesthetics.fromJson(
                 Map<String, dynamic>.from(data['cardAesthetics']))
-            : CardAesthetics.defaultForType(
-                ProfileType.values.firstWhere(
-                  (e) => e.name == data['type'],
-                  orElse: () => ProfileType.personal,
-                ),
-              ),
+            : CardAesthetics.defaultForType(profileType),
         lastUpdated: (data['lastUpdated'] as Timestamp?)?.toDate() ?? DateTime.now(),
         isActive: data['isActive'] ?? false,
       );
 
+      // Log profile image URL mapping
       developer.log(
-        '✅ Profile fetched from Firestore: ${profile.name}',
-        name: 'FirestoreSync.Fetch',
+        '🖼️ Profile image URL from Firestore:\n'
+        '   • profileImageUrl field in Firestore: ${data['profileImageUrl'] ?? "NULL"}\n'
+        '   • Mapped to profileImagePath: ${data['profileImageUrl'] ?? "NULL"}\n'
+        '   • Is network URL: ${data['profileImageUrl']?.toString().startsWith('http') ?? false}',
+        name: 'FirestoreSync.GetProfile',
+      );
+
+      final totalDuration = DateTime.now().difference(fetchStartTime).inMilliseconds;
+
+      developer.log(
+        '✅ Profile successfully fetched and deserialized\n'
+        '   • Profile ID: $profileId\n'
+        '   • Name: ${profile.name}\n'
+        '   • Type: ${profile.type.label}\n'
+        '   • Email: ${profile.email ?? "NULL"}\n'
+        '   • Phone: ${profile.phone ?? "NULL"}\n'
+        '   • Company: ${profile.company ?? "NULL"}\n'
+        '   • Title: ${profile.title ?? "NULL"}\n'
+        '   • Image URL: ${profile.profileImagePath ?? "NULL"}\n'
+        '   • Social Links: ${profile.socialMedia.length}\n'
+        '   • Total Duration: ${totalDuration}ms',
+        name: 'FirestoreSync.GetProfile',
       );
 
       return profile;
     } catch (e, stackTrace) {
+      final errorDuration = DateTime.now().difference(fetchStartTime).inMilliseconds;
+
       developer.log(
-        '❌ Fetch failed for $uuid',
-        name: 'FirestoreSync.Fetch',
+        '❌ Profile fetch failed\n'
+        '   • Profile ID: $profileId\n'
+        '   • Duration: ${errorDuration}ms\n'
+        '   • Error Type: ${e.runtimeType}\n'
+        '   • Error Message: $e\n'
+        '   • Possible causes: Network error, malformed data, permission denied',
+        name: 'FirestoreSync.GetProfile',
         error: e,
         stackTrace: stackTrace,
       );
       return null;
     }
+  }
+
+  /// Fetch profile from Firestore (legacy method for backward compatibility)
+  ///
+  /// @deprecated Use getProfileById() instead for better logging
+  static Future<ProfileData?> fetchProfileFromFirestore(String uuid) async {
+    return getProfileById(uuid);
   }
 
   /// Delete profile from Firestore
