@@ -46,25 +46,35 @@ class ProfileCardPreview extends StatelessWidget {
     final isNetworkImage = imagePath.startsWith('http://') || imagePath.startsWith('https://');
 
     if (isNetworkImage) {
+      print('🌐 [ProfileCardPreview] Loading network image: $imagePath');
       return CachedNetworkImage(
         imageUrl: imagePath,
         fit: fit,
-        placeholder: (context, url) => Container(
-          color: Colors.grey.withOpacity(0.2),
-          child: const Center(
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-        ),
-        errorWidget: (context, url, error) => Container(
-          color: Colors.grey.withOpacity(0.2),
-          child: const Icon(Icons.error_outline, color: Colors.red),
-        ),
+        placeholder: (context, url) {
+          print('⏳ [ProfileCardPreview] Loading image...');
+          return Container(
+            color: Colors.grey.withOpacity(0.2),
+            child: const Center(
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          );
+        },
+        errorWidget: (context, url, error) {
+          print('❌ [ProfileCardPreview] Image load failed: $error');
+          print('   • URL: $url');
+          return Container(
+            color: Colors.grey.withOpacity(0.2),
+            child: const Icon(Icons.error_outline, color: Colors.red),
+          );
+        },
       );
     } else {
+      print('📁 [ProfileCardPreview] Loading local file: $imagePath');
       return Image.file(
         File(imagePath),
         fit: fit,
         errorBuilder: (context, error, stackTrace) {
+          print('❌ [ProfileCardPreview] Local file load failed: $error');
           return Container(
             color: Colors.grey.withOpacity(0.2),
             child: const Icon(Icons.broken_image, color: Colors.red),
@@ -195,9 +205,17 @@ class ProfileCardPreview extends StatelessWidget {
                               child: profile.profileImagePath != null
                                 ? ClipRRect(
                                     borderRadius: BorderRadius.circular(height * 0.125),
-                                    child: _buildImage(
-                                      profile.profileImagePath!,
-                                      fit: BoxFit.cover,
+                                    child: Builder(
+                                      builder: (context) {
+                                        print('🖼️ [ProfileCardPreview] Rendering profile image');
+                                        print('   • Image path: ${profile.profileImagePath}');
+                                        print('   • Is network URL: ${profile.profileImagePath!.startsWith('http')}');
+
+                                        return _buildImage(
+                                          profile.profileImagePath!,
+                                          fit: BoxFit.cover,
+                                        );
+                                      },
                                     ),
                                   )
                                 : Icon(

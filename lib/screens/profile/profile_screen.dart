@@ -71,7 +71,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   ProfileData? _initialProfile; // Snapshot of profile when loaded for comparison
   ProfileType _selectedProfileType = ProfileType.personal;
   final ImagePicker _picker = ImagePicker();
-  List<Map<String, Color?>> _recentCombinations = [];
+  List<Map<String, dynamic>> _recentCombinations = [];
 
   // Helper getters for current card aesthetics
   CardAesthetics get _currentAesthetics => _currentProfile?.cardAesthetics ?? CardAesthetics.defaultForType(_selectedProfileType);
@@ -81,21 +81,6 @@ class _ProfileScreenState extends State<ProfileScreen>
   Color get _primaryColor => _currentAesthetics.primaryColor;
   Color get _secondaryColor => _currentAesthetics.secondaryColor;
 
-  // Template index getter (for compatibility)
-  int get _selectedTemplate => _currentAesthetics.templateIndex;
-
-  // Template setters (update CardAesthetics)
-  set _selectedTemplate(int index) {
-    if (index >= 0 && index < _templates.length) {
-      final template = _templates[index];
-      _updateCardAesthetics(
-        templateIndex: index,
-        primaryColor: template.primaryColor,
-        secondaryColor: template.secondaryColor,
-      );
-    }
-  }
-
   set _backgroundColor(Color? color) {
     _updateCardAesthetics(backgroundColor: color);
   }
@@ -104,32 +89,29 @@ class _ProfileScreenState extends State<ProfileScreen>
     _updateCardAesthetics(borderColor: color);
   }
 
-  // Templates
-  final List<ContactTemplate> _templates = [
-    ContactTemplate(
-      name: 'Professional',
-      primaryColor: AppColors.primaryAction,
-      secondaryColor: AppColors.secondaryAction,
-      backgroundStyle: TemplateBackground.gradient,
-    ),
-    ContactTemplate(
-      name: 'Creative',
-      primaryColor: AppColors.highlight,
-      secondaryColor: AppColors.primaryAction,
-      backgroundStyle: TemplateBackground.pattern,
-    ),
-    ContactTemplate(
-      name: 'Minimal',
-      primaryColor: AppColors.textPrimary,
-      secondaryColor: AppColors.textSecondary,
-      backgroundStyle: TemplateBackground.solid,
-    ),
-    ContactTemplate(
-      name: 'Modern',
-      primaryColor: const Color(0xFF6C63FF),
-      secondaryColor: const Color(0xFF00BCD4),
-      backgroundStyle: TemplateBackground.gradient,
-    ),
+  // Preset color combinations (displayed before recent combinations)
+  // These are aesthetic presets, not stored in profile data
+  final List<Map<String, dynamic>> _presetCombinations = [
+    {
+      'name': 'Professional',
+      'primary': AppColors.primaryAction,
+      'secondary': AppColors.secondaryAction,
+    },
+    {
+      'name': 'Creative',
+      'primary': AppColors.highlight,
+      'secondary': AppColors.primaryAction,
+    },
+    {
+      'name': 'Minimal',
+      'primary': AppColors.textPrimary,
+      'secondary': AppColors.textSecondary,
+    },
+    {
+      'name': 'Modern',
+      'primary': const Color(0xFF6C63FF),
+      'secondary': const Color(0xFF00BCD4),
+    },
   ];
   @override
   void initState() {
@@ -310,10 +292,9 @@ class _ProfileScreenState extends State<ProfileScreen>
     // Check card aesthetics
     final initialAesthetics = _initialProfile!.cardAesthetics;
     final currentAesthetics = _currentAesthetics;
-    if (currentAesthetics.templateIndex != initialAesthetics.templateIndex) return true;
     if (currentAesthetics.blurLevel != initialAesthetics.blurLevel) return true;
-    if (currentAesthetics.borderColor.value != initialAesthetics.borderColor.value) return true;
-    if ((currentAesthetics.backgroundColor?.value ?? 0) != (initialAesthetics.backgroundColor?.value ?? 0)) return true;
+    if (currentAesthetics.borderColor.toARGB32() != initialAesthetics.borderColor.toARGB32()) return true;
+    if ((currentAesthetics.backgroundColor?.toARGB32() ?? 0) != (initialAesthetics.backgroundColor?.toARGB32() ?? 0)) return true;
 
     // Check social media
     for (final entry in _socialControllers.entries) {
@@ -331,7 +312,6 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   /// Update card aesthetics and trigger preview update
   void _updateCardAesthetics({
-    int? templateIndex,
     Color? primaryColor,
     Color? secondaryColor,
     Color? borderColor,
@@ -347,7 +327,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     final CardAesthetics updatedAesthetics;
     if (clearBackgroundColor || clearBackgroundImage) {
       updatedAesthetics = CardAesthetics(
-        templateIndex: templateIndex ?? _currentProfile!.cardAesthetics.templateIndex,
         primaryColor: primaryColor ?? _currentProfile!.cardAesthetics.primaryColor,
         secondaryColor: secondaryColor ?? _currentProfile!.cardAesthetics.secondaryColor,
         borderColor: borderColor ?? _currentProfile!.cardAesthetics.borderColor,
@@ -357,7 +336,6 @@ class _ProfileScreenState extends State<ProfileScreen>
       );
     } else {
       updatedAesthetics = _currentProfile!.cardAesthetics.copyWith(
-        templateIndex: templateIndex,
         primaryColor: primaryColor,
         secondaryColor: secondaryColor,
         borderColor: borderColor,
@@ -461,12 +439,27 @@ class _ProfileScreenState extends State<ProfileScreen>
       // Show success feedback
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Profile saved successfully!'),
-          backgroundColor: AppColors.success,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
+          content: ClipRRect(
             borderRadius: BorderRadius.circular(12),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.success.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Text('Profile saved successfully!'),
+              ),
+            ),
           ),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          behavior: SnackBarBehavior.floating,
         ),
       );
     }
@@ -487,6 +480,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     // Create updated profile with CardAesthetics
     final updatedAesthetics = _currentAesthetics.copyWith(
       backgroundImagePath: _backgroundImage?.path,
+      clearBackgroundImagePath: _backgroundImage == null,
     );
 
     final updatedProfile = _currentProfile!.copyWith(
@@ -525,24 +519,100 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Future<void> _launchUrl(String url) async {
-    Uri uri;
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      uri = Uri.parse('https://$url');
-    } else {
-      uri = Uri.parse(url);
-    }
+    try {
+      Uri uri;
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        uri = Uri.parse('https://$url');
+      } else {
+        uri = Uri.parse(url);
+      }
 
-    if (await canLaunchUrl(uri)) {
+      // Skip canLaunchUrl check - it's unreliable and may return false even when launchUrl works
+      // Just try to launch directly and handle errors
       await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      // Show error only if launchUrl actually fails
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not open link: $url'),
+            backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 
   Future<void> _launchSocialMedia(String platform, String url) async {
-    String finalUrl = url;
-    if (!url.startsWith('http')) {
-      finalUrl = _getSocialUrl(platform, url);
+    try {
+      // 1. Try to open native app first
+      final appUri = _getSocialAppUri(platform, url);
+      if (appUri != null && await canLaunchUrl(appUri)) {
+        await launchUrl(appUri, mode: LaunchMode.externalApplication);
+        return;
+      }
+
+      // 2. Fall back to web URL
+      String finalUrl = url;
+      if (!url.startsWith('http')) {
+        finalUrl = _getSocialUrl(platform, url);
+      }
+      await _launchUrl(finalUrl);
+    } catch (e) {
+      // If all fails, show error
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not open $platform link'),
+            backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
-    await _launchUrl(finalUrl);
+  }
+
+  /// Get native app URI for social platform
+  /// Returns null if platform doesn't support app schemes
+  Uri? _getSocialAppUri(String platform, String username) {
+    final cleanUsername = username.startsWith('@')
+      ? username.substring(1)
+      : username;
+
+    // Skip if already a full URL
+    if (username.startsWith('http')) return null;
+
+    try {
+      switch (platform.toLowerCase()) {
+        case 'instagram':
+          return Uri.parse('instagram://user?username=$cleanUsername');
+        case 'twitter':
+        case 'x':
+          return Uri.parse('twitter://user?screen_name=$cleanUsername');
+        case 'linkedin':
+          return Uri.parse('linkedin://profile/$cleanUsername');
+        case 'github':
+          return Uri.parse('github://$cleanUsername');
+        case 'tiktok':
+          return Uri.parse('tiktok://user?username=$cleanUsername');
+        case 'youtube':
+          return Uri.parse('youtube://user/$cleanUsername');
+        case 'facebook':
+          return Uri.parse('fb://profile/$cleanUsername');
+        case 'snapchat':
+          return Uri.parse('snapchat://add/$cleanUsername');
+        case 'behance':
+        case 'dribbble':
+        case 'discord':
+          // These don't have reliable user schemes
+          return null;
+        default:
+          return null;
+      }
+    } catch (e) {
+      return null;
+    }
   }
 
   String _getSocialUrl(String platform, String username) {
@@ -1541,16 +1611,17 @@ class _ProfileScreenState extends State<ProfileScreen>
           height: 80,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
-            itemCount: _recentCombinations.length + _templates.length + 3, // recent + templates + border + background + add bg
+            itemCount: _presetCombinations.length + _recentCombinations.length + 3, // presets + recent + border + background + add bg
             itemBuilder: (context, index) {
-              if (index < _recentCombinations.length && _recentCombinations.isNotEmpty) {
-                return _buildRecentCombination(index);
-              } else if (index < _recentCombinations.length + _templates.length) {
-                final templateIndex = index - _recentCombinations.length;
-                return _buildTemplatePreview(templateIndex);
-              } else if (index == _recentCombinations.length + _templates.length) {
+              // Display order: 4 preset styles → up to 3 recent styles → custom pickers
+              if (index < _presetCombinations.length) {
+                return _buildPresetCombination(index);
+              } else if (index < _presetCombinations.length + _recentCombinations.length) {
+                final recentIndex = index - _presetCombinations.length;
+                return _buildRecentCombination(recentIndex);
+              } else if (index == _presetCombinations.length + _recentCombinations.length) {
                 return _buildBorderColorPicker();
-              } else if (index == _recentCombinations.length + _templates.length + 1) {
+              } else if (index == _presetCombinations.length + _recentCombinations.length + 1) {
                 return _buildBackgroundPicker();
               } else {
                 return _buildAddBackgroundButton();
@@ -1562,66 +1633,71 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  Widget _buildTemplatePreview(int index) {
-    final template = _templates[index];
-    final isSelected = index == _selectedTemplate;
+  Widget _buildPresetCombination(int index) {
+    final preset = _presetCombinations[index];
+    final primaryColor = preset['primary'] as Color;
+    final secondaryColor = preset['secondary'] as Color;
+    final name = preset['name'] as String;
 
-    return GestureDetector(
-      onTap: () {
-        setState(() => _selectedTemplate = index);
-        HapticFeedback.lightImpact();
-      },
-      child: Container(
-        width: 120,
-        margin: const EdgeInsets.only(right: 12),
-        child: ClipRRect(
+    return Container(
+      width: 120,
+      margin: const EdgeInsets.only(right: 12),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            setState(() {
+              _updateCardAesthetics(
+                primaryColor: primaryColor,
+                secondaryColor: secondaryColor,
+              );
+              // Add to recent combinations
+              _addToRecentCombinations({
+                'primary': primaryColor,
+                'secondary': secondaryColor,
+                'background': null,
+                'border': _borderColor,
+              });
+            });
+            HapticFeedback.lightImpact();
+          },
           borderRadius: BorderRadius.circular(12),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isSelected
-                      ? AppColors.primaryAction
-                      : Colors.white.withOpacity(0.3),
-                  width: isSelected ? 2 : 1,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.3),
+                    width: 1,
+                  ),
                 ),
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: AppColors.primaryAction.withOpacity(0.3),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [primaryColor, secondaryColor],
                         ),
-                      ]
-                    : null,
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 40,
-                    height: 24,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [template.primaryColor, template.secondaryColor],
+                        borderRadius: BorderRadius.circular(4),
                       ),
-                      borderRadius: BorderRadius.circular(4),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    template.name,
-                    style: AppTextStyles.caption.copyWith(
-                      fontWeight: FontWeight.w500,
-                      color: isSelected
-                          ? AppColors.primaryAction
-                          : AppColors.textPrimary,
+                    const SizedBox(height: 8),
+                    Text(
+                      name,
+                      style: AppTextStyles.caption.copyWith(
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -1657,8 +1733,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                   )
                 : LinearGradient(
                     colors: [
-                      _templates[_selectedTemplate].primaryColor,
-                      _templates[_selectedTemplate].secondaryColor,
+                      combination['primary'] ?? _primaryColor,
+                      combination['secondary'] ?? _secondaryColor,
                     ],
                   ),
               borderRadius: BorderRadius.circular(12),
@@ -1676,7 +1752,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   width: 24,
                   height: 24,
                   decoration: BoxDecoration(
-                    color: bgColor ?? _templates[_selectedTemplate].primaryColor,
+                    color: bgColor ?? combination['primary'] ?? _primaryColor,
                     borderRadius: BorderRadius.circular(6),
                     border: borderColor != Colors.transparent
                       ? Border.all(
@@ -1691,7 +1767,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   'Recent\n#${index + 1}',
                   style: AppTextStyles.caption.copyWith(
                     fontWeight: FontWeight.w500,
-                    color: (bgColor ?? _templates[_selectedTemplate].primaryColor).computeLuminance() > 0.5 ? Colors.black : Colors.white,
+                    color: (bgColor ?? combination['primary'] ?? _primaryColor).computeLuminance() > 0.5 ? Colors.black : Colors.white,
                     fontSize: 10,
                   ),
                   textAlign: TextAlign.center,
@@ -3578,27 +3654,41 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
+  /// Add a color combination to recent combinations list
+  /// Supports both full combinations (primary, secondary, background, border)
+  /// and partial combinations (just background/border)
+  void _addToRecentCombinations(Map<String, dynamic> combination) {
+    // Remove if already exists (check by primary/secondary OR background/border)
+    _recentCombinations.removeWhere((c) {
+      // Check primary+secondary match
+      if (combination['primary'] != null && combination['secondary'] != null) {
+        return (c['primary'] as Color?)?.toARGB32() == (combination['primary'] as Color?)?.toARGB32() &&
+               (c['secondary'] as Color?)?.toARGB32() == (combination['secondary'] as Color?)?.toARGB32();
+      }
+      // Check background+border match
+      return (c['background'] as Color?)?.toARGB32() == (combination['background'] as Color?)?.toARGB32() &&
+             (c['border'] as Color?)?.toARGB32() == (combination['border'] as Color?)?.toARGB32();
+    });
+
+    // Add to beginning
+    _recentCombinations.insert(0, combination);
+
+    // Keep only first 3
+    if (_recentCombinations.length > 3) {
+      _recentCombinations = _recentCombinations.take(3).toList();
+    }
+  }
+
   void _saveColorCombination() {
     // Save combination if either background or border is customized
     if (_backgroundColor != null || _borderColor != Colors.white) {
       final combination = {
+        'primary': _primaryColor,
+        'secondary': _secondaryColor,
         'background': _backgroundColor,
         'border': _borderColor,
       };
-
-      // Remove if already exists
-      _recentCombinations.removeWhere((c) =>
-        c['background']?.value == combination['background']?.value &&
-        c['border']!.value == combination['border']!.value
-      );
-
-      // Add to beginning
-      _recentCombinations.insert(0, combination);
-
-      // Keep only first 3
-      if (_recentCombinations.length > 3) {
-        _recentCombinations = _recentCombinations.take(3).toList();
-      }
+      _addToRecentCombinations(combination);
     }
   }
 
@@ -3877,46 +3967,39 @@ class _ProfileScreenState extends State<ProfileScreen>
       // Clear images
       _profileImage = null;
       _backgroundImage = null;
-
-      // Reset template
-      _selectedTemplate = 0;
     });
 
     HapticFeedback.mediumImpact();
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('All content cleared'),
-        backgroundColor: AppColors.error,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
+        content: ClipRRect(
           borderRadius: BorderRadius.circular(12),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.error.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.error.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Text('All content cleared'),
+            ),
+          ),
         ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
 }
 
 // Template models
-class ContactTemplate {
-  final String name;
-  final Color primaryColor;
-  final Color secondaryColor;
-  final TemplateBackground backgroundStyle;
-
-  ContactTemplate({
-    required this.name,
-    required this.primaryColor,
-    required this.secondaryColor,
-    required this.backgroundStyle,
-  });
-}
-
-enum TemplateBackground {
-  gradient,
-  pattern,
-  solid,
-}
 
 // Helper class for focus state listening
 class _FocusNotifier extends ValueNotifier<bool> {
