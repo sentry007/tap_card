@@ -67,6 +67,67 @@ class MainActivity: FlutterActivity() {
         writeMethodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, WRITE_CHANNEL).apply {
             setMethodCallHandler { call, result ->
                 when (call.method) {
+                    "writeDualPayload" -> {
+                        val vcard = call.argument<String>("vcard")
+                        val url = call.argument<String>("url")
+
+                        if (vcard != null && url != null) {
+                            Log.d(TAG, "📝 Preparing dual-payload NFC write")
+                            Log.d(TAG, "   📇 vCard: ${vcard.length} chars")
+                            Log.d(TAG, "   🌐 URL: $url")
+
+                            // Store both vCard and URL as JSON for the write handler
+                            val dualPayload = """{"type":"dual","vcard":"${vcard.replace("\"", "\\\"")}","url":"$url"}"""
+                            pendingWriteData = dualPayload
+                            nfcWriteMode = true
+
+                            // If activity is already resumed, enable dispatch immediately
+                            if (isActivityResumed) {
+                                Log.d(TAG, "   ✅ Activity is already RESUMED, enabling dispatch now...")
+                                Handler(Looper.getMainLooper()).postDelayed({
+                                    if (isActivityResumed && nfcWriteMode) {
+                                        enableForegroundDispatch()
+                                    }
+                                }, ACTIVITY_RESUME_DELAY_MS)
+                            } else {
+                                Log.d(TAG, "   ⏳ Activity not resumed yet, will enable in onResume()")
+                                pendingForegroundDispatchEnable = true
+                            }
+                            result.success(true)
+                        } else {
+                            result.error("INVALID_PARAMS", "Both vcard and url parameters are required", null)
+                        }
+                    }
+                    "writeUrlOnly" -> {
+                        val url = call.argument<String>("url")
+
+                        if (url != null) {
+                            Log.d(TAG, "📝 Preparing URL-only NFC write (fallback strategy)")
+                            Log.d(TAG, "   🌐 URL: $url")
+                            Log.d(TAG, "   💡 Note: Dual-payload was too large, writing URL only")
+
+                            // Store URL as simple string (non-dual format)
+                            // writeToTag() will detect this is not dual-payload and create single URL record
+                            pendingWriteData = url
+                            nfcWriteMode = true
+
+                            // If activity is already resumed, enable dispatch immediately
+                            if (isActivityResumed) {
+                                Log.d(TAG, "   ✅ Activity is already RESUMED, enabling dispatch now...")
+                                Handler(Looper.getMainLooper()).postDelayed({
+                                    if (isActivityResumed && nfcWriteMode) {
+                                        enableForegroundDispatch()
+                                    }
+                                }, ACTIVITY_RESUME_DELAY_MS)
+                            } else {
+                                Log.d(TAG, "   ⏳ Activity not resumed yet, will enable in onResume()")
+                                pendingForegroundDispatchEnable = true
+                            }
+                            result.success(true)
+                        } else {
+                            result.error("INVALID_PARAMS", "URL parameter is required", null)
+                        }
+                    }
                     "writeNdefText" -> {
                         val text = call.argument<String>("text")
                         if (text != null) {
@@ -239,7 +300,11 @@ class MainActivity: FlutterActivity() {
                 runOnUiThread {
                     if (writeResult.success) {
                         Log.d(TAG, "✅ Android: Successfully wrote to NFC tag (${writeResult.bytesWritten} bytes)")
-                        writeMethodChannel?.invokeMethod("onWriteSuccess", writeResult.bytesWritten)
+                        writeMethodChannel?.invokeMethod("onWriteSuccess", mapOf(
+                            "bytesWritten" to writeResult.bytesWritten,
+                            "tagId" to writeResult.tagId,
+                            "tagCapacity" to writeResult.tagCapacity
+                        ))
                     } else {
                         Log.d(TAG, "❌ Android: Failed to write to NFC tag: ${writeResult.error}")
                         writeMethodChannel?.invokeMethod("onWriteError", writeResult.error)
@@ -312,14 +377,83 @@ class MainActivity: FlutterActivity() {
     data class WriteResult(
         val success: Boolean,
         val bytesWritten: Int = 0,
-        val error: String? = null
+        val error: String? = null,
+        val tagId: String? = null,
+        val tagCapacity: Int? = null
     )
 
     private fun writeToTag(tag: Tag, data: String): WriteResult {
         try {
-            // Create NDEF text record
-            val ndefRecord = createTextRecord(data)
-            val ndefMessage = NdefMessage(arrayOf(ndefRecord))
+            // Check if this is a dual-payload write
+            val isDualPayload = data.contains("\"type\":\"dual\"")
+            val ndefMessage: NdefMessage
+
+            if (isDualPayload) {
+                Log.d(TAG, "")
+                Log.d(TAG, "═══════════════════════════════════════════════════════")
+                Log.d(TAG, "📋 DUAL-PAYLOAD DETECTED - Creating Multi-Record NDEF")
+                Log.d(TAG, "═══════════════════════════════════════════════════════")
+
+                // Parse JSON to extract vCard and URL
+                val vcard = data.substringAfter("\"vcard\":\"").substringBefore("\",\"url\"").replace("\\\"", "\"")
+                val url = data.substringAfter("\"url\":\"").substringBefore("\"}")
+
+                Log.d(TAG, "")
+                Log.d(TAG, "📇 RECORD 1: vCard (TEXT)")
+                Log.d(TAG, "   ├─ Length: ${vcard.length} chars")
+                Log.d(TAG, "   ├─ Format: vCard 3.0")
+                Log.d(TAG, "   └─ Contains: Basic contact info (auto-saveable)")
+
+                Log.d(TAG, "")
+                Log.d(TAG, "🌐 RECORD 2: URL (URI)")
+                Log.d(TAG, "   ├─ URL: $url")
+                Log.d(TAG, "   ├─ Length: ${url.length} chars")
+                Log.d(TAG, "   └─ Opens: Full digital card in browser")
+
+                // Create two NDEF records
+                Log.d(TAG, "")
+                Log.d(TAG, "🔨 Creating NDEF records...")
+                val vCardRecord = createMimeRecord("text/x-vcard", vcard)
+                val urlRecord = createUrlRecord(url)
+                ndefMessage = NdefMessage(arrayOf(vCardRecord, urlRecord))
+
+                val totalBytes = ndefMessage.toByteArray().size
+                Log.d(TAG, "✅ NDEF message created successfully")
+                Log.d(TAG, "   ├─ Records: 2 (vCard + URL)")
+                Log.d(TAG, "   ├─ Total size: $totalBytes bytes")
+                Log.d(TAG, "   └─ Ready to write to tag")
+                Log.d(TAG, "═══════════════════════════════════════════════════════")
+                Log.d(TAG, "")
+            } else if (data.startsWith("http://") || data.startsWith("https://")) {
+                // URL-only fallback strategy
+                Log.d(TAG, "")
+                Log.d(TAG, "═══════════════════════════════════════════════════════")
+                Log.d(TAG, "🌐 URL-ONLY WRITE - Fallback Strategy")
+                Log.d(TAG, "═══════════════════════════════════════════════════════")
+                Log.d(TAG, "")
+                Log.d(TAG, "🌐 Single URL Record:")
+                Log.d(TAG, "   ├─ URL: $data")
+                Log.d(TAG, "   ├─ Length: ${data.length} chars")
+                Log.d(TAG, "   └─ Opens: Full digital card in browser")
+                Log.d(TAG, "")
+
+                // Create single URL record
+                val urlRecord = createUrlRecord(data)
+                ndefMessage = NdefMessage(arrayOf(urlRecord))
+
+                val totalBytes = ndefMessage.toByteArray().size
+                Log.d(TAG, "✅ NDEF message created successfully")
+                Log.d(TAG, "   ├─ Records: 1 (URL only)")
+                Log.d(TAG, "   ├─ Total size: $totalBytes bytes")
+                Log.d(TAG, "   └─ Ready to write to tag")
+                Log.d(TAG, "═══════════════════════════════════════════════════════")
+                Log.d(TAG, "")
+            } else {
+                // Legacy single text record (for backwards compatibility)
+                val ndefRecord = createTextRecord(data)
+                ndefMessage = NdefMessage(arrayOf(ndefRecord))
+            }
+
             val messageSize = ndefMessage.toByteArray().size
 
             // Try to write using Ndef
@@ -330,7 +464,10 @@ class MainActivity: FlutterActivity() {
                 // Log tag information for debugging
                 val tagType = ndef.type
                 val maxSize = ndef.maxSize
-                Log.d(TAG, "📋 Tag detected: Type=$tagType, Capacity=$maxSize bytes, Writable=${ndef.isWritable}")
+
+                // Extract tag ID from hardware
+                val tagIdHex = tag.id.joinToString("") { "%02X".format(it) }
+                Log.d(TAG, "📋 Tag detected: ID=$tagIdHex, Type=$tagType, Capacity=$maxSize bytes, Writable=${ndef.isWritable}")
 
                 // Determine tag type based on capacity
                 val tagName = when {
@@ -373,8 +510,9 @@ class MainActivity: FlutterActivity() {
                 // Write the message
                 ndef.writeNdefMessage(ndefMessage)
                 Log.d(TAG, "✅ NDEF message written successfully: $messageSize bytes ($capacityUsed% of $tagName capacity)")
+                Log.d(TAG, "📤 Returning tag metadata: ID=$tagIdHex, Capacity=$maxSize bytes")
                 ndef.close()
-                return WriteResult(true, bytesWritten = messageSize)
+                return WriteResult(true, bytesWritten = messageSize, tagId = tagIdHex, tagCapacity = maxSize)
             }
 
             // Try to format the tag if it's not NDEF formatted
@@ -409,6 +547,25 @@ class MainActivity: FlutterActivity() {
         System.arraycopy(textBytes, 0, payloadBytes, 1 + languageCodeBytes.size, textBytes.size)
 
         return NdefRecord(NdefRecord.TNF_WELL_KNOWN, NdefRecord.RTD_TEXT, ByteArray(0), payloadBytes)
+    }
+
+    private fun createUrlRecord(url: String): NdefRecord {
+        // Create URL record using well-known URI type
+        val uriBytes = url.toByteArray(Charset.forName("UTF-8"))
+        return NdefRecord.createUri(url)
+    }
+
+    private fun createMimeRecord(mimeType: String, data: String): NdefRecord {
+        // Create MIME type record for vCard
+        val mimeBytes = mimeType.toByteArray(Charset.forName("US-ASCII"))
+        val dataBytes = data.toByteArray(Charset.forName("UTF-8"))
+
+        return NdefRecord(
+            NdefRecord.TNF_MIME_MEDIA,
+            mimeBytes,
+            ByteArray(0), // Empty ID
+            dataBytes
+        )
     }
 
     private fun logIntentInfo(intent: Intent?) {

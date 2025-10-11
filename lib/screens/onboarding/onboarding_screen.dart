@@ -22,27 +22,33 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final List<OnboardingPage> _pages = [
     OnboardingPage(
       icon: CupertinoIcons.antenna_radiowaves_left_right,
-      title: 'NFC Sharing',
-      subtitle: 'Share contacts, photos, and files instantly with just a tap',
-      description: 'Hold your phone near another NFC-enabled device to share content seamlessly.',
+      title: 'Welcome to TapCard',
+      subtitle: 'Your smart digital business card',
+      description: 'Share your contact info effortlessly with NFC, QR codes, and customizable profiles.',
+    ),
+    OnboardingPage(
+      icon: CupertinoIcons.tag_fill,
+      title: 'Write to NFC Tags',
+      subtitle: 'Turn stickers and cards into smart business cards',
+      description: 'Write your profile to NFC tags (NTAG213/215/216) and attach them to phone cases, keychains, or business cards.',
     ),
     OnboardingPage(
       icon: CupertinoIcons.qrcode,
-      title: 'QR Code Support',
-      subtitle: 'Generate and scan QR codes for quick sharing',
-      description: 'Create QR codes for your content or scan others to receive information instantly.',
+      title: 'Share Instantly',
+      subtitle: 'Phone-to-phone NFC and QR code sharing',
+      description: 'Tap phones together for instant P2P sharing, or generate QR codes for quick scanning.',
     ),
     OnboardingPage(
-      icon: CupertinoIcons.clock,
-      title: 'Activity History',
-      subtitle: 'Track all your sharing activities',
-      description: 'Keep track of what you\'ve shared and received with detailed history logs.',
+      icon: CupertinoIcons.person_3_fill,
+      title: 'Multiple Profiles',
+      subtitle: 'Manage work and personal identities',
+      description: 'Create multiple profiles with custom gradients, themes, photos, and social links for different contexts.',
     ),
     OnboardingPage(
-      icon: CupertinoIcons.lock_shield,
-      title: 'Secure & Private',
-      subtitle: 'Your data stays safe with you',
-      description: 'All sharing is direct between devices. No cloud storage, maximum privacy.',
+      icon: CupertinoIcons.cloud,
+      title: 'Cloud Sync & History',
+      subtitle: 'Never lose your data',
+      description: 'Automatic Firebase sync across devices and detailed history tracking of all your shares.',
     ),
   ];
 

@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'dart:ui';
 
 import '../../theme/theme.dart';
@@ -18,19 +19,9 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen>
-    with TickerProviderStateMixin {
-  late AnimationController _cardController;
-  late AnimationController _pulseController;
-  late AnimationController _contentController;
-
-  late Animation<double> _cardScale;
-  late Animation<double> _cardOpacity;
-  late Animation<double> _contentOpacity;
-  late Animation<Offset> _contentSlide;
-  late Animation<double> _pulseScale;
-
-  bool _isNfcLoading = false;
-  bool _isQrLoading = false;
+    with SingleTickerProviderStateMixin {
+  late AnimationController _fadeController;
+  late Animation<double> _fadeAnimation;
 
   @override
   void initState() {
@@ -40,141 +31,73 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   void _initAnimations() {
-    // Card entrance animation
-    _cardController = AnimationController(
-      duration: const Duration(milliseconds: 1200),
+    // Simple fade-in animation
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 600),
       vsync: this,
     );
 
-    // Pulsing animation for NFC FAB
-    _pulseController = AnimationController(
-      duration: const Duration(milliseconds: 2000),
-      vsync: this,
-    );
-
-    // Content animation
-    _contentController = AnimationController(
-      duration: const Duration(milliseconds: 800),
-      vsync: this,
-    );
-
-    _cardScale = Tween<double>(
-      begin: 0.8,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _cardController,
-      curve: Curves.elasticOut,
-    ));
-
-    _cardOpacity = Tween<double>(
+    _fadeAnimation = Tween<double>(
       begin: 0.0,
       end: 1.0,
     ).animate(CurvedAnimation(
-      parent: _cardController,
-      curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
-    ));
-
-    _contentOpacity = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _contentController,
+      parent: _fadeController,
       curve: Curves.easeOut,
-    ));
-
-    _contentSlide = Tween<Offset>(
-      begin: const Offset(0, 0.3),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _contentController,
-      curve: Curves.easeOutCubic,
-    ));
-
-    _pulseScale = Tween<double>(
-      begin: 1.0,
-      end: 1.2,
-    ).animate(CurvedAnimation(
-      parent: _pulseController,
-      curve: Curves.easeInOut,
     ));
   }
 
   void _startAnimations() {
-    _cardController.forward();
-
-    Future.delayed(const Duration(milliseconds: 600), () {
-      if (mounted) {
-        _contentController.forward();
-      }
-    });
-
-    Future.delayed(const Duration(milliseconds: 1000), () {
-      if (mounted) {
-        _pulseController.repeat(reverse: true);
-      }
-    });
+    _fadeController.forward();
   }
 
-  void _onNfcTap() async {
-    HapticFeedback.mediumImpact();
-    setState(() => _isNfcLoading = true);
-
-    // Simulate NFC action
-    await Future.delayed(const Duration(milliseconds: 1500));
-
-    if (mounted) {
-      final appState = context.read<AppState>();
-      appState.completeSplash();
-
-      // For NFC usage from splash, trigger onboarding flow for first-time users
-      if (!appState.hasCompletedOnboarding) {
-        print('🎯 First NFC usage - showing onboarding');
-        context.go(AppRoutes.onboarding);
-      } else {
-        print('🏠 Experienced user - going to home');
-        context.go(AppRoutes.home);
-      }
-    }
-  }
 
   void _onPhoneSignIn() async {
     HapticFeedback.lightImpact();
     // TODO: Implement phone sign in when backend is ready
-    _navigateToApp();
+    _navigateToAppSkipOnboarding();
   }
 
   void _onGoogleSignIn() async {
     HapticFeedback.lightImpact();
     // TODO: Implement Google sign in when backend is ready
-    _navigateToApp();
+    _navigateToAppSkipOnboarding();
   }
 
   void _onAppleSignIn() async {
     HapticFeedback.lightImpact();
     // TODO: Implement Apple sign in when backend is ready
-    _navigateToApp();
+    _navigateToAppSkipOnboarding();
   }
 
   void _onGuestContinue() async {
     HapticFeedback.lightImpact();
-    // Continue as guest
-    _navigateToApp();
+    // Guest users always see onboarding
+    _navigateToOnboarding();
   }
 
-  void _navigateToApp() {
+  /// Navigate to app for authenticated users (skip onboarding after first login)
+  void _navigateToAppSkipOnboarding() {
     if (mounted) {
       final appState = context.read<AppState>();
-      // Skip onboarding for direct app access (sign-in methods)
+      // Skip onboarding for authenticated users
       appState.skipToMainApp();
       context.go(AppRoutes.home);
     }
   }
 
+  /// Navigate to onboarding for guest users (show every time)
+  void _navigateToOnboarding() {
+    if (mounted) {
+      final appState = context.read<AppState>();
+      // Complete splash but don't mark onboarding as complete
+      appState.completeSplashForGuest();
+      context.go(AppRoutes.onboarding);
+    }
+  }
+
   @override
   void dispose() {
-    _cardController.dispose();
-    _pulseController.dispose();
-    _contentController.dispose();
+    _fadeController.dispose();
     super.dispose();
   }
 
@@ -232,20 +155,10 @@ class _SplashScreenState extends State<SplashScreen>
               key: const Key('splash_safe_area'),
               child: Center(
                 key: const Key('splash_center'),
-                child: AnimatedBuilder(
-                  key: const Key('splash_card_animated'),
-                  animation: _cardController,
-                  builder: (context, child) {
-                    return Transform.scale(
-                      key: const Key('splash_card_transform'),
-                      scale: _cardScale.value,
-                      child: Opacity(
-                        key: const Key('splash_card_opacity'),
-                        opacity: _cardOpacity.value,
-                        child: _buildMainCard(cardSize),
-                      ),
-                    );
-                  },
+                child: FadeTransition(
+                  key: const Key('splash_fade'),
+                  opacity: _fadeAnimation,
+                  child: _buildMainCard(cardSize),
                 ),
               ),
             ),
@@ -301,21 +214,7 @@ class _SplashScreenState extends State<SplashScreen>
             child: Padding(
               key: const Key('splash_main_card_padding'),
               padding: EdgeInsets.all((cardSize * 0.05).clamp(12.0, 20.0)),
-              child: AnimatedBuilder(
-                key: const Key('splash_content_animated'),
-                animation: _contentController,
-                builder: (context, child) {
-                  return SlideTransition(
-                    key: const Key('splash_content_slide'),
-                    position: _contentSlide,
-                    child: FadeTransition(
-                      key: const Key('splash_content_fade'),
-                      opacity: _contentOpacity,
-                      child: _buildCardContent(cardSize),
-                    ),
-                  );
-                },
-              ),
+              child: _buildCardContent(cardSize),
             ),
           ),
         ),
@@ -392,22 +291,25 @@ class _SplashScreenState extends State<SplashScreen>
                 text: 'Continue with Phone',
                 onTap: _onPhoneSignIn,
                 cardSize: cardSize,
+                isSolid: true,
               ),
               SizedBox(height: (cardSize * 0.02).clamp(4.0, 8.0)),
               _buildSignInButton(
                 key: 'google',
-                icon: CupertinoIcons.circle_fill,
+                icon: FontAwesomeIcons.google,
                 text: 'Continue with Google',
                 onTap: _onGoogleSignIn,
                 cardSize: cardSize,
+                isSolid: true,
               ),
               SizedBox(height: (cardSize * 0.02).clamp(4.0, 8.0)),
               _buildSignInButton(
                 key: 'apple',
-                icon: CupertinoIcons.device_phone_portrait,
+                icon: FontAwesomeIcons.apple,
                 text: 'Continue with Apple',
                 onTap: _onAppleSignIn,
                 cardSize: cardSize,
+                isSolid: true,
               ),
               SizedBox(height: (cardSize * 0.025).clamp(6.0, 10.0)),
               _buildGuestButton(cardSize),
@@ -424,6 +326,7 @@ class _SplashScreenState extends State<SplashScreen>
     required String text,
     required VoidCallback onTap,
     required double cardSize,
+    bool isSolid = false,
   }) {
     final height = (cardSize * 0.12).clamp(32.0, 48.0);
     final fontSize = (cardSize * 0.035).clamp(11.0, 14.0);
@@ -432,61 +335,53 @@ class _SplashScreenState extends State<SplashScreen>
     return SizedBox(
       width: double.infinity,
       height: height,
-      child: ClipRRect(
-        key: Key('splash_signin_${key}_clip'),
-        borderRadius: BorderRadius.circular(12),
-        child: BackdropFilter(
-          key: Key('splash_signin_${key}_backdrop'),
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            key: Key('splash_signin_${key}_container'),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.2),
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+      child: Container(
+        key: Key('splash_signin_${key}_container'),
+        decoration: BoxDecoration(
+          color: isSolid ? Colors.white : Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSolid ? Colors.white : Colors.white.withOpacity(0.2),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isSolid ? 0.15 : 0.05),
+              blurRadius: isSolid ? 12 : 8,
+              offset: Offset(0, isSolid ? 4 : 2),
             ),
-            child: Material(
-              key: Key('splash_signin_${key}_material'),
-              color: Colors.transparent,
-              child: InkWell(
-                key: Key('splash_signin_${key}_inkwell'),
-                onTap: onTap,
-                borderRadius: BorderRadius.circular(12),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    key: Key('splash_signin_${key}_row'),
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        icon,
-                        key: Key('splash_signin_${key}_icon'),
-                        color: AppColors.textPrimary,
-                        size: iconSize,
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        text,
-                        key: Key('splash_signin_${key}_text'),
-                        style: AppTextStyles.body.copyWith(
-                          color: AppColors.textPrimary,
-                          fontSize: fontSize,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
+          ],
+        ),
+        child: Material(
+          key: Key('splash_signin_${key}_material'),
+          color: Colors.transparent,
+          child: InkWell(
+            key: Key('splash_signin_${key}_inkwell'),
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                key: Key('splash_signin_${key}_row'),
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    icon,
+                    key: Key('splash_signin_${key}_icon'),
+                    color: isSolid ? AppColors.primaryBackground : AppColors.textPrimary,
+                    size: iconSize,
                   ),
-                ),
+                  const SizedBox(width: 12),
+                  Text(
+                    text,
+                    key: Key('splash_signin_${key}_text'),
+                    style: AppTextStyles.body.copyWith(
+                      color: isSolid ? AppColors.primaryBackground : AppColors.textPrimary,
+                      fontSize: fontSize,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -502,30 +397,39 @@ class _SplashScreenState extends State<SplashScreen>
     return SizedBox(
       width: double.infinity,
       height: height,
-      child: Material(
-        key: const Key('splash_guest_material'),
-        color: Colors.transparent,
-        child: InkWell(
-          key: const Key('splash_guest_inkwell'),
-          onTap: _onGuestContinue,
-          borderRadius: BorderRadius.circular(8),
+      child: ClipRRect(
+        key: const Key('splash_guest_clip'),
+        borderRadius: BorderRadius.circular(12),
+        child: BackdropFilter(
+          key: const Key('splash_guest_backdrop'),
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
             key: const Key('splash_guest_container'),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(6),
+              color: Colors.white.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: Colors.white.withOpacity(0.2),
                 width: 1,
               ),
             ),
-            child: Center(
-              child: Text(
-                'Continue as Guest',
-                key: const Key('splash_guest_text'),
-                style: AppTextStyles.body.copyWith(
-                  color: AppColors.textSecondary,
-                  fontSize: fontSize,
-                  fontWeight: FontWeight.w400,
+            child: Material(
+              key: const Key('splash_guest_material'),
+              color: Colors.transparent,
+              child: InkWell(
+                key: const Key('splash_guest_inkwell'),
+                onTap: _onGuestContinue,
+                borderRadius: BorderRadius.circular(12),
+                child: Center(
+                  child: Text(
+                    'Continue as Guest',
+                    key: const Key('splash_guest_text'),
+                    style: AppTextStyles.body.copyWith(
+                      color: AppColors.textSecondary,
+                      fontSize: fontSize,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
                 ),
               ),
             ),

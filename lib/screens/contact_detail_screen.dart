@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'dart:ui';
 
 import '../models/unified_models.dart';
 import '../services/contact_service.dart';
 import '../widgets/widgets.dart';
+import '../theme/theme.dart';
 
 class ContactDetailScreen extends StatefulWidget {
   final ReceivedContact receivedContact;
@@ -168,7 +170,29 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
             onPressed: () async {
               // Simple contact saving - could integrate with contact_service
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Contact saved successfully!')),
+                SnackBar(
+                  content: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: AppColors.success.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.success.withOpacity(0.3),
+                            width: 1,
+                          ),
+                        ),
+                        child: Text('Contact saved successfully!'),
+                      ),
+                    ),
+                  ),
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  behavior: SnackBarBehavior.floating,
+                ),
               );
               Navigator.pop(context);
             },
@@ -245,7 +269,29 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
               });
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Note ${noteText.isEmpty ? 'removed' : 'saved'}')),
+                SnackBar(
+                  content: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: AppColors.success.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.success.withOpacity(0.3),
+                            width: 1,
+                          ),
+                        ),
+                        child: Text('Note ${noteText.isEmpty ? 'removed' : 'saved'}'),
+                      ),
+                    ),
+                  ),
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  behavior: SnackBarBehavior.floating,
+                ),
               );
             },
             child: Text('Save'),

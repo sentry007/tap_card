@@ -71,10 +71,10 @@ class MethodChip extends StatelessWidget {
           'label': 'QR',
           'color': AppColors.secondaryAction,
         };
-      case ShareMethod.link:
+      case ShareMethod.web:
         return {
           'icon': CupertinoIcons.link,
-          'label': 'Link',
+          'label': 'Web',
           'color': AppColors.highlight,
         };
       case ShareMethod.tag:

@@ -5,6 +5,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 
 import '../models/unified_models.dart';
 import '../models/history_models.dart';
@@ -157,9 +158,37 @@ class _NFCReceiveScreenState extends State<NFCReceiveScreen>
         timeLimit: const Duration(seconds: 5),
       );
 
-      // Format as "Lat, Lng"
+      // Attempt reverse geocoding to get human-readable location
+      try {
+        final placemarks = await placemarkFromCoordinates(
+          position.latitude,
+          position.longitude,
+        );
+
+        if (placemarks.isNotEmpty) {
+          final place = placemarks.first;
+          // Format: "City, State" or "City, Country"
+          final locationParts = [
+            place.locality,          // City
+            place.administrativeArea // State/Province
+          ].where((e) => e != null && e.isNotEmpty).toList();
+
+          if (locationParts.isNotEmpty) {
+            final location = locationParts.join(', ');
+            developer.log('📍 Location: $location', name: 'Receive.Location');
+            return location;
+          }
+        }
+
+        developer.log('⚠️ Reverse geocoding returned no placemarks', name: 'Receive.Location');
+      } catch (geocodeError) {
+        developer.log('⚠️ Reverse geocoding failed, using coordinates',
+          name: 'Receive.Location', error: geocodeError);
+      }
+
+      // Fallback to coordinates if reverse geocoding fails
       final location = '${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}';
-      developer.log('📍 Location acquired: $location', name: 'Receive.Location');
+      developer.log('📍 Location (coordinates): $location', name: 'Receive.Location');
       return location;
     } catch (e) {
       developer.log('Failed to get location: $e', name: 'Receive.Location', error: e);

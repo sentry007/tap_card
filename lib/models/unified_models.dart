@@ -1,7 +1,10 @@
 import 'dart:math';
+import 'dart:developer' as developer;
 
 // Re-export ProfileData and related models from profile_models.dart
 export '../core/models/profile_models.dart';
+// Re-export history models (ShareMethod, etc.)
+export 'history_models.dart';
 
 /// Core contact information that can be shared via NFC
 class ContactData {
@@ -60,6 +63,117 @@ class ContactData {
       website: profile.website,
       socialMedia: profile.socialMedia ?? <String, String>{},
     );
+  }
+
+  /// DEPRECATED: Use ProfileData.dualPayload instead for optimized NFC writes
+  ///
+  /// This method generates vCard on-demand which causes lag during NFC sharing.
+  /// The new approach pre-caches vCard in ProfileData for instant (0ms) access.
+  ///
+  /// Migration: Instead of contact.toVCard(), use profile.dualPayload['vcard']
+  ///
+  /// This method is kept for backwards compatibility and fallback scenarios only.
+  @deprecated
+  String toVCard() {
+    developer.log(
+      '⚠️ DEPRECATED: ContactData.toVCard() called - use ProfileData.dualPayload instead\n'
+      '   This causes on-demand generation lag. Migrate to cached approach.',
+      name: 'ContactData.toVCard'
+    );
+
+    final buffer = StringBuffer();
+
+    // vCard header
+    buffer.writeln('BEGIN:VCARD');
+    buffer.writeln('VERSION:3.0');
+
+    // Full name (required)
+    buffer.writeln('FN:$name');
+
+    // Structured name (FamilyName;GivenName;Additional;Prefix;Suffix)
+    final nameParts = name.split(' ');
+    if (nameParts.length >= 2) {
+      buffer.writeln('N:${nameParts.last};${nameParts.first};;;');
+    } else {
+      buffer.writeln('N:$name;;;;');
+    }
+
+    // Title/Position
+    if (title != null && title!.isNotEmpty) {
+      buffer.writeln('TITLE:$title');
+    }
+
+    // Organization/Company
+    if (company != null && company!.isNotEmpty) {
+      buffer.writeln('ORG:$company');
+    }
+
+    // Phone (Mobile preferred)
+    if (phone != null && phone!.isNotEmpty) {
+      buffer.writeln('TEL;TYPE=CELL:$phone');
+    }
+
+    // Email (Work preferred)
+    if (email != null && email!.isNotEmpty) {
+      buffer.writeln('EMAIL;TYPE=WORK:$email');
+    }
+
+    // Website
+    if (website != null && website!.isNotEmpty) {
+      buffer.writeln('URL:$website');
+    }
+
+    // Social media links as URLs
+    socialMedia.forEach((platform, handle) {
+      final url = _getSocialUrl(platform, handle);
+      if (url != null) {
+        buffer.writeln('URL:$url');
+      }
+    });
+
+    // vCard footer
+    buffer.writeln('END:VCARD');
+
+    return buffer.toString();
+  }
+
+  /// Convert social media handle to full URL
+  String? _getSocialUrl(String platform, String handle) {
+    // Remove @ symbol if present
+    final cleanHandle = handle.startsWith('@') ? handle.substring(1) : handle;
+
+    switch (platform.toLowerCase()) {
+      case 'linkedin':
+        return 'https://linkedin.com/in/$cleanHandle';
+      case 'twitter':
+      case 'x':
+        return 'https://twitter.com/$cleanHandle';
+      case 'instagram':
+        return 'https://instagram.com/$cleanHandle';
+      case 'facebook':
+        return 'https://facebook.com/$cleanHandle';
+      case 'github':
+        return 'https://github.com/$cleanHandle';
+      default:
+        // If it's already a URL, return it
+        if (handle.startsWith('http://') || handle.startsWith('https://')) {
+          return handle;
+        }
+        return null;
+    }
+  }
+
+  /// Generate shareable URL for full digital card
+  /// Using YouTube demo link as requested
+  String generateCardUrl(String userId) {
+    const url = 'https://www.youtube.com/watch?v=xvFZjo5PgG0&list=RDxvFZjo5PgG0&start_radio=1';
+    developer.log(
+      '🌐 Generated card URL for $name\n'
+      '   • User ID: $userId\n'
+      '   • URL: $url',
+      name: 'ContactData.generateCardUrl'
+    );
+    return url;
   }
 
   @override
@@ -134,10 +248,12 @@ class SharePayload {
   final String version = "1.0";
   final ContactData data;
   final int timestamp;
+  final String? cardUrl;
 
   SharePayload({
     required this.data,
     int? timestamp,
+    this.cardUrl,
   }) : timestamp = timestamp ?? DateTime.now().millisecondsSinceEpoch;
 
   /// Convert to JSON for NFC
@@ -147,6 +263,17 @@ class SharePayload {
       'version': version,
       'data': data.toJson(),
       'timestamp': timestamp,
+      if (cardUrl != null) 'url': cardUrl,
+    };
+  }
+
+  /// Create dual-payload structure for NFC writing
+  /// Returns Map with vCard and URL for native Android to write as 2 NDEF records
+  Map<String, dynamic> toDualPayload(String userId) {
+    final url = cardUrl ?? data.generateCardUrl(userId);
+    return {
+      'vcard': data.toVCard(),
+      'url': url,
     };
   }
 
@@ -155,6 +282,7 @@ class SharePayload {
     return SharePayload(
       data: ContactData.fromJson(json['data']),
       timestamp: json['timestamp'],
+      cardUrl: json['url'],
     );
   }
 

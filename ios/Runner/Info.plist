@@ -45,5 +45,25 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- URL Schemes for url_launcher -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<!-- Web URLs -->
+		<string>http</string>
+		<string>https</string>
+		<!-- Email & Phone -->
+		<string>mailto</string>
+		<string>tel</string>
+		<string>sms</string>
+		<!-- Social Media App Schemes -->
+		<string>instagram</string>
+		<string>twitter</string>
+		<string>fb</string>
+		<string>linkedin</string>
+		<string>youtube</string>
+		<string>tiktok</string>
+		<string>snapchat</string>
+		<string>github</string>
+	</array>
 </dict>
 </plist>

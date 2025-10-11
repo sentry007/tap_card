@@ -185,17 +185,36 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
   void _showMultipleProfilesEnabledSnackBar() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Row(
-          children: [
-            Icon(CupertinoIcons.group, color: AppColors.success),
-            const SizedBox(width: 12),
-            Text(
-              'Multiple profiles enabled',
-              style: AppTextStyles.body,
+        content: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.success.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.success.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(CupertinoIcons.group, color: AppColors.success),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Multiple profiles enabled',
+                    style: AppTextStyles.body,
+                  ),
+                ],
+              ),
             ),
-          ],
+          ),
         ),
-        backgroundColor: AppColors.surfaceDark,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ),
     );
@@ -204,17 +223,36 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
   void _showMultipleProfilesDisabledSnackBar() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Row(
-          children: [
-            Icon(CupertinoIcons.person, color: AppColors.info),
-            const SizedBox(width: 12),
-            Text(
-              'Multiple profiles disabled',
-              style: AppTextStyles.body,
+        content: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.blueAccent.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.blueAccent.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(CupertinoIcons.person, color: Colors.blueAccent),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Multiple profiles disabled',
+                    style: AppTextStyles.body,
+                  ),
+                ],
+              ),
             ),
-          ],
+          ),
         ),
-        backgroundColor: AppColors.surfaceDark,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ),
     );
@@ -1795,17 +1833,36 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
   void _showUpdateSuccessSnackBar() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Row(
-          children: [
-            Icon(CupertinoIcons.checkmark_circle, color: AppColors.success),
-            const SizedBox(width: 12),
-            Text(
-              'Profile updated successfully',
-              style: AppTextStyles.body,
+        content: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.success.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.success.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(CupertinoIcons.checkmark_circle, color: AppColors.success),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Profile updated successfully',
+                    style: AppTextStyles.body,
+                  ),
+                ],
+              ),
             ),
-          ],
+          ),
         ),
-        backgroundColor: AppColors.surfaceDark,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ),
     );
@@ -1814,17 +1871,36 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
   void _showExportSuccessSnackBar(String format) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Row(
-          children: [
-            Icon(CupertinoIcons.checkmark_circle, color: AppColors.success),
-            const SizedBox(width: 12),
-            Text(
-              'Data exported as $format',
-              style: AppTextStyles.body,
+        content: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.success.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.success.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(CupertinoIcons.checkmark_circle, color: AppColors.success),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Data exported as $format',
+                    style: AppTextStyles.body,
+                  ),
+                ],
+              ),
             ),
-          ],
+          ),
         ),
-        backgroundColor: AppColors.surfaceDark,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 3),
         action: SnackBarAction(
           label: 'View',
@@ -1840,17 +1916,36 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
   void _showRevokeSuccessSnackBar() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Row(
-          children: [
-            Icon(CupertinoIcons.hand_raised_fill, color: AppColors.warning),
-            const SizedBox(width: 12),
-            Text(
-              'All shares have been revoked',
-              style: AppTextStyles.body,
+        content: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.warning.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(CupertinoIcons.hand_raised_fill, color: AppColors.warning),
+                  const SizedBox(width: 12),
+                  Text(
+                    'All shares have been revoked',
+                    style: AppTextStyles.body,
+                  ),
+                ],
+              ),
             ),
-          ],
+          ),
         ),
-        backgroundColor: AppColors.surfaceDark,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 3),
       ),
     );
@@ -1859,17 +1954,36 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
   void _showSignOutSuccessSnackBar() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Row(
-          children: [
-            Icon(CupertinoIcons.square_arrow_right, color: AppColors.info),
-            const SizedBox(width: 12),
-            Text(
-              'Signed out successfully',
-              style: AppTextStyles.body,
+        content: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.blueAccent.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.blueAccent.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(CupertinoIcons.square_arrow_right, color: Colors.blueAccent),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Signed out successfully',
+                    style: AppTextStyles.body,
+                  ),
+                ],
+              ),
             ),
-          ],
+          ),
         ),
-        backgroundColor: AppColors.surfaceDark,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ),
     );
@@ -1878,17 +1992,36 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
   void _showThemeChangeSnackBar() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Row(
-          children: [
-            Icon(CupertinoIcons.paintbrush, color: AppColors.highlight),
-            const SizedBox(width: 12),
-            Text(
-              'Theme will be applied in next update',
-              style: AppTextStyles.body,
+        content: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.highlight.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.highlight.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(CupertinoIcons.paintbrush, color: AppColors.highlight),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Theme will be applied in next update',
+                    style: AppTextStyles.body,
+                  ),
+                ],
+              ),
             ),
-          ],
+          ),
         ),
-        backgroundColor: AppColors.surfaceDark,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ),
     );
