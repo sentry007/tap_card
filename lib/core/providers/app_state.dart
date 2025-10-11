@@ -86,6 +86,21 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Complete splash without marking onboarding as done
+  ///
+  /// Used for guest users who should see onboarding every time
+  void completeSplashForGuest() {
+    developer.log(
+      '👤 Guest user - Completing splash, will show onboarding',
+      name: 'AppState.Flow',
+    );
+
+    _isFirstLaunch = false;
+    // DON'T mark onboarding as complete for guests
+    _saveState();
+    notifyListeners();
+  }
+
   /// Mark that user has shared or received their first card
   ///
   /// Used for tracking tutorial completion and user engagement
