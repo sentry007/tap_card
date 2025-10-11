@@ -15,9 +15,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
 
 import '../models/history_models.dart';
 import '../core/models/profile_models.dart';
+import 'contact_service.dart';
+import 'firestore_sync_service.dart';
 
 /// Singleton service for managing sharing history
 class HistoryService {
@@ -136,6 +139,7 @@ class HistoryService {
 
   /// Add a tag write entry to history
   static Future<void> addTagEntry({
+    required String profileName,
     required String tagId,
     required String tagType,
     required ShareMethod method,
@@ -148,6 +152,7 @@ class HistoryService {
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         method: method,
         timestamp: DateTime.now(),
+        writtenProfileName: profileName,
         tagId: tagId,
         tagType: tagType,
         tagCapacity: tagCapacity,
@@ -159,9 +164,145 @@ class HistoryService {
       await _saveToStorage();
       _notifyListeners();
 
-      developer.log('🏷️ Added tag entry: $tagId ($tagType)', name: 'History.Service');
+      developer.log('🏷️ Added tag entry: $profileName → $tagId ($tagType)', name: 'History.Service');
     } catch (e) {
       developer.log('❌ Failed to add tag entry: $e', name: 'History.Service', error: e);
+    }
+  }
+
+  /// Create received entry from contact scan with Firestore fetch
+  ///
+  /// This method fetches the full profile data from Firestore when a TapCard
+  /// contact is found in device contacts. Falls back to minimal placeholder
+  /// if Firestore fetch fails.
+  ///
+  /// Used to dynamically show contacts with TapCard URLs in history
+  static Future<HistoryEntry> createReceivedEntryFromContact({
+    required TapCardContact contact,
+  }) async {
+    final profileId = contact.profileId;
+    final displayName = contact.displayName;
+    final isLegacyFormat = contact.isLegacyFormat;
+
+    developer.log(
+      '🔍 Creating received entry from contact\n'
+      '   • Profile ID: $profileId\n'
+      '   • Display Name: $displayName\n'
+      '   • Legacy Format: $isLegacyFormat\n'
+      '   • Has Metadata: ${contact.shareMethod != null}\n'
+      '   • Method: ${contact.shareMethod?.label ?? "unknown"}\n'
+      '   • Timestamp: ${contact.shareTimestamp ?? "unknown"}\n'
+      '   • Profile Type: ${contact.profileType?.label ?? "unknown"}',
+      name: 'History.ContactToEntry',
+    );
+
+    ProfileData? firestoreProfile;
+
+    // ALWAYS attempt Firestore fetch regardless of ID format
+    // The web client successfully fetches profiles with any ID format,
+    // including UUID (a1b2c3d4-...) and type_timestamp (personal_1760168253751)
+    developer.log(
+      '🔍 Attempting Firestore fetch\n'
+      '   • Profile ID: $profileId\n'
+      '   • Display Name: $displayName\n'
+      '   • Marked as Legacy: $isLegacyFormat (will fetch anyway)',
+      name: 'History.ContactToEntry',
+    );
+
+    try {
+      firestoreProfile = await _fetchProfileFromFirestore(profileId);
+
+      if (firestoreProfile != null) {
+        developer.log(
+          '✅ Firestore fetch SUCCESS\n'
+          '   • Profile ID: $profileId\n'
+          '   • Name: ${firestoreProfile.name}\n'
+          '   • Type: ${firestoreProfile.type.label}\n'
+          '   • Email: ${firestoreProfile.email ?? "null"}\n'
+          '   • Phone: ${firestoreProfile.phone ?? "null"}\n'
+          '   • Company: ${firestoreProfile.company ?? "null"}\n'
+          '   • Title: ${firestoreProfile.title ?? "null"}\n'
+          '   • Image URL: ${firestoreProfile.profileImagePath ?? "null"}\n'
+          '   • Social Links: ${firestoreProfile.socialMedia.length}\n'
+          '   • Has Aesthetics: ${firestoreProfile.cardAesthetics != null}',
+          name: 'History.ContactToEntry',
+        );
+      } else {
+        developer.log(
+          '⚠️ Firestore fetch returned NULL\n'
+          '   • Profile ID: $profileId\n'
+          '   • This means: Document does not exist in Firestore\n'
+          '   • Verify: Open https://console.firebase.google.com and check profiles/$profileId',
+          name: 'History.ContactToEntry',
+        );
+      }
+    } catch (e, stackTrace) {
+      developer.log(
+        '❌ Firestore fetch EXCEPTION\n'
+        '   • Profile ID: $profileId\n'
+        '   • Error Type: ${e.runtimeType}\n'
+        '   • Error: $e',
+        name: 'History.ContactToEntry',
+        error: e,
+        stackTrace: stackTrace,
+      );
+    }
+
+    // Use Firestore profile if available, otherwise create placeholder
+    final profile = firestoreProfile ?? ProfileData(
+      id: profileId,
+      type: contact.profileType ?? ProfileType.personal, // Use extracted type or default to personal
+      name: displayName,
+      title: 'Contact from device', // Placeholder
+      company: null,
+      phone: null,
+      email: null,
+      website: 'https://tap-card-site.vercel.app/share/$profileId',
+      socialMedia: {},
+      profileImagePath: null,
+      lastUpdated: DateTime.now(),
+    );
+
+    developer.log(
+      '✅ Received entry created\n'
+      '   • Profile ID: $profileId\n'
+      '   • Source: ${firestoreProfile != null ? "Firestore" : "Placeholder"}\n'
+      '   • Has Full Data: ${firestoreProfile != null}\n'
+      '   • Using Metadata: ${contact.shareMethod != null}',
+      name: 'History.ContactToEntry',
+    );
+
+    return HistoryEntry.received(
+      id: 'contact_$profileId', // Special ID prefix for scanned contacts
+      method: contact.shareMethod ?? ShareMethod.nfc, // Use extracted method or default to NFC
+      timestamp: contact.shareTimestamp ?? DateTime.now().subtract(const Duration(days: 1)), // Use extracted timestamp or default
+      senderProfile: profile,
+      location: null,
+      metadata: {
+        'source': 'device_contacts',
+        'is_legacy_format': isLegacyFormat,
+        'scanned': true,
+        'firestore_fetched': firestoreProfile != null,
+        'has_metadata': contact.shareMethod != null, // Track if we extracted metadata
+        'metadata_method': contact.shareMethod?.label,
+        'metadata_timestamp': contact.shareTimestamp?.toIso8601String(),
+        'metadata_profile_type': contact.profileType?.label,
+      },
+    );
+  }
+
+  /// Helper method to fetch profile from Firestore
+  /// Separated for testability
+  static Future<ProfileData?> _fetchProfileFromFirestore(String profileId) async {
+    try {
+      return await FirestoreSyncService.getProfileById(profileId);
+    } catch (e) {
+      developer.log(
+        '❌ Firestore fetch error: $e',
+        name: 'History.ContactToEntry',
+        error: e,
+      );
+      return null;
     }
   }
 
@@ -224,16 +365,90 @@ class HistoryService {
     }
   }
 
-  /// Permanently delete an entry
-  static Future<void> deleteEntry(String id) async {
+  /// Permanently delete an entry (routes to appropriate delete method)
+  static Future<bool> deleteEntry(String id) async {
+    try {
+      final entry = _cache.firstWhere(
+        (e) => e.id == id,
+        orElse: () => throw Exception('Entry not found: $id')
+      );
+
+      if (entry.type == HistoryEntryType.received) {
+        // For received entries, delete from device contacts AND history
+        return await deleteReceivedEntry(id, deleteFromDevice: true);
+      } else {
+        // For sent/tag entries, delete from history only
+        return await _deleteFromHistoryOnly(id);
+      }
+    } catch (e) {
+      developer.log('❌ Failed to delete entry: $e', name: 'History.Service', error: e);
+      return false;
+    }
+  }
+
+  /// Delete a received entry and optionally remove contact from device
+  static Future<bool> deleteReceivedEntry(String id, {bool deleteFromDevice = true}) async {
+    try {
+      final entry = _cache.firstWhere(
+        (e) => e.id == id,
+        orElse: () => throw Exception('Entry not found: $id')
+      );
+
+      if (entry.type == HistoryEntryType.received &&
+          entry.senderProfile != null &&
+          deleteFromDevice) {
+
+        // Get permission to access contacts
+        final hasPermission = await ContactService.hasContactsPermission();
+        if (!hasPermission) {
+          developer.log('⚠️ Cannot delete contact - permission denied', name: 'History.DeleteReceived');
+          // Still delete from history
+          return await _deleteFromHistoryOnly(id);
+        }
+
+        // Find contact by TapCard URL
+        final profileId = entry.senderProfile!.id;
+        final contacts = await FlutterContacts.getContacts(withProperties: true);
+
+        Contact? contactToDelete;
+        for (final contact in contacts) {
+          for (final website in contact.websites) {
+            if (website.url.contains('/share/$profileId')) {
+              contactToDelete = contact;
+              break;
+            }
+          }
+          if (contactToDelete != null) break;
+        }
+
+        // Delete from device contacts
+        if (contactToDelete != null) {
+          await FlutterContacts.deleteContact(contactToDelete);
+          developer.log('🗑️ Deleted contact from device: ${contactToDelete.displayName}', name: 'History.DeleteReceived');
+        } else {
+          developer.log('⚠️ Contact not found in device contacts (may have been already deleted)', name: 'History.DeleteReceived');
+        }
+      }
+
+      // Delete from history
+      return await _deleteFromHistoryOnly(id);
+    } catch (e) {
+      developer.log('❌ Failed to delete received entry: $e', name: 'History.DeleteReceived', error: e);
+      return false;
+    }
+  }
+
+  /// Internal method to delete from history only
+  static Future<bool> _deleteFromHistoryOnly(String id) async {
     try {
       _cache.removeWhere((entry) => entry.id == id);
       await _saveToStorage();
       _notifyListeners();
-
-      developer.log('🗑️ Deleted entry: $id', name: 'History.Service');
+      developer.log('🗑️ Deleted from history: $id', name: 'History.Service');
+      return true;
     } catch (e) {
-      developer.log('❌ Failed to delete entry: $e', name: 'History.Service', error: e);
+      developer.log('❌ Failed to delete from history: $e', name: 'History.Service', error: e);
+      return false;
     }
   }
 
@@ -291,19 +506,21 @@ class HistoryService {
     _historyController.add(activeEntries);
   }
 
-  /// Generate rich mock data for first run
+  /// Generate rich mock data for first run (only tags and received)
   static Future<void> _generateMockData() async {
     final now = DateTime.now();
 
     _cache = [
-      // Recent NFC share - 5 minutes ago
-      HistoryEntry.sent(
+      // Tag write - 30 minutes ago
+      HistoryEntry.tag(
         id: '1',
-        method: ShareMethod.nfc,
-        timestamp: now.subtract(const Duration(minutes: 5)),
-        recipientName: 'Sarah Chen',
-        recipientDevice: 'Galaxy S23 Ultra',
-        location: 'Starbucks Downtown',
+        method: ShareMethod.tag,
+        timestamp: now.subtract(const Duration(minutes: 30)),
+        writtenProfileName: 'Alex Johnson',
+        tagId: 'NTAG_00B4C7F2',
+        tagType: 'NTAG215',
+        tagCapacity: 504,
+        location: 'Home Office',
       ),
 
       // Received via NFC - 1 hour ago
@@ -329,29 +546,21 @@ class HistoryService {
         location: 'Tech Conference - Hall B',
       ),
 
-      // Sent via QR - 3 hours ago
-      HistoryEntry.sent(
-        id: '3',
-        method: ShareMethod.qr,
-        timestamp: now.subtract(const Duration(hours: 3)),
-        recipientName: 'Mike Rodriguez',
-        location: 'Coffee & Co.',
-      ),
-
       // Tag write - yesterday
       HistoryEntry.tag(
-        id: '4',
+        id: '3',
         method: ShareMethod.tag,
         timestamp: now.subtract(const Duration(days: 1)),
+        writtenProfileName: 'Sarah Chen',
         tagId: 'NTAG_004D2A1B',
-        tagType: 'NTAG215',
-        tagCapacity: 504,
-        location: 'Home Office',
+        tagType: 'NTAG213',
+        tagCapacity: 144,
+        location: 'Conference Room A',
       ),
 
       // Received via QR - 2 days ago
       HistoryEntry.received(
-        id: '5',
+        id: '4',
         method: ShareMethod.qr,
         timestamp: now.subtract(const Duration(days: 2)),
         senderProfile: ProfileData(
@@ -369,19 +578,9 @@ class HistoryService {
         location: 'Art Gallery',
       ),
 
-      // Sent via NFC - 2 days ago
-      HistoryEntry.sent(
-        id: '6',
-        method: ShareMethod.nfc,
-        timestamp: now.subtract(const Duration(days: 2)),
-        recipientName: 'David Kim',
-        recipientDevice: 'iPhone 14 Pro',
-        location: 'Startup Meetup',
-      ),
-
       // Received via NFC - 3 days ago
       HistoryEntry.received(
-        id: '7',
+        id: '5',
         method: ShareMethod.nfc,
         timestamp: now.subtract(const Duration(days: 3)),
         senderProfile: ProfileData(
@@ -402,29 +601,21 @@ class HistoryService {
         location: 'Design Workshop',
       ),
 
-      // Sent via QR - 4 days ago
-      HistoryEntry.sent(
-        id: '8',
-        method: ShareMethod.qr,
-        timestamp: now.subtract(const Duration(days: 4)),
-        recipientName: 'James Wilson',
-        location: 'University Campus',
-      ),
-
-      // Tag write - 5 days ago
+      // Tag write - 4 days ago
       HistoryEntry.tag(
-        id: '9',
+        id: '6',
         method: ShareMethod.tag,
-        timestamp: now.subtract(const Duration(days: 5)),
+        timestamp: now.subtract(const Duration(days: 4)),
+        writtenProfileName: 'Michael Roberts',
         tagId: 'NTAG_00A1B2C3',
-        tagType: 'NTAG213',
-        tagCapacity: 144,
-        location: 'Conference Room',
+        tagType: 'NTAG215',
+        tagCapacity: 504,
+        location: 'Marketing Event',
       ),
 
       // Received via NFC - 5 days ago
       HistoryEntry.received(
-        id: '10',
+        id: '7',
         method: ShareMethod.nfc,
         timestamp: now.subtract(const Duration(days: 5)),
         senderProfile: ProfileData(
@@ -443,19 +634,21 @@ class HistoryService {
         location: 'Medical Conference',
       ),
 
-      // Sent via NFC - 1 week ago
-      HistoryEntry.sent(
-        id: '11',
-        method: ShareMethod.nfc,
-        timestamp: now.subtract(const Duration(days: 7)),
-        recipientName: 'Alex Thompson',
-        recipientDevice: 'Pixel 7 Pro',
-        location: 'Networking Event',
+      // Tag write - 6 days ago
+      HistoryEntry.tag(
+        id: '8',
+        method: ShareMethod.tag,
+        timestamp: now.subtract(const Duration(days: 6)),
+        writtenProfileName: 'Emily Taylor',
+        tagId: 'NTAG_008F3E21',
+        tagType: 'NTAG216',
+        tagCapacity: 888,
+        location: 'Business Card Holder',
       ),
 
       // Received via QR - 1 week ago
       HistoryEntry.received(
-        id: '12',
+        id: '9',
         method: ShareMethod.qr,
         timestamp: now.subtract(const Duration(days: 8)),
         senderProfile: ProfileData(
@@ -471,31 +664,24 @@ class HistoryService {
           },
           lastUpdated: now,
         ),
+        location: 'Developer Meetup',
       ),
 
       // Tag write - 10 days ago
       HistoryEntry.tag(
-        id: '13',
+        id: '10',
         method: ShareMethod.tag,
         timestamp: now.subtract(const Duration(days: 10)),
+        writtenProfileName: 'David Park',
         tagId: 'NTAG_00FFFFFF',
-        tagType: 'NTAG216',
-        tagCapacity: 888,
+        tagType: 'NTAG213',
+        tagCapacity: 144,
         location: 'Office Desk',
-      ),
-
-      // Sent via QR - 2 weeks ago
-      HistoryEntry.sent(
-        id: '14',
-        method: ShareMethod.qr,
-        timestamp: now.subtract(const Duration(days: 14)),
-        recipientName: 'Sophia Lee',
-        location: 'Book Club',
       ),
 
       // Received via NFC - 2 weeks ago
       HistoryEntry.received(
-        id: '15',
+        id: '11',
         method: ShareMethod.nfc,
         timestamp: now.subtract(const Duration(days: 15)),
         senderProfile: ProfileData(
@@ -514,6 +700,47 @@ class HistoryService {
           lastUpdated: now,
         ),
         location: 'Tech Summit',
+      ),
+
+      // Tag write - 3 weeks ago
+      HistoryEntry.tag(
+        id: '12',
+        method: ShareMethod.tag,
+        timestamp: now.subtract(const Duration(days: 21)),
+        writtenProfileName: 'Jennifer Martinez',
+        tagId: 'NTAG_00D7E9A4',
+        tagType: 'NTAG216',
+        tagCapacity: 888,
+        location: 'Networking Mixer',
+      ),
+
+      // Received via Web - 9 days ago
+      HistoryEntry.received(
+        id: '13',
+        method: ShareMethod.web,
+        timestamp: now.subtract(const Duration(days: 9)),
+        senderProfile: ProfileData(
+          id: 'mock_web_user',
+          type: ProfileType.professional,
+          name: 'Jennifer Wilson',
+          title: 'Marketing Director',
+          company: 'Digital Ventures LLC',
+          phone: '+1 (555) 777-8888',
+          email: 'j.wilson@digitalventures.com',
+          website: 'https://jenniferw.com',
+          socialMedia: {
+            'linkedin': 'jennifer-wilson-marketing',
+            'twitter': '@jwilson_mktg',
+          },
+          lastUpdated: now,
+        ),
+        location: 'Website Download',
+        metadata: {
+          'source': 'web_download',
+          'has_metadata': true,
+          'metadata_method': 'Web',
+          'metadata_timestamp': now.subtract(const Duration(days: 9)).toIso8601String(),
+        },
       ),
     ];
 

@@ -18,7 +18,7 @@ import '../core/models/profile_models.dart';
 enum ShareMethod {
   nfc,   // NFC tap to phone
   qr,    // QR code scan
-  link,  // Share link (future)
+  web,   // Web-based (URL share, nearby share, downloads)
   tag,   // Written to NFC tag (sticker/card)
 }
 
@@ -48,6 +48,7 @@ class HistoryEntry {
   final String? tagId;
   final String? tagType; // NTAG213/215/216
   final int? tagCapacity; // bytes
+  final String? writtenProfileName; // Name of profile written to tag
 
   // Common metadata
   final Map<String, dynamic>? metadata;
@@ -67,6 +68,7 @@ class HistoryEntry {
     this.tagId,
     this.tagType,
     this.tagCapacity,
+    this.writtenProfileName,
     this.metadata,
     this.isSoftDeleted = false,
   });
@@ -120,6 +122,7 @@ class HistoryEntry {
     required DateTime timestamp,
     required String tagId,
     required String tagType,
+    required String writtenProfileName,
     int? tagCapacity,
     String? location,
     Map<String, dynamic>? metadata,
@@ -132,6 +135,7 @@ class HistoryEntry {
       tagId: tagId,
       tagType: tagType,
       tagCapacity: tagCapacity,
+      writtenProfileName: writtenProfileName,
       location: location,
       metadata: metadata,
     );
@@ -150,6 +154,7 @@ class HistoryEntry {
     String? tagId,
     String? tagType,
     int? tagCapacity,
+    String? writtenProfileName,
     Map<String, dynamic>? metadata,
     bool? isSoftDeleted,
   }) {
@@ -165,6 +170,7 @@ class HistoryEntry {
       tagId: tagId ?? this.tagId,
       tagType: tagType ?? this.tagType,
       tagCapacity: tagCapacity ?? this.tagCapacity,
+      writtenProfileName: writtenProfileName ?? this.writtenProfileName,
       metadata: metadata ?? this.metadata,
       isSoftDeleted: isSoftDeleted ?? this.isSoftDeleted,
     );
@@ -184,6 +190,7 @@ class HistoryEntry {
       if (tagId != null) 'tagId': tagId,
       if (tagType != null) 'tagType': tagType,
       if (tagCapacity != null) 'tagCapacity': tagCapacity,
+      if (writtenProfileName != null) 'writtenProfileName': writtenProfileName,
       if (metadata != null) 'metadata': metadata,
       'isSoftDeleted': isSoftDeleted,
     };
@@ -205,6 +212,7 @@ class HistoryEntry {
       tagId: json['tagId'],
       tagType: json['tagType'],
       tagCapacity: json['tagCapacity'],
+      writtenProfileName: json['writtenProfileName'],
       metadata: json['metadata'] != null
           ? Map<String, dynamic>.from(json['metadata'])
           : null,
@@ -220,7 +228,7 @@ class HistoryEntry {
       case HistoryEntryType.received:
         return senderProfile?.name ?? 'Unknown';
       case HistoryEntryType.tag:
-        return 'NFC Tag ($tagType)';
+        return writtenProfileName ?? 'Unknown Profile';
     }
   }
 
@@ -232,7 +240,7 @@ class HistoryEntry {
       case HistoryEntryType.received:
         return senderProfile?.company ?? senderProfile?.title ?? 'Received';
       case HistoryEntryType.tag:
-        return tagId ?? 'Tag Write';
+        return 'Written to $tagType';
     }
   }
 
@@ -250,8 +258,8 @@ extension ShareMethodExtension on ShareMethod {
         return 'NFC';
       case ShareMethod.qr:
         return 'QR';
-      case ShareMethod.link:
-        return 'Link';
+      case ShareMethod.web:
+        return 'Web';
       case ShareMethod.tag:
         return 'Tag';
     }
@@ -263,8 +271,8 @@ extension ShareMethodExtension on ShareMethod {
         return 'NFC Tap';
       case ShareMethod.qr:
         return 'QR Code';
-      case ShareMethod.link:
-        return 'Share Link';
+      case ShareMethod.web:
+        return 'Web/Link';
       case ShareMethod.tag:
         return 'NFC Tag';
     }

@@ -19,12 +19,15 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../theme/theme.dart';
 import '../../widgets/widgets.dart';
 import '../../core/constants/routes.dart';
+import '../../core/models/profile_models.dart';
 import '../../models/history_models.dart';
 import '../../services/history_service.dart';
+import '../../services/contact_service.dart';
 import '../../widgets/history/method_chip.dart';
 import '../../core/constants/app_constants.dart';
 
@@ -55,8 +58,10 @@ class _HistoryScreenState extends State<HistoryScreen>
   bool _isSearching = false;
   bool _isLoading = false;
   String _searchQuery = '';
+  List<HistoryEntry> _scannedContactEntries = []; // Cache for scanned contacts
+  bool? _hasContactsPermission; // null = checking, false = denied, true = granted
 
-  final List<String> _filters = ['All', 'Sent', 'Received', 'Via Tag', 'This Week'];
+  final List<String> _filters = ['All', 'NFC Tags', 'Today', 'This Week', 'This Month'];
 
   @override
   void initState() {
@@ -69,9 +74,46 @@ class _HistoryScreenState extends State<HistoryScreen>
 
   Future<void> _initHistoryService() async {
     await HistoryService.initialize();
+    // Check if permission is already granted (silent check)
+    await _checkContactsPermission();
     // Force a setState to trigger rebuild after initialization
     if (mounted) {
       setState(() {});
+    }
+  }
+
+  /// Check if contacts permission is already granted (no dialog)
+  Future<void> _checkContactsPermission() async {
+    final hasPermission = await ContactService.hasContactsPermission();
+    if (mounted) {
+      setState(() {
+        _hasContactsPermission = hasPermission;
+      });
+    }
+
+    // If already granted, scan immediately
+    if (hasPermission) {
+      print('📇 [History] Permission already granted, scanning automatically...');
+      await _scanContactsForReceived();
+    } else {
+      print('📇 [History] Permission not granted, showing banner...');
+    }
+  }
+
+  /// Request contacts permission explicitly (shows dialog)
+  Future<void> _requestContactsPermission() async {
+    print('📇 [History] User tapped "Allow Access" button');
+    HapticFeedback.lightImpact();
+
+    // This will show the permission dialog
+    await _scanContactsForReceived();
+
+    // Update permission state after scan attempt
+    final hasPermission = await ContactService.hasContactsPermission();
+    if (mounted) {
+      setState(() {
+        _hasContactsPermission = hasPermission;
+      });
     }
   }
 
@@ -137,11 +179,108 @@ class _HistoryScreenState extends State<HistoryScreen>
   Future<void> _onRefresh() async {
     HapticFeedback.lightImpact();
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 1000));
+
+    // Scan contacts for received TapCard contacts
+    await _scanContactsForReceived();
+
+    await Future.delayed(const Duration(milliseconds: 500));
     if (mounted) {
       setState(() => _isLoading = false);
       HapticFeedback.lightImpact();
     }
+  }
+
+  /// Scan device contacts for TapCard URLs (indicates received cards)
+  Future<void> _scanContactsForReceived() async {
+    try {
+      print('🔍 [History] Starting contact scan...');
+      final contacts = await ContactService.scanForTapCardContactsWithIds();
+
+      print('🔍 [History] Scan returned ${contacts.length} contacts');
+
+      if (contacts.isEmpty) {
+        print('📇 [History] No TapCard contacts found in device');
+        return;
+      }
+
+      print('📇 [History] Found ${contacts.length} TapCard contacts:');
+      for (final contact in contacts) {
+        print('  - ${contact.displayName} (ID: ${contact.profileId}, legacy: ${contact.isLegacyFormat})');
+      }
+
+      // Convert contacts to history entries (async fetch from Firestore)
+      print('🔄 [History] Converting to HistoryEntry objects with Firestore fetch...');
+      final contactEntries = await Future.wait(
+        contacts.map((contact) async {
+          print('  🔄 Processing: ${contact.displayName} (${contact.profileId})...');
+          final entry = await HistoryService.createReceivedEntryFromContact(
+            contact: contact, // Pass full contact with metadata
+          );
+          final source = entry.metadata?['firestore_fetched'] == true ? 'Firestore' : 'Placeholder';
+          print('  ✅ Created entry for: ${contact.displayName} (source: $source)');
+          return entry;
+        }),
+      );
+
+      print('🔄 [History] Created ${contactEntries.length} history entries with full Firestore data');
+
+      // Update cache
+      print('🔄 [History] Current _scannedContactEntries length: ${_scannedContactEntries.length}');
+      print('🔄 [History] Mounted: $mounted');
+
+      if (mounted) {
+        setState(() {
+          _scannedContactEntries = contactEntries;
+        });
+        print('✅ [History] setState completed - _scannedContactEntries.length: ${_scannedContactEntries.length}');
+        print('✅ [History] Contact names in cache: ${_scannedContactEntries.map((e) => e.senderProfile?.name).join(", ")}');
+      } else {
+        print('⚠️ [History] Widget not mounted, cannot update state');
+      }
+    } catch (e, stackTrace) {
+      print('❌ [History] Error scanning contacts: $e');
+      print('❌ [History] Stack trace: $stackTrace');
+    }
+  }
+
+  /// Merge history entries with scanned contacts from device
+  /// Returns combined list with contacts showing as "received" entries
+  List<HistoryEntry> _mergeWithScannedContacts(List<HistoryEntry> historyItems) {
+    print('🔀 [History] Starting merge...');
+    print('  📊 historyItems count: ${historyItems.length}');
+    print('  📊 _scannedContactEntries count: ${_scannedContactEntries.length}');
+
+    if (_scannedContactEntries.isEmpty) {
+      print('  ℹ️ No scanned contacts to merge, returning original history');
+      return historyItems;
+    }
+
+    print('  📋 Scanned contact names: ${_scannedContactEntries.map((e) => e.senderProfile?.name).join(", ")}');
+
+    // Use a Set to track existing profile IDs to avoid duplicates
+    final existingProfileIds = historyItems
+        .where((item) => item.type == HistoryEntryType.received && item.senderProfile != null)
+        .map((item) => item.senderProfile!.id)
+        .toSet();
+
+    print('  🔍 Existing profile IDs in history: $existingProfileIds');
+
+    // Filter out contacts that are already in history
+    final uniqueContactEntries = _scannedContactEntries
+        .where((entry) => !existingProfileIds.contains(entry.senderProfile?.id))
+        .toList();
+
+    print('  ✅ Unique contact entries: ${uniqueContactEntries.length}');
+    print('  📋 Unique contact names: ${uniqueContactEntries.map((e) => e.senderProfile?.name).join(", ")}');
+
+    // Merge: history first, then unique contacts
+    final merged = [...historyItems, ...uniqueContactEntries];
+
+    // Sort by timestamp (newest first)
+    merged.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    print('  ✅ Final merged count: ${merged.length} (sorted by timestamp)');
+
+    return merged;
   }
 
   void _toggleSearch() {
@@ -177,36 +316,61 @@ class _HistoryScreenState extends State<HistoryScreen>
 
     // Apply category filter
     switch (_selectedFilter) {
-      case 'Sent':
-        items = items.where((item) => item.type == HistoryEntryType.sent).toList();
-        break;
-      case 'Received':
-        items = items.where((item) => item.type == HistoryEntryType.received).toList();
-        break;
-      case 'Via Tag':
+      case 'NFC Tags':
+        // Only show NFC tag writes
         items = items.where((item) => item.type == HistoryEntryType.tag).toList();
         break;
+      case 'Today':
+        // Last 24 hours
+        final dayAgo = DateTime.now().subtract(const Duration(days: 1));
+        items = items.where((item) => item.timestamp.isAfter(dayAgo)).toList();
+        break;
       case 'This Week':
+        // Last 7 days
         final weekAgo = DateTime.now().subtract(const Duration(days: 7));
         items = items.where((item) => item.timestamp.isAfter(weekAgo)).toList();
         break;
+      case 'This Month':
+        // Last 30 days
+        final monthAgo = DateTime.now().subtract(const Duration(days: 30));
+        items = items.where((item) => item.timestamp.isAfter(monthAgo)).toList();
+        break;
       default:
+        // 'All' - show both tags and received (exclude sent)
+        items = items.where((item) => item.type != HistoryEntryType.sent).toList();
         break;
     }
 
     return items;
   }
 
-  Future<void> _deleteItem(String itemId) async {
+  Future<void> _deleteItem(String itemId, {bool isReceivedEntry = false}) async {
     await HistoryService.deleteEntry(itemId);
     HapticFeedback.mediumImpact();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Item deleted'),
-          backgroundColor: AppColors.surfaceDark,
+          content: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.success.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Text(isReceivedEntry ? 'Contact and history deleted' : 'Item deleted'),
+              ),
+            ),
+          ),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
     }
@@ -218,10 +382,27 @@ class _HistoryScreenState extends State<HistoryScreen>
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Moved to archive'),
-          backgroundColor: AppColors.surfaceDark,
+          content: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryAction.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.primaryAction.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: const Text('Moved to archive'),
+              ),
+            ),
+          ),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           action: SnackBarAction(
             label: 'Undo',
             textColor: AppColors.primaryAction,
@@ -504,26 +685,19 @@ class _HistoryScreenState extends State<HistoryScreen>
 
   Map<String, Color> _getFilterColors(String filter) {
     switch (filter) {
-      case 'Sent':
-        return {
-          'background': AppColors.primaryAction,
-          'border': AppColors.primaryAction.withOpacity(0.5),
-          'text': AppColors.primaryAction,
-          'shadow': AppColors.primaryAction,
-        };
-      case 'Received':
-        return {
-          'background': AppColors.success,
-          'border': AppColors.success.withOpacity(0.5),
-          'text': AppColors.success,
-          'shadow': AppColors.success,
-        };
-      case 'Via Tag':
+      case 'NFC Tags':
         return {
           'background': AppColors.secondaryAction,
           'border': AppColors.secondaryAction.withOpacity(0.5),
           'text': AppColors.secondaryAction,
           'shadow': AppColors.secondaryAction,
+        };
+      case 'Today':
+        return {
+          'background': AppColors.success,
+          'border': AppColors.success.withOpacity(0.5),
+          'text': AppColors.success,
+          'shadow': AppColors.success,
         };
       case 'This Week':
         return {
@@ -532,7 +706,15 @@ class _HistoryScreenState extends State<HistoryScreen>
           'text': AppColors.highlight,
           'shadow': AppColors.highlight,
         };
+      case 'This Month':
+        return {
+          'background': AppColors.primaryAction,
+          'border': AppColors.primaryAction.withOpacity(0.5),
+          'text': AppColors.primaryAction,
+          'shadow': AppColors.primaryAction,
+        };
       default:
+        // 'All' filter
         return {
           'background': AppColors.textPrimary,
           'border': AppColors.textPrimary.withOpacity(0.5),
@@ -574,14 +756,22 @@ class _HistoryScreenState extends State<HistoryScreen>
           return _buildErrorState(snapshot.error.toString());
         }
 
-        final allItems = snapshot.data ?? [];
+        final historyItems = snapshot.data ?? [];
+
+        // Merge with scanned contacts from device
+        final allItems = _mergeWithScannedContacts(historyItems);
         final filteredItems = _filterHistoryItems(allItems);
+
+        print('📊 [History] Build - allItems: ${allItems.length}, filteredItems: ${filteredItems.length}');
+        print('📊 [History] Filtered item names: ${filteredItems.map((e) => e.displayName).take(10).join(", ")}');
 
         if (filteredItems.isEmpty) {
           return _buildEmptyState();
         }
 
-        return GridView.builder(
+        return Stack(
+          children: [
+            GridView.builder(
           controller: _scrollController,
           padding: EdgeInsets.only(
             top: statusBarHeight + 80 + 36 + AppSpacing.xs + AppSpacing.md, // App bar + filter chips + margins + grid padding
@@ -595,15 +785,103 @@ class _HistoryScreenState extends State<HistoryScreen>
             mainAxisSpacing: 12,
             childAspectRatio: 0.85,
           ),
-          itemCount: filteredItems.length,
-          itemBuilder: (context, index) => _buildHistoryCard(filteredItems[index], index),
+              itemCount: filteredItems.length,
+              itemBuilder: (context, index) => _buildHistoryCard(filteredItems[index], index),
+            ),
+            // Permission banner (shows when permission not granted)
+            if (_hasContactsPermission == false) _buildPermissionBanner(statusBarHeight),
+          ],
         );
       },
     );
   }
 
+  /// Permission banner shown when contacts access not granted
+  Widget _buildPermissionBanner(double statusBarHeight) {
+    return Positioned(
+      top: statusBarHeight + 80 + 36 + AppSpacing.xs + AppSpacing.md,
+      left: AppSpacing.md,
+      right: AppSpacing.md,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceLight.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(AppRadius.card),
+              border: Border.all(
+                color: AppColors.primaryAction.withOpacity(0.3),
+                width: 1,
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      CupertinoIcons.person_2_square_stack,
+                      color: AppColors.primaryAction,
+                      size: 24,
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        'Enable Contact Scanning',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  'TapCard can detect contacts you\'ve received by scanning your device contacts for TapCard URLs.',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.7),
+                    fontSize: 14,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                SizedBox(
+                  width: double.infinity,
+                  child: CupertinoButton(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    color: AppColors.primaryAction,
+                    borderRadius: BorderRadius.circular(AppRadius.button),
+                    onPressed: _requestContactsPermission,
+                    child: const Text(
+                      'Allow Access to Contacts',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildHistoryCard(HistoryEntry item, int index) {
     final colors = _getHistoryColors(item.type);
+
+    // Debug: Log if tag entry is missing location
+    if (item.type == HistoryEntryType.tag && item.location == null) {
+      print('⚠️ [History] Tag entry missing location: ${item.displayName} (${item.id})');
+    }
 
     return Dismissible(
       key: Key(item.id),
@@ -621,7 +899,7 @@ class _HistoryScreenState extends State<HistoryScreen>
         if (item.type == HistoryEntryType.sent) {
           _softDeleteItem(item.id);
         } else {
-          _deleteItem(item.id);
+          _deleteItem(item.id, isReceivedEntry: item.type == HistoryEntryType.received);
         }
       },
       child: Material(
@@ -790,12 +1068,38 @@ class _HistoryScreenState extends State<HistoryScreen>
             }
 
             if (profile.profileImagePath != null && profile.profileImagePath!.isNotEmpty) {
+              final isNetworkImage = profile.profileImagePath!.startsWith('http://') ||
+                                      profile.profileImagePath!.startsWith('https://');
+
               return ClipRRect(
                 borderRadius: BorderRadius.circular(radius),
-                child: Image.file(
-                  File(profile.profileImagePath!),
-                  fit: BoxFit.cover,
-                ),
+                child: isNetworkImage
+                  ? CachedNetworkImage(
+                      imageUrl: profile.profileImagePath!,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => Container(
+                        color: Colors.grey.withOpacity(0.2),
+                        child: const Center(
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                      errorWidget: (context, url, error) => Icon(
+                        CupertinoIcons.person,
+                        color: AppColors.success,
+                        size: iconSize,
+                      ),
+                    )
+                  : Image.file(
+                      File(profile.profileImagePath!),
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Icon(
+                          CupertinoIcons.person,
+                          color: AppColors.success,
+                          size: iconSize,
+                        );
+                      },
+                    ),
               );
             }
 
@@ -819,23 +1123,50 @@ class _HistoryScreenState extends State<HistoryScreen>
             );
 
           case HistoryEntryType.tag:
-            // Show tag type text
-            return Container(
-              decoration: BoxDecoration(
-                color: AppColors.secondaryAction.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(size * 0.2),
-              ),
-              child: Center(
-                child: Text(
-                  item.tagType ?? 'TAG',
-                  style: TextStyle(
-                    color: AppColors.secondaryAction,
-                    fontSize: size * 0.2,
-                    fontWeight: FontWeight.bold,
+            // Show NFC tag icon with type badge
+            return Stack(
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        AppColors.secondaryAction,
+                        AppColors.highlight,
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(radius),
                   ),
-                  textAlign: TextAlign.center,
+                  child: Center(
+                    child: Icon(
+                      CupertinoIcons.tag_fill,
+                      color: Colors.white,
+                      size: iconSize,
+                    ),
+                  ),
                 ),
-              ),
+                // Tag type badge (NTAG213/215/216)
+                if (item.tagType != null)
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: AppColors.highlight,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.white, width: 0.5),
+                      ),
+                      child: Text(
+                        item.tagType!.replaceAll('NTAG', ''),
+                        style: const TextStyle(
+                          fontSize: 7,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             );
         }
       },
@@ -844,11 +1175,7 @@ class _HistoryScreenState extends State<HistoryScreen>
 
   Widget _buildItemDetailModal(HistoryEntry item, ScrollController scrollController) {
     return Container(
-      margin: EdgeInsets.only(
-        left: AppSpacing.md,
-        right: AppSpacing.md,
-        top: AppSpacing.md,
-      ),
+      margin: const EdgeInsets.all(12),  // Match share modal width
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppRadius.xl),
         child: BackdropFilter(
@@ -915,6 +1242,38 @@ class _HistoryScreenState extends State<HistoryScreen>
                               ),
                             ),
                           ),
+                          // Profile type badge for received entries
+                          if (item.type == HistoryEntryType.received && item.senderProfile?.type != null) ...[
+                            SizedBox(width: 8),
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _getProfileTypeColor(item.senderProfile!.type).withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(AppRadius.md),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    _getProfileTypeIcon(item.senderProfile!.type),
+                                    size: 12,
+                                    color: _getProfileTypeColor(item.senderProfile!.type),
+                                  ),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    item.senderProfile!.type.label,
+                                    style: AppTextStyles.caption.copyWith(
+                                      color: _getProfileTypeColor(item.senderProfile!.type),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -922,17 +1281,53 @@ class _HistoryScreenState extends State<HistoryScreen>
                 ),
                 SizedBox(height: AppSpacing.lg),
                 _buildDetailRow(CupertinoIcons.arrow_right_arrow_left, 'Method', item.method.label),
+                // Show metadata verification badge for received entries
+                if (item.type == HistoryEntryType.received && item.metadata?['has_metadata'] == true)
+                  Padding(
+                    padding: EdgeInsets.only(top: 4, left: 24 + 8 + 72 + 8), // Align with detail row value
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        '✓ Verified metadata',
+                        style: TextStyle(fontSize: 10, color: Colors.green),
+                      ),
+                    ),
+                  ),
                 if (item.recipientDevice != null)
                   _buildDetailRow(CupertinoIcons.device_phone_portrait, 'Device', item.recipientDevice!),
                 if (item.location != null)
                   _buildDetailRow(CupertinoIcons.location_fill, 'Location', item.location!),
+                // Debug: Show if location is missing for tag entries
+                if (item.type == HistoryEntryType.tag && item.location == null)
+                  Padding(
+                    padding: EdgeInsets.symmetric(vertical: AppSpacing.xs),
+                    child: Text(
+                      '⚠️ Location tracking disabled or permission denied',
+                      style: TextStyle(color: Colors.orange.withOpacity(0.7), fontSize: 10),
+                    ),
+                  ),
                 if (item.tagType != null)
                   _buildDetailRow(CupertinoIcons.tag, 'Tag Type', '${item.tagType} (${item.tagCapacity} bytes)'),
-                _buildDetailRow(CupertinoIcons.time, 'Time', _formatDetailTimestamp(item.timestamp)),
+                // Show time for sent/tag always, and received IF we have real metadata
+                if (item.type != HistoryEntryType.received || item.metadata?['has_metadata'] == true)
+                  _buildDetailRow(CupertinoIcons.time, 'Time', _formatDetailTimestamp(item.timestamp)),
+                // Show warning if no real timestamp for received entry
+                if (item.type == HistoryEntryType.received && item.metadata?['has_metadata'] != true)
+                  Padding(
+                    padding: EdgeInsets.symmetric(vertical: AppSpacing.xs),
+                    child: Text(
+                      '⚠️ Estimated time (exact time not available)',
+                      style: TextStyle(color: Colors.orange.withOpacity(0.7), fontSize: 10),
+                    ),
+                  ),
                 SizedBox(height: AppSpacing.lg),
                 _buildModalActions(item),
-                // Bottom padding to clear nav bar
-                SizedBox(height: MediaQuery.of(context).viewPadding.bottom + AppSpacing.md),
+                // Bottom padding to clear nav bar (match share modal)
+                SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
                   ],
                 ),
               ),
@@ -947,20 +1342,39 @@ class _HistoryScreenState extends State<HistoryScreen>
     return Padding(
       padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: AppColors.textSecondary, size: 20),
-          SizedBox(width: AppSpacing.sm),
-          Text(
-            label,
-            style: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
+          // Icon column with fixed width
+          SizedBox(
+            width: 24,
+            child: Icon(
+              icon,
+              color: AppColors.textSecondary,
+              size: 16,
+            ),
           ),
-          const Spacer(),
-          Flexible(
+          SizedBox(width: AppSpacing.xs),
+          // Label column with fixed width
+          SizedBox(
+            width: 72,
+            child: Text(
+              label,
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+          SizedBox(width: AppSpacing.xs),
+          // Value takes remaining space
+          Expanded(
             child: Text(
               value,
-              style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w500),
+              style: AppTextStyles.body.copyWith(
+                fontWeight: FontWeight.w500,
+                fontSize: 13,
+              ),
               textAlign: TextAlign.right,
-              maxLines: 2,
+              maxLines: 3,
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -999,7 +1413,7 @@ class _HistoryScreenState extends State<HistoryScreen>
                     icon: const Icon(CupertinoIcons.delete, size: 18),
                     onPressed: () {
                       Navigator.pop(context);
-                      _deleteItem(item.id);
+                      _deleteItem(item.id, isReceivedEntry: item.type == HistoryEntryType.received);
                     },
                   ),
                 ),
@@ -1027,7 +1441,7 @@ class _HistoryScreenState extends State<HistoryScreen>
             icon: const Icon(CupertinoIcons.delete, size: 18),
             onPressed: () {
               Navigator.pop(context);
-              _deleteItem(item.id);
+              _deleteItem(item.id, isReceivedEntry: item.type == HistoryEntryType.received);
             },
           ),
         );
@@ -1035,6 +1449,16 @@ class _HistoryScreenState extends State<HistoryScreen>
   }
 
   Widget _buildSenderProfileCard(dynamic profile) {
+    // Debug logging to verify profile data
+    print('🎴 [History] Rendering profile card');
+    print('   • Profile Name: ${profile.name}');
+    print('   • Profile Type: ${profile.type?.label ?? "unknown"}');
+    print('   • Has Email: ${profile.email != null}');
+    print('   • Has Phone: ${profile.phone != null}');
+    print('   • Has Aesthetics: ${profile.cardAesthetics != null}');
+    print('   • Primary Color: ${profile.cardAesthetics?.primaryColor}');
+    print('   • Has Image: ${profile.profileImagePath != null}');
+
     return Center(
       child: ProfileCardPreview(
         profile: profile,
@@ -1235,14 +1659,14 @@ class _HistoryScreenState extends State<HistoryScreen>
 
   String _getEmptyStateTitle() {
     switch (_selectedFilter) {
-      case 'Sent':
-        return 'No Sent Contacts';
-      case 'Received':
-        return 'No Received Contacts';
-      case 'Via Tag':
+      case 'NFC Tags':
         return 'No NFC Tags Written';
+      case 'Today':
+        return 'No Activity Today';
       case 'This Week':
         return 'No Activity This Week';
+      case 'This Month':
+        return 'No Activity This Month';
       default:
         return 'Start Your Journey';
     }
@@ -1250,16 +1674,16 @@ class _HistoryScreenState extends State<HistoryScreen>
 
   String _getEmptyStateMessage() {
     switch (_selectedFilter) {
-      case 'Sent':
-        return 'You haven\'t sent any contacts yet. Tap someone\'s device to start connecting!';
-      case 'Received':
-        return 'You haven\'t received any contacts yet. Ask someone to share their details with you!';
-      case 'Via Tag':
-        return 'You haven\'t written to any NFC tags yet. Write your contact info to stickers or cards!';
+      case 'NFC Tags':
+        return 'You haven\'t written to any NFC tags yet. Write your contact info to stickers or cards to get started!';
+      case 'Today':
+        return 'No sharing activity today. Tap an NFC tag or device to start connecting!';
       case 'This Week':
-        return 'No sharing activity in the past week. Time to make some new connections!';
+        return 'No sharing activity this week. Time to make some new connections!';
+      case 'This Month':
+        return 'No sharing activity this month. Write to tags or receive contacts with a simple tap!';
       default:
-        return 'Your contact sharing journey starts here. Share your details with a simple tap and watch your network grow!';
+        return 'Your NFC journey starts here. Write to tags and receive contacts with a simple tap!';
     }
   }
 
@@ -1283,7 +1707,42 @@ class _HistoryScreenState extends State<HistoryScreen>
   }
 
   String _formatDetailTimestamp(DateTime timestamp) {
-    return '${timestamp.day}/${timestamp.month}/${timestamp.year} at ${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}';
+    final now = DateTime.now();
+    final diff = now.difference(timestamp);
+
+    // Today: Show "Today at 2:30 PM"
+    if (diff.inDays == 0 && timestamp.day == now.day) {
+      final hour = timestamp.hour > 12 ? timestamp.hour - 12 : (timestamp.hour == 0 ? 12 : timestamp.hour);
+      final period = timestamp.hour >= 12 ? 'PM' : 'AM';
+      return 'Today at $hour:${timestamp.minute.toString().padLeft(2, '0')} $period';
+    }
+
+    // Yesterday: Show "Yesterday at 2:30 PM"
+    if (diff.inDays == 1 || (diff.inDays == 0 && timestamp.day != now.day)) {
+      final hour = timestamp.hour > 12 ? timestamp.hour - 12 : (timestamp.hour == 0 ? 12 : timestamp.hour);
+      final period = timestamp.hour >= 12 ? 'PM' : 'AM';
+      return 'Yesterday at $hour:${timestamp.minute.toString().padLeft(2, '0')} $period';
+    }
+
+    // This week (within 7 days): Show "Mon, 2:30 PM"
+    if (diff.inDays < 7) {
+      final weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][timestamp.weekday % 7];
+      final hour = timestamp.hour > 12 ? timestamp.hour - 12 : (timestamp.hour == 0 ? 12 : timestamp.hour);
+      final period = timestamp.hour >= 12 ? 'PM' : 'AM';
+      return '$weekday, $hour:${timestamp.minute.toString().padLeft(2, '0')} $period';
+    }
+
+    // This year: Show "Jan 11, 2:30 PM"
+    if (timestamp.year == now.year) {
+      final month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][timestamp.month - 1];
+      final hour = timestamp.hour > 12 ? timestamp.hour - 12 : (timestamp.hour == 0 ? 12 : timestamp.hour);
+      final period = timestamp.hour >= 12 ? 'PM' : 'AM';
+      return '$month ${timestamp.day}, $hour:${timestamp.minute.toString().padLeft(2, '0')} $period';
+    }
+
+    // Older: Show "Jan 11, 2024"
+    final month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][timestamp.month - 1];
+    return '$month ${timestamp.day}, ${timestamp.year}';
   }
 
   Future<void> _saveToContacts(dynamic profile) async {
@@ -1308,16 +1767,33 @@ class _HistoryScreenState extends State<HistoryScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Row(
-              children: [
-                Icon(CupertinoIcons.checkmark_circle, color: AppColors.success),
-                SizedBox(width: 12),
-                Text('Opening contact card for ${profile.name}'),
-              ],
+            content: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppColors.success.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(CupertinoIcons.checkmark_circle, color: AppColors.success),
+                      SizedBox(width: 12),
+                      Expanded(child: Text('Opening contact card for ${profile.name}')),
+                    ],
+                  ),
+                ),
+              ),
             ),
-            backgroundColor: AppColors.surfaceDark,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             duration: const Duration(seconds: 2),
           ),
         );
@@ -1326,16 +1802,33 @@ class _HistoryScreenState extends State<HistoryScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Row(
-              children: [
-                Icon(CupertinoIcons.exclamationmark_circle, color: AppColors.error),
-                SizedBox(width: 12),
-                Expanded(child: Text('Failed to save contact: $e')),
-              ],
+            content: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.error.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppColors.error.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(CupertinoIcons.exclamationmark_circle, color: AppColors.error),
+                      SizedBox(width: 12),
+                      Expanded(child: Text('Failed to save contact: $e')),
+                    ],
+                  ),
+                ),
+              ),
             ),
-            backgroundColor: AppColors.surfaceDark,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             duration: const Duration(seconds: 3),
           ),
         );
@@ -1397,27 +1890,84 @@ class _HistoryScreenState extends State<HistoryScreen>
   }
 
   Future<void> _launchUrl(String url) async {
-    var formattedUrl = url;
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      formattedUrl = 'https://$url';
-    }
+    try {
+      var formattedUrl = url;
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        formattedUrl = 'https://$url';
+      }
 
-    final uri = Uri.parse(formattedUrl);
-    if (await canLaunchUrl(uri)) {
+      final uri = Uri.parse(formattedUrl);
+      // Skip canLaunchUrl check - it's unreliable and may return false even when launchUrl works
+      // Just try to launch directly and handle errors
       await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else {
+    } catch (e) {
+      // Show error only if launchUrl actually fails
       _showErrorSnackbar('Could not open website');
     }
   }
 
   Future<void> _launchSocialMedia(String platform, String url) async {
-    // Handle both full URLs and usernames
-    String finalUrl = url;
-    if (!url.startsWith('http')) {
-      // Convert username to full URL
-      finalUrl = _getSocialUrl(platform, url);
+    try {
+      // 1. Try to open native app first
+      final appUri = _getSocialAppUri(platform, url);
+      if (appUri != null && await canLaunchUrl(appUri)) {
+        await launchUrl(appUri, mode: LaunchMode.externalApplication);
+        return;
+      }
+
+      // 2. Fall back to web URL
+      String finalUrl = url;
+      if (!url.startsWith('http')) {
+        finalUrl = _getSocialUrl(platform, url);
+      }
+      await _launchUrl(finalUrl);
+    } catch (e) {
+      // If all fails, show error
+      _showErrorSnackbar('Could not open $platform link');
     }
-    await _launchUrl(finalUrl);
+  }
+
+  /// Get native app URI for social platform
+  /// Returns null if platform doesn't support app schemes
+  Uri? _getSocialAppUri(String platform, String username) {
+    final cleanUsername = username.startsWith('@')
+      ? username.substring(1)
+      : username;
+
+    // Skip if already a full URL
+    if (username.startsWith('http')) return null;
+
+    try {
+      switch (platform.toLowerCase()) {
+        case 'instagram':
+          return Uri.parse('instagram://user?username=$cleanUsername');
+        case 'twitter':
+        case 'x':
+          return Uri.parse('twitter://user?screen_name=$cleanUsername');
+        case 'linkedin':
+          return Uri.parse('linkedin://profile/$cleanUsername');
+        case 'github':
+          return Uri.parse('github://$cleanUsername');
+        case 'tiktok':
+          return Uri.parse('tiktok://user?username=$cleanUsername');
+        case 'youtube':
+          return Uri.parse('youtube://user/$cleanUsername');
+        case 'facebook':
+          return Uri.parse('fb://profile/$cleanUsername');
+        case 'snapchat':
+          return Uri.parse('snapchat://add/$cleanUsername');
+        case 'behance':
+        case 'dribbble':
+        case 'discord':
+        case 'twitch':
+          // These don't have reliable user schemes
+          return null;
+        default:
+          return null;
+      }
+    } catch (e) {
+      return null;
+    }
   }
 
   String _getSocialUrl(String platform, String username) {
@@ -1451,19 +2001,60 @@ class _HistoryScreenState extends State<HistoryScreen>
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Row(
-            children: [
-              Icon(CupertinoIcons.exclamationmark_circle, color: AppColors.error),
-              SizedBox(width: 12),
-              Text(message),
-            ],
+          content: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.error.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(CupertinoIcons.exclamationmark_circle, color: AppColors.error),
+                    SizedBox(width: 12),
+                    Expanded(child: Text(message)),
+                  ],
+                ),
+              ),
+            ),
           ),
-          backgroundColor: AppColors.surfaceDark,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           duration: const Duration(seconds: 2),
         ),
       );
+    }
+  }
+
+  /// Get color for profile type badge
+  Color _getProfileTypeColor(ProfileType type) {
+    switch (type) {
+      case ProfileType.personal:
+        return Colors.blue;
+      case ProfileType.professional:
+        return Colors.green;
+      case ProfileType.custom:
+        return Colors.purple;
+    }
+  }
+
+  /// Get icon for profile type badge
+  IconData _getProfileTypeIcon(ProfileType type) {
+    switch (type) {
+      case ProfileType.personal:
+        return CupertinoIcons.person;
+      case ProfileType.professional:
+        return CupertinoIcons.briefcase;
+      case ProfileType.custom:
+        return CupertinoIcons.star;
     }
   }
 }
