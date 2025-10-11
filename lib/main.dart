@@ -12,6 +12,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 
 import 'core/providers/app_state.dart';
 import 'core/navigation/app_router.dart';
@@ -47,6 +49,28 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
 
+  // Initialize Firebase
+  try {
+    developer.log(
+      '🔥 Initializing Firebase...',
+      name: 'App.Main',
+    );
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    developer.log(
+      '✅ Firebase initialized successfully',
+      name: 'App.Main',
+    );
+  } catch (e, stackTrace) {
+    developer.log(
+      '❌ Firebase initialization failed - App will continue with local storage only',
+      name: 'App.Main',
+      error: e,
+      stackTrace: stackTrace,
+    );
+  }
+
   // Initialize ProfileService singleton for all screens
   developer.log(
     '🔧 Initializing ProfileService...',
@@ -62,9 +86,6 @@ void main() async {
     '✅ System configuration complete - Launching app',
     name: 'App.Main',
   );
-
-  // TODO: Firebase - Initialize Firebase here
-  // await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   runApp(const TapCardApp());
 }
