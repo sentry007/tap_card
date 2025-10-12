@@ -13,6 +13,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../theme/theme.dart';
 import '../core/models/profile_models.dart';
 import '../models/history_models.dart';
+import '../services/qr_settings_service.dart';
 
 class ShareModal extends StatefulWidget {
   final String userName;
@@ -68,12 +69,33 @@ class _ShareModalState extends State<ShareModal>
   String _shareUrl = '';
   String _qrData = '';
 
+  // QR settings
+  QrSize _qrSize = QrSize.medium;
+  int _errorCorrectionLevel = QrErrorCorrectLevel.M;
+  int _colorMode = 0;
+
   @override
   void initState() {
     super.initState();
     _initAnimation();
+    _loadQrSettings();
     _generateShareData();
     _startAnimation();
+  }
+
+  Future<void> _loadQrSettings() async {
+    await QrSettingsService.initialize();
+    final size = await QrSettingsService.getQrSize();
+    final errorLevel = await QrSettingsService.getErrorCorrectionLevel();
+    final colorMode = await QrSettingsService.getColorMode();
+
+    if (mounted) {
+      setState(() {
+        _qrSize = size;
+        _errorCorrectionLevel = errorLevel;
+        _colorMode = colorMode;
+      });
+    }
   }
 
   void _initAnimation() {
@@ -428,13 +450,29 @@ class _ShareModalState extends State<ShareModal>
               ),
             ],
           ),
-          child: QrImageView(
-            data: _qrData,
-            version: QrVersions.auto,
-            size: 140,
-            backgroundColor: Colors.white,
-            errorCorrectionLevel: QrErrorCorrectLevel.M,
-          ),
+          child: _colorMode == 1
+              ? QrImageView(
+                  data: _qrData,
+                  version: QrVersions.auto,
+                  size: _qrSize.pixels.toDouble(),
+                  backgroundColor: Colors.white,
+                  errorCorrectionLevel: _errorCorrectionLevel,
+                  eyeStyle: const QrEyeStyle(
+                    eyeShape: QrEyeShape.square,
+                    color: AppColors.primaryAction,
+                  ),
+                  dataModuleStyle: const QrDataModuleStyle(
+                    dataModuleShape: QrDataModuleShape.square,
+                    color: AppColors.primaryAction,
+                  ),
+                )
+              : QrImageView(
+                  data: _qrData,
+                  version: QrVersions.auto,
+                  size: _qrSize.pixels.toDouble(),
+                  backgroundColor: Colors.white,
+                  errorCorrectionLevel: _errorCorrectionLevel,
+                ),
         ),
         const SizedBox(height: 12),
         Text(
