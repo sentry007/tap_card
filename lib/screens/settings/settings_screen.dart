@@ -13,6 +13,7 @@ import '../../services/nfc_service.dart';
 import '../../services/nfc_settings_service.dart';
 import '../../services/history_service.dart';
 import '../../services/settings_service.dart';
+import '../../services/profile_views_service.dart';
 import 'profile_detail_modal.dart';
 import 'qr_settings_screen.dart';
 import 'package:app_settings/app_settings.dart';
@@ -98,12 +99,18 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
     // Load real stats
     final receivedCount = await HistoryService.getReceivedCount();
 
+    // Load profile views from Firestore
+    final activeProfile = _profileService.activeProfile;
+    int profileViews = 0;
+    if (activeProfile != null) {
+      profileViews = await ProfileViewsService.getProfileViews(activeProfile.id);
+    }
+
     if (mounted) {
       setState(() {
         _multipleProfiles = _profileService.multipleProfilesEnabled;
 
         // Update user profile data from active profile
-        final activeProfile = _profileService.activeProfile;
         if (activeProfile != null) {
           _userName = activeProfile.name.isNotEmpty ? activeProfile.name : 'John Doe';
           _userEmail = activeProfile.email ?? 'john.doe@example.com';
@@ -128,8 +135,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
 
         // Update stats
         _receivedCount = receivedCount;
-        // TODO: Load profile views from Firestore
-        _profileViews = 0;
+        _profileViews = profileViews;
       });
     }
   }
@@ -591,9 +597,10 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
         _buildActionTile(
           icon: CupertinoIcons.arrow_up_circle,
           title: 'Backup & Sync',
-          subtitle: 'Sync data across devices • Coming Soon',
+          subtitle: 'Sync data across devices',
           onTap: null, // TODO: Requires Firebase Auth
           isDisabled: true,
+          badge: 'Coming Soon',
         ),
       ],
     );
@@ -859,9 +866,10 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
         _buildActionTile(
           icon: CupertinoIcons.arrow_right_square,
           title: 'Sign Out',
-          subtitle: 'Sign out of your account • Requires Auth',
+          subtitle: 'Sign out of your account',
           onTap: null, // TODO: Requires Firebase Auth
           isDisabled: true,
+          badge: 'Requires Auth',
         ),
       ],
     );
@@ -1131,6 +1139,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
     required VoidCallback? onTap,
     bool isDestructive = false,
     bool isDisabled = false,
+    String? badge,
   }) {
     final iconColor = isDisabled
         ? AppColors.textTertiary
@@ -1171,12 +1180,41 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        title,
-                        style: AppTextStyles.body.copyWith(
-                          fontWeight: FontWeight.w500,
-                          color: titleColor,
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            title,
+                            style: AppTextStyles.body.copyWith(
+                              fontWeight: FontWeight.w500,
+                              color: titleColor,
+                            ),
+                          ),
+                          if (badge != null) ...[
+                            SizedBox(width: AppSpacing.sm),
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.highlight.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(AppRadius.xs),
+                                border: Border.all(
+                                  color: AppColors.highlight.withOpacity(0.3),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Text(
+                                badge,
+                                style: AppTextStyles.caption.copyWith(
+                                  color: AppColors.highlight,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       SizedBox(height: AppSpacing.xs),
                       Text(
