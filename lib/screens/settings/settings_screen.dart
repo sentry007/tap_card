@@ -11,6 +11,11 @@ import '../../core/services/profile_service.dart';
 import '../../core/constants/app_constants.dart';
 import '../../services/nfc_service.dart';
 import '../../services/nfc_settings_service.dart';
+import '../../services/history_service.dart';
+import '../../services/settings_service.dart';
+import 'profile_detail_modal.dart';
+import 'qr_settings_screen.dart';
+import 'package:app_settings/app_settings.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -23,10 +28,14 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
   // Services
   late ProfileService _profileService;
 
-  // User profile data
+  // User profile data (loaded from active profile)
   String _userName = 'John Doe';
   String _userEmail = 'john.doe@example.com';
   String? _profileImageUrl;
+
+  // Real stats
+  int _receivedCount = 0;
+  int _profileViews = 0; // TODO: Implement Firebase tracking
 
   // Account settings
   bool _multipleProfiles = false;
@@ -43,9 +52,8 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
   bool _soundEnabled = true;
   bool _vibrationEnabled = true;
 
-  // Appearance settings
-  String _themeMode = 'dark'; // 'light', 'dark', 'system'
-  double _glassIntensity = 0.15;
+  // UI settings
+  double _glassIntensity = 0.15; // Keep for GlassCard opacity
 
   // NFC settings (moved from old version)
   bool _nfcEnabled = true;
@@ -77,23 +85,51 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
   Future<void> _initializeServices() async {
     await _profileService.initialize();
     await NfcSettingsService.initialize();
+    await HistoryService.initialize();
+    await SettingsService.initialize();
 
     // Load NFC settings
     final defaultMode = await NfcSettingsService.getDefaultMode();
     final locationEnabled = await NfcSettingsService.getLocationTrackingEnabled();
 
+    // Load app settings
+    final settings = await SettingsService.loadAllSettings();
+
+    // Load real stats
+    final receivedCount = await HistoryService.getReceivedCount();
+
     if (mounted) {
       setState(() {
         _multipleProfiles = _profileService.multipleProfilesEnabled;
+
         // Update user profile data from active profile
         final activeProfile = _profileService.activeProfile;
         if (activeProfile != null) {
           _userName = activeProfile.name.isNotEmpty ? activeProfile.name : 'John Doe';
           _userEmail = activeProfile.email ?? 'john.doe@example.com';
+          _profileImageUrl = activeProfile.profileImagePath;
         }
+
         // Update NFC settings
         _defaultNfcMode = defaultMode;
         _locationTracking = locationEnabled;
+
+        // Update app settings from loaded data
+        _analyticsEnabled = settings['analyticsEnabled'] ?? true;
+        _crashReporting = settings['crashReporting'] ?? true;
+        _shareExpiry = settings['shareExpiry'] ?? 30;
+        _pushNotifications = settings['pushNotifications'] ?? true;
+        _shareNotifications = settings['shareNotifications'] ?? true;
+        _receiveNotifications = settings['receiveNotifications'] ?? true;
+        _soundEnabled = settings['soundEnabled'] ?? true;
+        _vibrationEnabled = settings['vibrationEnabled'] ?? true;
+        _nfcEnabled = settings['nfcEnabled'] ?? true;
+        _autoShare = settings['autoShare'] ?? false;
+
+        // Update stats
+        _receivedCount = receivedCount;
+        // TODO: Load profile views from Firestore
+        _profileViews = 0;
       });
     }
   }
@@ -288,11 +324,9 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                     SizedBox(height: AppSpacing.lg),
                     _buildPrivacyControls(),
                     SizedBox(height: AppSpacing.lg),
-                    _buildNotificationPreferences(),
-                    SizedBox(height: AppSpacing.lg),
-                    _buildAppearanceSettings(),
-                    SizedBox(height: AppSpacing.lg),
                     _buildNFCSettings(),
+                    SizedBox(height: AppSpacing.lg),
+                    _buildNotificationPreferences(),
                     SizedBox(height: AppSpacing.lg),
                     _buildAdvancedOptions(),
                     SizedBox(height: AppSpacing.bottomNavHeight + AppSpacing.md),
@@ -401,6 +435,14 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             opacity: _fadeController.value,
             child: GlassCard(
               padding: EdgeInsets.zero,
+              onTap: () {
+                HapticFeedback.lightImpact();
+                // Show full profile modal
+                final activeProfile = _profileService.activeProfile;
+                if (activeProfile != null) {
+                  ProfileDetailModal.show(context, activeProfile);
+                }
+              },
               child: Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -419,7 +461,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                   Row(
                     children: [
                       Hero(
-                        tag: 'profile_image',
+                        tag: 'profile_image_${_profileService.activeProfile?.id ?? 'default'}',
                         child: Container(
                           width: 64,
                           height: 64,
@@ -430,12 +472,23 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                               width: 2,
                             ),
                           ),
-                          child: _profileImageUrl != null
+                          child: _profileImageUrl != null && _profileImageUrl!.isNotEmpty
                               ? ClipRRect(
                                   borderRadius: BorderRadius.circular(30),
                                   child: Image.network(
                                     _profileImageUrl!,
                                     fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) => Container(
+                                      decoration: BoxDecoration(
+                                        gradient: AppColors.primaryGradient,
+                                        borderRadius: BorderRadius.circular(30),
+                                      ),
+                                      child: const Icon(
+                                        CupertinoIcons.person,
+                                        color: AppColors.textPrimary,
+                                        size: 32,
+                                      ),
+                                    ),
                                   ),
                                 )
                               : Container(
@@ -461,43 +514,23 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                               style: AppTextStyles.h3.copyWith(
                                 fontWeight: FontWeight.w600,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                             SizedBox(height: AppSpacing.xs),
                             Text(
                               _userEmail,
                               style: AppTextStyles.bodySecondary,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
                         ),
                       ),
-                      Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(AppRadius.md),
-                          onTap: () {
-                            HapticFeedback.lightImpact();
-                            _showEditProfileDialog();
-                          },
-                          child: Container(
-                            padding: EdgeInsets.all(AppSpacing.md),
-                            decoration: BoxDecoration(
-                              gradient: AppColors.primaryGradient,
-                              borderRadius: BorderRadius.circular(AppRadius.md),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColors.primaryAction.withOpacity(0.3),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: const Icon(
-                              CupertinoIcons.pencil,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                          ),
-                        ),
+                      Icon(
+                        CupertinoIcons.chevron_right,
+                        color: AppColors.textTertiary,
+                        size: 20,
                       ),
                     ],
                   ),
@@ -510,9 +543,8 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _buildProfileStat('Shared', '127'),
-                      _buildProfileStat('Received', '89'),
-                      _buildProfileStat('Contacts', '45'),
+                      _buildProfileStat('Received', _receivedCount.toString()),
+                      _buildProfileStat('Profile Views', _profileViews > 0 ? _profileViews.toString() : '---'),
                     ],
                   ),
                 ],
@@ -557,18 +589,11 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           onChanged: _toggleMultipleProfiles,
         ),
         _buildActionTile(
-          icon: CupertinoIcons.arrow_down_circle,
-          title: 'Export Data',
-          subtitle: 'Download your data as JSON/CSV',
-          onTap: () => _showExportDialog(),
-        ),
-        _buildActionTile(
           icon: CupertinoIcons.arrow_up_circle,
           title: 'Backup & Sync',
-          subtitle: 'Sync data across devices',
-          onTap: () {
-            // TODO: Navigate to backup settings
-          },
+          subtitle: 'Sync data across devices • Coming Soon',
+          onTap: null, // TODO: Requires Firebase Auth
+          isDisabled: true,
         ),
       ],
     );
@@ -584,14 +609,20 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           title: 'Analytics',
           subtitle: 'Help improve the app with usage data',
           value: _analyticsEnabled,
-          onChanged: (value) => setState(() => _analyticsEnabled = value),
+          onChanged: (value) async {
+            setState(() => _analyticsEnabled = value);
+            await SettingsService.setAnalyticsEnabled(value);
+          },
         ),
         _buildSwitchTile(
           icon: CupertinoIcons.ant,
           title: 'Crash Reporting',
           subtitle: 'Send crash reports to help fix issues',
           value: _crashReporting,
-          onChanged: (value) => setState(() => _crashReporting = value),
+          onChanged: (value) async {
+            setState(() => _crashReporting = value);
+            await SettingsService.setCrashReportingEnabled(value);
+          },
         ),
         _buildSliderTile(
           icon: CupertinoIcons.timer,
@@ -601,7 +632,11 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           min: 1,
           max: 365,
           divisions: 364,
-          onChanged: (value) => setState(() => _shareExpiry = value.round()),
+          onChanged: (value) async {
+            final days = value.round();
+            setState(() => _shareExpiry = days);
+            await SettingsService.setShareExpiryDays(days);
+          },
         ),
         _buildActionTile(
           icon: CupertinoIcons.hand_raised,
@@ -618,6 +653,18 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             // TODO: Show privacy policy
           },
         ),
+        _buildActionTile(
+          icon: CupertinoIcons.lock_shield,
+          title: 'App Permissions',
+          subtitle: 'Manage app permissions in system settings',
+          onTap: () async {
+            try {
+              await AppSettings.openAppSettings();
+            } catch (e) {
+              _showErrorSnackBar('Could not open settings');
+            }
+          },
+        ),
       ],
     );
   }
@@ -632,71 +679,67 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           title: 'Push Notifications',
           subtitle: 'Receive notifications from the app',
           value: _pushNotifications,
-          onChanged: (value) => setState(() => _pushNotifications = value),
+          onChanged: (value) async {
+            setState(() => _pushNotifications = value);
+            await SettingsService.setPushNotificationsEnabled(value);
+          },
         ),
         _buildSwitchTile(
           icon: CupertinoIcons.share,
           title: 'Share Notifications',
           subtitle: 'Notify when you share contact info',
           value: _shareNotifications,
-          onChanged: (value) => setState(() => _shareNotifications = value),
+          onChanged: (value) async {
+            setState(() => _shareNotifications = value);
+            await SettingsService.setShareNotificationsEnabled(value);
+          },
         ),
         _buildSwitchTile(
           icon: CupertinoIcons.arrow_down_left,
           title: 'Receive Notifications',
           subtitle: 'Notify when you receive contact info',
           value: _receiveNotifications,
-          onChanged: (value) => setState(() => _receiveNotifications = value),
+          onChanged: (value) async {
+            setState(() => _receiveNotifications = value);
+            await SettingsService.setReceiveNotificationsEnabled(value);
+          },
         ),
         _buildSwitchTile(
           icon: CupertinoIcons.speaker_2,
           title: 'Sound',
           subtitle: 'Play sound for sharing events',
           value: _soundEnabled,
-          onChanged: (value) => setState(() => _soundEnabled = value),
+          onChanged: (value) async {
+            setState(() => _soundEnabled = value);
+            await SettingsService.setSoundEnabled(value);
+          },
         ),
         _buildSwitchTile(
           icon: CupertinoIcons.device_phone_portrait,
           title: 'Vibration',
           subtitle: 'Vibrate on successful sharing',
           value: _vibrationEnabled,
-          onChanged: (value) => setState(() => _vibrationEnabled = value),
+          onChanged: (value) async {
+            setState(() => _vibrationEnabled = value);
+            await SettingsService.setVibrationEnabled(value);
+          },
+        ),
+        _buildActionTile(
+          icon: CupertinoIcons.settings,
+          title: 'System Notification Settings',
+          subtitle: 'Manage notifications in system settings',
+          onTap: () async {
+            try {
+              await AppSettings.openAppSettings(type: AppSettingsType.notification);
+            } catch (e) {
+              _showErrorSnackBar('Could not open notification settings');
+            }
+          },
         ),
       ],
     );
   }
 
-  Widget _buildAppearanceSettings() {
-    return _buildSettingsSection(
-      'Appearance',
-      CupertinoIcons.paintbrush,
-      [
-        _buildSelectionTile(
-          icon: CupertinoIcons.moon_stars,
-          title: 'Theme',
-          subtitle: 'Choose app theme',
-          options: const ['Light', 'Dark', 'System'],
-          selectedIndex: ['light', 'dark', 'system'].indexOf(_themeMode),
-          onChanged: (index) {
-            setState(() {
-              _themeMode = ['light', 'dark', 'system'][index];
-            });
-            _showThemeChangeSnackBar();
-          },
-        ),
-        _buildSliderTile(
-          icon: CupertinoIcons.circle_lefthalf_fill,
-          title: 'Glass Intensity',
-          subtitle: 'Adjust glassmorphism effect strength',
-          value: _glassIntensity,
-          min: 0.05,
-          max: 0.3,
-          divisions: 25,
-          onChanged: (value) => setState(() => _glassIntensity = value),
-        ),
-      ],
-    );
-  }
 
   Widget _buildNFCSettings() {
     return _buildSettingsSection(
@@ -706,16 +749,22 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
         _buildSwitchTile(
           icon: CupertinoIcons.antenna_radiowaves_left_right,
           title: 'NFC Enabled',
-          subtitle: 'Allow NFC sharing and receiving',
+          subtitle: 'Allow NFC sharing and receiving (app-level)',
           value: _nfcEnabled,
-          onChanged: (value) => setState(() => _nfcEnabled = value),
+          onChanged: (value) async {
+            setState(() => _nfcEnabled = value);
+            await SettingsService.setNfcEnabled(value);
+          },
         ),
         _buildSwitchTile(
           icon: CupertinoIcons.sparkles,
           title: 'Auto Share',
           subtitle: 'Automatically share when NFC is detected',
           value: _autoShare,
-          onChanged: (value) => setState(() => _autoShare = value),
+          onChanged: (value) async {
+            setState(() => _autoShare = value);
+            await SettingsService.setAutoShareEnabled(value);
+          },
         ),
         _buildDefaultNfcModeTile(),
         _buildSwitchTile(
@@ -733,7 +782,24 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           title: 'QR Code Settings',
           subtitle: 'Configure QR code generation',
           onTap: () {
-            // TODO: Navigate to QR settings
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const QrSettingsScreen(),
+              ),
+            );
+          },
+        ),
+        _buildActionTile(
+          icon: CupertinoIcons.settings,
+          title: 'System NFC Settings',
+          subtitle: 'Open device NFC settings',
+          onTap: () async {
+            try {
+              await AppSettings.openAppSettings(type: AppSettingsType.nfc);
+            } catch (e) {
+              _showErrorSnackBar('NFC settings not available on this device');
+            }
           },
         ),
       ],
@@ -793,9 +859,9 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
         _buildActionTile(
           icon: CupertinoIcons.arrow_right_square,
           title: 'Sign Out',
-          subtitle: 'Sign out of your account',
-          onTap: () => _showSignOutDialog(),
-          isDestructive: true,
+          subtitle: 'Sign out of your account • Requires Auth',
+          onTap: null, // TODO: Requires Firebase Auth
+          isDisabled: true,
         ),
       ],
     );
@@ -1062,63 +1128,74 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
     required IconData icon,
     required String title,
     required String subtitle,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
     bool isDestructive = false,
+    bool isDisabled = false,
   }) {
-    final iconColor = isDestructive ? AppColors.error : AppColors.highlight;
-    final titleColor = isDestructive ? AppColors.error : AppColors.textPrimary;
+    final iconColor = isDisabled
+        ? AppColors.textTertiary
+        : (isDestructive ? AppColors.error : AppColors.highlight);
+    final titleColor = isDisabled
+        ? AppColors.textTertiary
+        : (isDestructive ? AppColors.error : AppColors.textPrimary);
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () {
+        onTap: isDisabled || onTap == null ? null : () {
           HapticFeedback.lightImpact();
           onTap();
         },
         borderRadius: BorderRadius.circular(AppRadius.sm),
-        splashColor: iconColor.withOpacity(0.1),
-        child: Container(
-          padding: EdgeInsets.all(AppSpacing.md),
-          child: Row(
-            children: [
-              Container(
-                padding: EdgeInsets.all(AppSpacing.sm),
-                decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(AppRadius.sm),
+        splashColor: isDisabled ? Colors.transparent : iconColor.withOpacity(0.1),
+        child: Opacity(
+          opacity: isDisabled ? 0.5 : 1.0,
+          child: Container(
+            padding: EdgeInsets.all(AppSpacing.md),
+            child: Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(AppSpacing.sm),
+                  decoration: BoxDecoration(
+                    color: iconColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: iconColor,
+                    size: 20,
+                  ),
                 ),
-                child: Icon(
-                  icon,
-                  color: iconColor,
-                  size: 20,
-                ),
-              ),
-              SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: AppTextStyles.body.copyWith(
-                        fontWeight: FontWeight.w500,
-                        color: titleColor,
+                SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: AppTextStyles.body.copyWith(
+                          fontWeight: FontWeight.w500,
+                          color: titleColor,
+                        ),
                       ),
-                    ),
-                    SizedBox(height: AppSpacing.xs),
-                    Text(
-                      subtitle,
-                      style: AppTextStyles.caption,
-                    ),
-                  ],
+                      SizedBox(height: AppSpacing.xs),
+                      Text(
+                        subtitle,
+                        style: AppTextStyles.caption.copyWith(
+                          color: isDisabled ? AppColors.textTertiary : AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              Icon(
-                CupertinoIcons.chevron_right,
-                color: AppColors.textTertiary,
-                size: 20,
-              ),
-            ],
+                if (!isDisabled)
+                  Icon(
+                    CupertinoIcons.chevron_right,
+                    color: AppColors.textTertiary,
+                    size: 20,
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -2023,6 +2100,46 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
         elevation: 0,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.error.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.error.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(CupertinoIcons.exclamationmark_circle, color: AppColors.error),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      message,
+                      style: AppTextStyles.body,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 3),
       ),
     );
   }
