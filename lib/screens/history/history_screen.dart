@@ -28,8 +28,10 @@ import '../../core/models/profile_models.dart';
 import '../../models/history_models.dart';
 import '../../services/history_service.dart';
 import '../../services/contact_service.dart';
+import '../../services/profile_views_service.dart';
 import '../../widgets/history/method_chip.dart';
 import '../../core/constants/app_constants.dart';
+import 'dart:developer' as developer;
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({Key? key}) : super(key: key);
@@ -415,6 +417,21 @@ class _HistoryScreenState extends State<HistoryScreen>
 
   void _showItemDetails(HistoryEntry item) {
     HapticFeedback.lightImpact();
+
+    // Track profile view for received entries (silent, non-blocking)
+    if (item.type == HistoryEntryType.received && item.senderProfile?.id != null) {
+      ProfileViewsService.incrementProfileViews(
+        profileId: item.senderProfile!.id,
+        source: 'app',
+      ).catchError((error) {
+        developer.log(
+          'Profile view tracking failed (silent): $error',
+          name: 'History.ViewTracking',
+          error: error,
+        );
+      });
+    }
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
