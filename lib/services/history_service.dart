@@ -312,6 +312,15 @@ class HistoryService {
     return _cache.where((entry) => !entry.isSoftDeleted).toList();
   }
 
+  /// Get count of received entries (for stats)
+  static Future<int> getReceivedCount() async {
+    if (!_isInitialized) await initialize();
+    return _cache.where((entry) =>
+      !entry.isSoftDeleted &&
+      entry.type == HistoryEntryType.received
+    ).length;
+  }
+
   /// Get filtered history entries
   static Future<List<HistoryEntry>> getHistory({
     HistoryEntryType? type,
