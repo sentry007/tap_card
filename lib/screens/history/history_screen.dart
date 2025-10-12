@@ -1225,55 +1225,81 @@ class _HistoryScreenState extends State<HistoryScreen>
                             overflow: TextOverflow.ellipsis,
                           ),
                           SizedBox(height: AppSpacing.xs),
-                          Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: AppSpacing.sm,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _getItemColor(item.type).withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(AppRadius.md),
-                            ),
-                            child: Text(
-                              item.type.label,
-                              style: AppTextStyles.caption.copyWith(
-                                color: _getItemColor(item.type),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                          // Profile type badge for received entries
-                          if (item.type == HistoryEntryType.received && item.senderProfile?.type != null) ...[
-                            SizedBox(width: 8),
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: _getProfileTypeColor(item.senderProfile!.type).withOpacity(0.2),
+                          // Chips side by side with glassmorphic styling
+                          Row(
+                            children: [
+                              // Entry type chip
+                              ClipRRect(
                                 borderRadius: BorderRadius.circular(AppRadius.md),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    _getProfileTypeIcon(item.senderProfile!.type),
-                                    size: 12,
-                                    color: _getProfileTypeColor(item.senderProfile!.type),
-                                  ),
-                                  SizedBox(width: 4),
-                                  Text(
-                                    item.senderProfile!.type.label,
-                                    style: AppTextStyles.caption.copyWith(
-                                      color: _getProfileTypeColor(item.senderProfile!.type),
-                                      fontWeight: FontWeight.w600,
+                                child: BackdropFilter(
+                                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                                  child: Container(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: AppSpacing.sm,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: _getItemColor(item.type).withOpacity(0.15),
+                                      borderRadius: BorderRadius.circular(AppRadius.md),
+                                      border: Border.all(
+                                        color: _getItemColor(item.type).withOpacity(0.3),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      item.type.label,
+                                      style: AppTextStyles.caption.copyWith(
+                                        color: _getItemColor(item.type),
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
                                   ),
-                                ],
+                                ),
                               ),
-                            ),
-                          ],
+                              // Profile type badge for received entries
+                              if (item.type == HistoryEntryType.received && item.senderProfile?.type != null) ...[
+                                SizedBox(width: 8),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(AppRadius.md),
+                                  child: BackdropFilter(
+                                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                                    child: Container(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: _getProfileTypeColor(item.senderProfile!.type).withOpacity(0.15),
+                                        borderRadius: BorderRadius.circular(AppRadius.md),
+                                        border: Border.all(
+                                          color: _getProfileTypeColor(item.senderProfile!.type).withOpacity(0.3),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            _getProfileTypeIcon(item.senderProfile!.type),
+                                            size: 12,
+                                            color: _getProfileTypeColor(item.senderProfile!.type),
+                                          ),
+                                          SizedBox(width: 4),
+                                          Text(
+                                            item.senderProfile!.type.label,
+                                            style: AppTextStyles.caption.copyWith(
+                                              color: _getProfileTypeColor(item.senderProfile!.type),
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
                         ],
                       ),
                     ),
