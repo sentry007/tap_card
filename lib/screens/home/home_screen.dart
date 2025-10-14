@@ -1,18 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:app_settings/app_settings.dart';
 import 'dart:ui';
-import 'dart:io';
 import 'dart:async';
 import 'dart:developer' as developer;
 
 import '../../theme/theme.dart';
 import '../../widgets/widgets.dart';
-import '../../core/providers/app_state.dart';
 import '../../core/services/notification_service.dart';
 import '../../core/services/profile_service.dart';
 import '../../services/token_manager_service.dart';
@@ -575,7 +572,12 @@ class _HomeScreenState extends State<HomeScreen>
             _nfcFabState = NfcFabState.success;
           });
           _successController.forward();
-          _showSuccessMessage('Written to NFC tag! 🎉');
+
+          // Show appropriate message based on payload type
+          final String message = result.payloadType == 'dual'
+              ? 'Full card written to tag! 🎉'
+              : 'Mini card written to tag! 🎉';
+          _showSuccessMessage(message);
           _scheduleStateReset(duration: const Duration(seconds: 2));
 
           // Add to history with actual tag metadata from hardware
@@ -1354,6 +1356,7 @@ class _HomeScreenState extends State<HomeScreen>
       final tagId = result.tagId ?? 'TAG_${DateTime.now().millisecondsSinceEpoch}';
       final tagCapacity = result.tagCapacity;
       final tagType = _inferTagTypeFromCapacity(tagCapacity);
+      final payloadType = result.payloadType;  // "dual" or "url"
 
       await HistoryService.addTagEntry(
         profileName: _profileService.activeProfile?.name ?? 'Unknown Profile',
@@ -1361,13 +1364,15 @@ class _HomeScreenState extends State<HomeScreen>
         tagType: tagType,
         method: ShareMethod.tag,
         tagCapacity: tagCapacity,
+        payloadType: payloadType,
         location: location,
       );
 
       final locationStr = location != null ? ' at $location' : '';
       final capacityStr = tagCapacity != null ? ' ($tagCapacity bytes)' : '';
+      final payloadStr = payloadType != null ? ' [${payloadType == "dual" ? "Full card" : "Mini card"}]' : '';
       developer.log(
-        '✅ NFC write added to history: $tagId ($tagType$capacityStr)$locationStr',
+        '✅ NFC write added to history: $tagId ($tagType$capacityStr)$payloadStr$locationStr',
         name: 'Home.History'
       );
     } catch (e) {

@@ -144,6 +144,7 @@ class HistoryService {
     required String tagType,
     required ShareMethod method,
     int? tagCapacity,
+    String? payloadType,
     String? location,
     Map<String, dynamic>? metadata,
   }) async {
@@ -156,6 +157,7 @@ class HistoryService {
         tagId: tagId,
         tagType: tagType,
         tagCapacity: tagCapacity,
+        payloadType: payloadType,
         location: location,
         metadata: metadata,
       );
@@ -164,7 +166,8 @@ class HistoryService {
       await _saveToStorage();
       _notifyListeners();
 
-      developer.log('🏷️ Added tag entry: $profileName → $tagId ($tagType)', name: 'History.Service');
+      final payloadInfo = payloadType != null ? ' [${payloadType == "dual" ? "Full" : "Mini"}]' : '';
+      developer.log('🏷️ Added tag entry: $profileName → $tagId ($tagType)$payloadInfo', name: 'History.Service');
     } catch (e) {
       developer.log('❌ Failed to add tag entry: $e', name: 'History.Service', error: e);
     }

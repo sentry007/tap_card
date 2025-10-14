@@ -28,7 +28,7 @@ import '../../core/models/profile_models.dart';
 import '../../models/history_models.dart';
 import '../../services/history_service.dart';
 import '../../services/contact_service.dart';
-import '../../services/profile_views_service.dart';
+import '../../services/firebase_analytics_service.dart';
 import '../../widgets/history/method_chip.dart';
 import '../../core/constants/app_constants.dart';
 import 'dart:developer' as developer;
@@ -418,18 +418,12 @@ class _HistoryScreenState extends State<HistoryScreen>
   void _showItemDetails(HistoryEntry item) {
     HapticFeedback.lightImpact();
 
-    // Track profile view for received entries (silent, non-blocking)
+    // Track contact viewed for received entries using Firebase Analytics
     if (item.type == HistoryEntryType.received && item.senderProfile?.id != null) {
-      ProfileViewsService.incrementProfileViews(
+      FirebaseAnalyticsService.logContactViewed(
         profileId: item.senderProfile!.id,
-        source: 'app',
-      ).catchError((error) {
-        developer.log(
-          'Profile view tracking failed (silent): $error',
-          name: 'History.ViewTracking',
-          error: error,
-        );
-      });
+        source: 'history',
+      );
     }
 
     showModalBottomSheet(
@@ -1354,7 +1348,11 @@ class _HistoryScreenState extends State<HistoryScreen>
                     ),
                   ),
                 if (item.tagType != null)
-                  _buildDetailRow(CupertinoIcons.tag, 'Tag Type', '${item.tagType} (${item.tagCapacity} bytes)'),
+                  _buildDetailRow(
+                    CupertinoIcons.tag,
+                    'Tag Info',
+                    _formatTagInfo(item)
+                  ),
                 // Show time for sent/tag always, and received IF we have real metadata
                 if (item.type != HistoryEntryType.received || item.metadata?['has_metadata'] == true)
                   _buildDetailRow(CupertinoIcons.time, 'Time', _formatDetailTimestamp(item.timestamp)),
@@ -1747,6 +1745,27 @@ class _HistoryScreenState extends State<HistoryScreen>
     } else {
       return '${timestamp.day}/${timestamp.month}';
     }
+  }
+
+  String _formatTagInfo(HistoryEntry item) {
+    // Format tag information with type, capacity, and payload type
+    final tagType = item.tagType ?? 'Unknown';
+    final capacity = item.tagCapacity;
+    final payloadType = item.payloadType;
+
+    // Build the info string
+    final parts = <String>[tagType];
+
+    if (capacity != null) {
+      parts.add('$capacity bytes');
+    }
+
+    if (payloadType != null) {
+      final payloadLabel = payloadType == 'dual' ? 'Full card' : 'Mini card';
+      parts.add(payloadLabel);
+    }
+
+    return parts.join(' • ');
   }
 
   String _formatDetailTimestamp(DateTime timestamp) {
