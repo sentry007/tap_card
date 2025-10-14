@@ -48,6 +48,7 @@ class HistoryEntry {
   final String? tagId;
   final String? tagType; // NTAG213/215/216
   final int? tagCapacity; // bytes
+  final String? payloadType; // "dual" or "url"
   final String? writtenProfileName; // Name of profile written to tag
 
   // Common metadata
@@ -68,6 +69,7 @@ class HistoryEntry {
     this.tagId,
     this.tagType,
     this.tagCapacity,
+    this.payloadType,
     this.writtenProfileName,
     this.metadata,
     this.isSoftDeleted = false,
@@ -124,6 +126,7 @@ class HistoryEntry {
     required String tagType,
     required String writtenProfileName,
     int? tagCapacity,
+    String? payloadType,
     String? location,
     Map<String, dynamic>? metadata,
   }) {
@@ -135,6 +138,7 @@ class HistoryEntry {
       tagId: tagId,
       tagType: tagType,
       tagCapacity: tagCapacity,
+      payloadType: payloadType,
       writtenProfileName: writtenProfileName,
       location: location,
       metadata: metadata,
@@ -154,6 +158,7 @@ class HistoryEntry {
     String? tagId,
     String? tagType,
     int? tagCapacity,
+    String? payloadType,
     String? writtenProfileName,
     Map<String, dynamic>? metadata,
     bool? isSoftDeleted,
@@ -170,6 +175,7 @@ class HistoryEntry {
       tagId: tagId ?? this.tagId,
       tagType: tagType ?? this.tagType,
       tagCapacity: tagCapacity ?? this.tagCapacity,
+      payloadType: payloadType ?? this.payloadType,
       writtenProfileName: writtenProfileName ?? this.writtenProfileName,
       metadata: metadata ?? this.metadata,
       isSoftDeleted: isSoftDeleted ?? this.isSoftDeleted,
@@ -190,6 +196,7 @@ class HistoryEntry {
       if (tagId != null) 'tagId': tagId,
       if (tagType != null) 'tagType': tagType,
       if (tagCapacity != null) 'tagCapacity': tagCapacity,
+      if (payloadType != null) 'payloadType': payloadType,
       if (writtenProfileName != null) 'writtenProfileName': writtenProfileName,
       if (metadata != null) 'metadata': metadata,
       'isSoftDeleted': isSoftDeleted,
@@ -212,6 +219,7 @@ class HistoryEntry {
       tagId: json['tagId'],
       tagType: json['tagType'],
       tagCapacity: json['tagCapacity'],
+      payloadType: json['payloadType'],
       writtenProfileName: json['writtenProfileName'],
       metadata: json['metadata'] != null
           ? Map<String, dynamic>.from(json['metadata'])

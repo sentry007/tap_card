@@ -133,14 +133,16 @@ class NFCService {
           final bytesWritten = data['bytesWritten'] as int? ?? 0;
           final tagId = data['tagId'] as String?;
           final tagCapacity = data['tagCapacity'] as int?;
+          final payloadType = data['payloadType'] as String?;
 
           developer.log(
             '✅ Native write succeeded: $bytesWritten bytes in ${duration}ms\n'
+            '   • Payload Type: ${payloadType ?? "unknown"} (${payloadType == "dual" ? "Full card" : "Mini card"})\n'
             '   • Tag ID: ${tagId ?? "unknown"}\n'
             '   • Tag Capacity: ${tagCapacity ?? "unknown"} bytes',
             name: 'NFC.Callback'
           );
-          _writeCompleter!.complete(NFCResult.success(duration, bytesWritten, tagId: tagId, tagCapacity: tagCapacity));
+          _writeCompleter!.complete(NFCResult.success(duration, bytesWritten, tagId: tagId, tagCapacity: tagCapacity, payloadType: payloadType));
           _writeCompleter = null;
           _writeStartTime = null;
         }
@@ -312,75 +314,16 @@ class NFCService {
     final vCardBytes = utf8.encode(vCard).length;
     final urlBytes = utf8.encode(cardUrl).length;
 
-    // Estimate NDEF overhead for accurate size checking
-    // - vCard MIME record: ~13 bytes (TNF + type length + payload length + "text/x-vcard")
-    // - URL record: ~9 bytes (TNF + type length + payload length + protocol byte)
-    const int vCardOverhead = 13;
-    const int urlOverhead = 9;
-    final estimatedDualPayloadSize = vCardBytes + urlBytes + vCardOverhead + urlOverhead;
-    final estimatedUrlOnlySize = urlBytes + urlOverhead;
-
-    // Default to NTAG213 capacity (smallest common tag) for safety
-    // If tag is larger (NTAG215/216), it will work fine
-    const int defaultTagCapacity = NFCConstants.ntag213MaxBytes; // 144 bytes
-
-    // Determine write strategy based on size
-    final bool useDualPayload = estimatedDualPayloadSize <= defaultTagCapacity;
-    final bool useUrlOnly = !useDualPayload && estimatedUrlOnlySize <= defaultTagCapacity;
-
-    if (useDualPayload) {
-      developer.log(
-        '📦 Using DUAL-PAYLOAD strategy (fits in default capacity)\n'
-        '   📇 Record 1 (vCard):\n'
-        '      • Type: MIME (text/x-vcard)\n'
-        '      • Data: $vCardBytes bytes\n'
-        '      • Overhead: ~$vCardOverhead bytes\n'
-        '      • Contains: Basic contact info (auto-saveable)\n'
-        '   🌐 Record 2 (URL):\n'
-        '      • Type: URI\n'
-        '      • Data: $urlBytes bytes\n'
-        '      • Overhead: ~$urlOverhead bytes\n'
-        '      • URL: $cardUrl\n'
-        '   📊 Size Check:\n'
-        '      • Estimated total: $estimatedDualPayloadSize bytes\n'
-        '      • Default capacity: $defaultTagCapacity bytes (NTAG213)\n'
-        '      • Status: ✅ FITS (${((estimatedDualPayloadSize / defaultTagCapacity) * 100).toStringAsFixed(1)}% used)\n'
-        '   ⏱️  Timeout: ${timeout.inSeconds}s',
-        name: 'NFC.Write.DualPayload'
-      );
-    } else if (useUrlOnly) {
-      developer.log(
-        '📦 Using URL-ONLY fallback strategy (dual payload too large)\n'
-        '   ⚠️  Dual payload size: ~$estimatedDualPayloadSize bytes > $defaultTagCapacity bytes\n'
-        '   🌐 Fallback to URL-only:\n'
-        '      • Type: URI\n'
-        '      • Data: $urlBytes bytes\n'
-        '      • Overhead: ~$urlOverhead bytes\n'
-        '      • URL: $cardUrl\n'
-        '   📊 Size Check:\n'
-        '      • Estimated total: $estimatedUrlOnlySize bytes\n'
-        '      • Default capacity: $defaultTagCapacity bytes (NTAG213)\n'
-        '      • Status: ✅ FITS (${((estimatedUrlOnlySize / defaultTagCapacity) * 100).toStringAsFixed(1)}% used)\n'
-        '   💡 Note: URL provides link to full digital card\n'
-        '   ⏱️  Timeout: ${timeout.inSeconds}s',
-        name: 'NFC.Write.UrlOnly'
-      );
-    } else {
-      // Neither strategy fits - this is unlikely with reasonable data
-      final errorDuration = DateTime.now().difference(startTime).inMilliseconds;
-      developer.log(
-        '❌ Payload too large even for URL-only strategy\n'
-        '   • URL size: ~$estimatedUrlOnlySize bytes\n'
-        '   • Default capacity: $defaultTagCapacity bytes (NTAG213)\n'
-        '   💡 Try using a larger tag (NTAG215: 504 bytes, NTAG216: 888 bytes)',
-        name: 'NFC.Write.Error'
-      );
-      return NFCResult.error(
-        'Payload too large for standard NFC tags. URL alone requires $estimatedUrlOnlySize bytes. '
-        'Try using NTAG215 (504 bytes) or NTAG216 (888 bytes) tags.',
-        errorDuration,
-      );
-    }
+    developer.log(
+      '📦 Preparing DUAL-PAYLOAD for native Android\n'
+      '   📇 vCard: $vCardBytes bytes (basic contact info)\n'
+      '   🌐 URL: $urlBytes bytes (full digital card)\n'
+      '   💡 Native Android will detect tag capacity and choose:\n'
+      '      • Dual-payload (vCard + URL) if tag is large enough\n'
+      '      • URL-only fallback if dual-payload doesn\'t fit\n'
+      '   ⏱️  Timeout: ${timeout.inSeconds}s',
+      name: 'NFC.Write.Prepare'
+    );
 
     // Store completer and start time for callback handling
     _writeCompleter = Completer<NFCResult>();
@@ -407,32 +350,18 @@ class NFCService {
       });
 
       // Call native Android to start foreground dispatch and wait for tag
+      // Always send both vCard and URL - native code will decide based on actual tag capacity
       developer.log(
-        '🔧 Enabling native Android foreground dispatch...',
+        '🔧 Enabling native Android foreground dispatch...\n'
+        '📤 Calling writeDualPayload with vCard + URL\n'
+        '   (Native will auto-fallback to URL-only if needed)',
         name: 'NFC.Write'
       );
 
-      // Call appropriate native method based on strategy
-      final bool success;
-      if (useDualPayload) {
-        developer.log(
-          '📤 Calling writeDualPayload with vCard + URL',
-          name: 'NFC.Write'
-        );
-        success = await _channel.invokeMethod('writeDualPayload', {
-          'vcard': vCard,
-          'url': cardUrl,
-        }) == true;
-      } else {
-        // URL-only fallback
-        developer.log(
-          '📤 Calling writeUrlOnly with URL: $cardUrl',
-          name: 'NFC.Write'
-        );
-        success = await _channel.invokeMethod('writeUrlOnly', {
-          'url': cardUrl,
-        }) == true;
-      }
+      final bool success = await _channel.invokeMethod('writeDualPayload', {
+        'vcard': vCard,
+        'url': cardUrl,
+      }) == true;
 
       if (success) {
         developer.log(
@@ -845,6 +774,7 @@ class NFCResult {
   final String? tagId;
   final String? tagType;
   final int? tagCapacity;
+  final String? payloadType;  // "dual" or "url"
 
   const NFCResult._({
     required this.isSuccess,
@@ -854,9 +784,10 @@ class NFCResult {
     this.tagId,
     this.tagType,
     this.tagCapacity,
+    this.payloadType,
   });
 
-  factory NFCResult.success(int durationMs, int dataSizeBytes, {String? tagId, String? tagType, int? tagCapacity}) {
+  factory NFCResult.success(int durationMs, int dataSizeBytes, {String? tagId, String? tagType, int? tagCapacity, String? payloadType}) {
     return NFCResult._(
       isSuccess: true,
       durationMs: durationMs,
@@ -864,6 +795,7 @@ class NFCResult {
       tagId: tagId,
       tagType: tagType,
       tagCapacity: tagCapacity,
+      payloadType: payloadType,
     );
   }
 
@@ -886,7 +818,7 @@ class NFCResult {
   @override
   String toString() {
     if (isSuccess) {
-      return 'NFCResult.success(${durationMs}ms, ${dataSizeBytes} bytes)';
+      return 'NFCResult.success(${durationMs}ms, ${dataSizeBytes} bytes, type: $payloadType)';
     } else {
       return 'NFCResult.error("$error", ${durationMs}ms)';
     }
