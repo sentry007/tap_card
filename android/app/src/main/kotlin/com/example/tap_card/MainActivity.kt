@@ -303,7 +303,8 @@ class MainActivity: FlutterActivity() {
                         writeMethodChannel?.invokeMethod("onWriteSuccess", mapOf(
                             "bytesWritten" to writeResult.bytesWritten,
                             "tagId" to writeResult.tagId,
-                            "tagCapacity" to writeResult.tagCapacity
+                            "tagCapacity" to writeResult.tagCapacity,
+                            "payloadType" to writeResult.payloadType
                         ))
                     } else {
                         Log.d(TAG, "❌ Android: Failed to write to NFC tag: ${writeResult.error}")
@@ -379,104 +380,122 @@ class MainActivity: FlutterActivity() {
         val bytesWritten: Int = 0,
         val error: String? = null,
         val tagId: String? = null,
-        val tagCapacity: Int? = null
+        val tagCapacity: Int? = null,
+        val payloadType: String? = null  // "dual" or "url"
     )
 
     private fun writeToTag(tag: Tag, data: String): WriteResult {
         try {
-            // Check if this is a dual-payload write
+            // STEP 1: Detect tag capacity FIRST (before deciding what to write)
+            val ndef = Ndef.get(tag)
+            if (ndef == null) {
+                // Try to format unformatted tags
+                val ndefFormatable = NdefFormatable.get(tag)
+                if (ndefFormatable != null) {
+                    Log.d(TAG, "📋 Tag is not formatted, will format during write...")
+                    // We'll handle formatting at the end
+                } else {
+                    Log.d(TAG, "❌ Tag is neither NDEF nor formattable")
+                    return WriteResult(false, error = "This tag is not NDEF compatible. Please use a compatible NFC tag (NTAG213, NTAG215, or NTAG216)")
+                }
+            }
+
+            // Extract tag metadata
+            val tagIdHex = tag.id.joinToString("") { "%02X".format(it) }
+            val maxSize = ndef?.maxSize ?: NTAG213_MAX_BYTES // Default to smallest if unknown
+            val tagType = ndef?.type ?: "Unknown"
+
+            val tagName = when {
+                maxSize >= NTAG216_MAX_BYTES -> "NTAG216"
+                maxSize >= NTAG215_MAX_BYTES -> "NTAG215"
+                maxSize >= NTAG213_MAX_BYTES -> "NTAG213"
+                else -> "Unknown"
+            }
+
+            Log.d(TAG, "")
+            Log.d(TAG, "═══════════════════════════════════════════════════════")
+            Log.d(TAG, "📋 TAG DETECTED")
+            Log.d(TAG, "═══════════════════════════════════════════════════════")
+            Log.d(TAG, "   ├─ ID: $tagIdHex")
+            Log.d(TAG, "   ├─ Type: $tagType")
+            Log.d(TAG, "   ├─ Identified as: $tagName")
+            Log.d(TAG, "   ├─ Capacity: $maxSize bytes")
+            Log.d(TAG, "   └─ Writable: ${ndef?.isWritable ?: "unknown"}")
+            Log.d(TAG, "")
+
+            // STEP 2: Parse data and prepare BOTH payloads
             val isDualPayload = data.contains("\"type\":\"dual\"")
-            val ndefMessage: NdefMessage
+
+            val vcard: String
+            val url: String
 
             if (isDualPayload) {
-                Log.d(TAG, "")
-                Log.d(TAG, "═══════════════════════════════════════════════════════")
-                Log.d(TAG, "📋 DUAL-PAYLOAD DETECTED - Creating Multi-Record NDEF")
-                Log.d(TAG, "═══════════════════════════════════════════════════════")
+                // Extract both vCard and URL from dual-payload JSON
+                vcard = data.substringAfter("\"vcard\":\"").substringBefore("\",\"url\"").replace("\\\"", "\"")
+                url = data.substringAfter("\"url\":\"").substringBefore("\"}")
+            } else if (data.startsWith("http://") || data.startsWith("https://")) {
+                // URL-only mode (legacy)
+                vcard = ""
+                url = data
+            } else {
+                // Legacy text mode - treat as URL
+                vcard = ""
+                url = data
+            }
 
-                // Parse JSON to extract vCard and URL
-                val vcard = data.substringAfter("\"vcard\":\"").substringBefore("\",\"url\"").replace("\\\"", "\"")
-                val url = data.substringAfter("\"url\":\"").substringBefore("\"}")
-
-                Log.d(TAG, "")
-                Log.d(TAG, "📇 RECORD 1: vCard (TEXT)")
-                Log.d(TAG, "   ├─ Length: ${vcard.length} chars")
-                Log.d(TAG, "   ├─ Format: vCard 3.0")
-                Log.d(TAG, "   └─ Contains: Basic contact info (auto-saveable)")
-
-                Log.d(TAG, "")
-                Log.d(TAG, "🌐 RECORD 2: URL (URI)")
-                Log.d(TAG, "   ├─ URL: $url")
-                Log.d(TAG, "   ├─ Length: ${url.length} chars")
-                Log.d(TAG, "   └─ Opens: Full digital card in browser")
-
-                // Create two NDEF records
-                Log.d(TAG, "")
-                Log.d(TAG, "🔨 Creating NDEF records...")
+            // STEP 3: Calculate sizes for both strategies
+            val dualNdefMessage: NdefMessage? = if (vcard.isNotEmpty()) {
                 val vCardRecord = createMimeRecord("text/x-vcard", vcard)
                 val urlRecord = createUrlRecord(url)
-                ndefMessage = NdefMessage(arrayOf(vCardRecord, urlRecord))
+                // IMPORTANT: URL first, vCard second for proper Android behavior
+                // - Android reads first record → opens URL (website)
+                // - vCard saves in background (second record still processed)
+                NdefMessage(arrayOf(urlRecord, vCardRecord))
+            } else null
 
-                val totalBytes = ndefMessage.toByteArray().size
-                Log.d(TAG, "✅ NDEF message created successfully")
-                Log.d(TAG, "   ├─ Records: 2 (vCard + URL)")
-                Log.d(TAG, "   ├─ Total size: $totalBytes bytes")
-                Log.d(TAG, "   └─ Ready to write to tag")
-                Log.d(TAG, "═══════════════════════════════════════════════════════")
-                Log.d(TAG, "")
-            } else if (data.startsWith("http://") || data.startsWith("https://")) {
-                // URL-only fallback strategy
-                Log.d(TAG, "")
-                Log.d(TAG, "═══════════════════════════════════════════════════════")
-                Log.d(TAG, "🌐 URL-ONLY WRITE - Fallback Strategy")
-                Log.d(TAG, "═══════════════════════════════════════════════════════")
-                Log.d(TAG, "")
-                Log.d(TAG, "🌐 Single URL Record:")
-                Log.d(TAG, "   ├─ URL: $data")
-                Log.d(TAG, "   ├─ Length: ${data.length} chars")
-                Log.d(TAG, "   └─ Opens: Full digital card in browser")
-                Log.d(TAG, "")
+            val urlOnlyNdefMessage = NdefMessage(arrayOf(createUrlRecord(url)))
 
-                // Create single URL record
-                val urlRecord = createUrlRecord(data)
-                ndefMessage = NdefMessage(arrayOf(urlRecord))
+            val dualPayloadSize = dualNdefMessage?.toByteArray()?.size ?: Int.MAX_VALUE
+            val urlOnlySize = urlOnlyNdefMessage.toByteArray().size
 
-                val totalBytes = ndefMessage.toByteArray().size
-                Log.d(TAG, "✅ NDEF message created successfully")
-                Log.d(TAG, "   ├─ Records: 1 (URL only)")
-                Log.d(TAG, "   ├─ Total size: $totalBytes bytes")
-                Log.d(TAG, "   └─ Ready to write to tag")
-                Log.d(TAG, "═══════════════════════════════════════════════════════")
-                Log.d(TAG, "")
+            // STEP 4: INTELLIGENT DECISION - Use actual tag capacity
+            val ndefMessage: NdefMessage
+            val payloadType: String
+
+            if (dualNdefMessage != null && dualPayloadSize <= maxSize) {
+                // ✅ DUAL-PAYLOAD FITS - Write full card!
+                ndefMessage = dualNdefMessage
+                payloadType = "dual"
+
+                Log.d(TAG, "✅ DUAL-PAYLOAD STRATEGY SELECTED")
+                Log.d(TAG, "   📝 Record Order (Android priority):")
+                Log.d(TAG, "   ├─ Record 1 (Primary): URL → Opens website")
+                Log.d(TAG, "   │  └─ ${url.length} chars: $url")
+                Log.d(TAG, "   ├─ Record 2 (Background): vCard → Saves contact")
+                Log.d(TAG, "   │  └─ ${vcard.length} chars")
+                Log.d(TAG, "   ├─ Total size: $dualPayloadSize bytes")
+                Log.d(TAG, "   ├─ Tag capacity: $maxSize bytes")
+                Log.d(TAG, "   └─ Status: ✅ FITS (${(dualPayloadSize * 100 / maxSize)}% used)")
             } else {
-                // Legacy single text record (for backwards compatibility)
-                val ndefRecord = createTextRecord(data)
-                ndefMessage = NdefMessage(arrayOf(ndefRecord))
+                // ⚠️ URL-ONLY FALLBACK - Payload too large
+                ndefMessage = urlOnlyNdefMessage
+                payloadType = "url"
+
+                Log.d(TAG, "⚠️ URL-ONLY FALLBACK STRATEGY")
+                Log.d(TAG, "   ├─ Reason: Dual-payload ($dualPayloadSize bytes) > Tag capacity ($maxSize bytes)")
+                Log.d(TAG, "   ├─ URL: ${url.length} chars")
+                Log.d(TAG, "   ├─ Total size: $urlOnlySize bytes")
+                Log.d(TAG, "   └─ Status: ✅ FITS (${(urlOnlySize * 100 / maxSize)}% used)")
             }
+
+            Log.d(TAG, "═══════════════════════════════════════════════════════")
+            Log.d(TAG, "")
 
             val messageSize = ndefMessage.toByteArray().size
 
-            // Try to write using Ndef
-            val ndef = Ndef.get(tag)
+            // STEP 5: Write to tag
             if (ndef != null) {
                 ndef.connect()
-
-                // Log tag information for debugging
-                val tagType = ndef.type
-                val maxSize = ndef.maxSize
-
-                // Extract tag ID from hardware
-                val tagIdHex = tag.id.joinToString("") { "%02X".format(it) }
-                Log.d(TAG, "📋 Tag detected: ID=$tagIdHex, Type=$tagType, Capacity=$maxSize bytes, Writable=${ndef.isWritable}")
-
-                // Determine tag type based on capacity
-                val tagName = when {
-                    maxSize >= NTAG216_MAX_BYTES -> "NTAG216"
-                    maxSize >= NTAG215_MAX_BYTES -> "NTAG215"
-                    maxSize >= NTAG213_MAX_BYTES -> "NTAG213"
-                    else -> "Unknown"
-                }
-                Log.d(TAG, "📋 Identified as: $tagName (${maxSize} bytes)")
 
                 // Check if tag is writable
                 if (!ndef.isWritable) {
@@ -485,45 +504,44 @@ class MainActivity: FlutterActivity() {
                     return WriteResult(false, error = "This tag is write-protected and cannot be modified")
                 }
 
-                // Check if message fits
+                // Final size check (should always pass since we checked above)
                 if (maxSize < messageSize) {
-                    val suggestedTag = when {
-                        messageSize <= NTAG213_MAX_BYTES -> "NTAG213"
-                        messageSize <= NTAG215_MAX_BYTES -> "NTAG215"
-                        messageSize <= NTAG216_MAX_BYTES -> "NTAG216"
-                        else -> "a larger"
-                    }
-                    Log.d(TAG, "❌ Message too large: $messageSize bytes > $maxSize bytes")
                     ndef.close()
                     return WriteResult(
                         false,
-                        error = "Message too large ($messageSize bytes). This $tagName tag only has $maxSize bytes. Try using $suggestedTag tag."
+                        error = "Message too large ($messageSize bytes). This $tagName tag only has $maxSize bytes."
                     )
-                }
-
-                // Warn if near capacity
-                val capacityUsed = (messageSize.toFloat() / maxSize.toFloat() * 100).toInt()
-                if (capacityUsed > 90) {
-                    Log.d(TAG, "⚠️ Tag capacity nearly full: $capacityUsed% used ($messageSize/$maxSize bytes)")
                 }
 
                 // Write the message
                 ndef.writeNdefMessage(ndefMessage)
+                val capacityUsed = (messageSize.toFloat() / maxSize.toFloat() * 100).toInt()
                 Log.d(TAG, "✅ NDEF message written successfully: $messageSize bytes ($capacityUsed% of $tagName capacity)")
-                Log.d(TAG, "📤 Returning tag metadata: ID=$tagIdHex, Capacity=$maxSize bytes")
+                Log.d(TAG, "📤 Returning: payloadType=$payloadType, tagId=$tagIdHex, capacity=$maxSize")
                 ndef.close()
-                return WriteResult(true, bytesWritten = messageSize, tagId = tagIdHex, tagCapacity = maxSize)
+
+                return WriteResult(
+                    true,
+                    bytesWritten = messageSize,
+                    tagId = tagIdHex,
+                    tagCapacity = maxSize,
+                    payloadType = payloadType
+                )
             }
 
             // Try to format the tag if it's not NDEF formatted
             val ndefFormatable = NdefFormatable.get(tag)
             if (ndefFormatable != null) {
-                Log.d(TAG, "📋 Tag is not formatted, attempting to format...")
+                Log.d(TAG, "📋 Tag is not formatted, formatting and writing...")
                 ndefFormatable.connect()
                 ndefFormatable.format(ndefMessage)
                 Log.d(TAG, "✅ Tag formatted and message written: $messageSize bytes")
                 ndefFormatable.close()
-                return WriteResult(true, bytesWritten = messageSize)
+                return WriteResult(
+                    true,
+                    bytesWritten = messageSize,
+                    payloadType = payloadType
+                )
             }
 
             Log.d(TAG, "❌ Tag is neither NDEF nor formattable")
