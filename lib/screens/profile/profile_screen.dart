@@ -453,7 +453,13 @@ class _ProfileScreenState extends State<ProfileScreen>
                     width: 1,
                   ),
                 ),
-                child: Text('Profile saved successfully!'),
+                child: Row(
+                  children: [
+                    Icon(CupertinoIcons.check_mark_circled_solid, color: AppColors.success),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text('Profile saved successfully!')),
+                  ],
+                ),
               ),
             ),
           ),
@@ -3987,7 +3993,13 @@ class _ProfileScreenState extends State<ProfileScreen>
                   width: 1,
                 ),
               ),
-              child: Text('All content cleared'),
+              child: Row(
+                children: [
+                  Icon(CupertinoIcons.exclamationmark_circle_fill, color: AppColors.error),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text('All content cleared')),
+                ],
+              ),
             ),
           ),
         ),

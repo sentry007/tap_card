@@ -5,7 +5,6 @@ import 'package:url_launcher/url_launcher.dart';
 import 'dart:ui';
 
 import '../models/unified_models.dart';
-import '../services/contact_service.dart';
 import '../widgets/widgets.dart';
 import '../theme/theme.dart';
 
@@ -185,7 +184,13 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                             width: 1,
                           ),
                         ),
-                        child: Text('Contact saved successfully!'),
+                        child: Row(
+                          children: [
+                            Icon(CupertinoIcons.check_mark_circled_solid, color: AppColors.success),
+                            const SizedBox(width: 12),
+                            Expanded(child: Text('Contact saved successfully!')),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -284,7 +289,13 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                             width: 1,
                           ),
                         ),
-                        child: Text('Note ${noteText.isEmpty ? 'removed' : 'saved'}'),
+                        child: Row(
+                          children: [
+                            Icon(CupertinoIcons.check_mark_circled_solid, color: AppColors.success),
+                            const SizedBox(width: 12),
+                            Expanded(child: Text('Note ${noteText.isEmpty ? 'removed' : 'saved'}')),
+                          ],
+                        ),
                       ),
                     ),
                   ),

@@ -13,7 +13,6 @@ import '../../services/nfc_service.dart';
 import '../../services/nfc_settings_service.dart';
 import '../../services/history_service.dart';
 import '../../services/settings_service.dart';
-import '../../services/profile_views_service.dart';
 import 'profile_detail_modal.dart';
 import 'qr_settings_screen.dart';
 import 'package:app_settings/app_settings.dart';
@@ -102,9 +101,10 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
     // Load profile views from Firestore
     final activeProfile = _profileService.activeProfile;
     int profileViews = 0;
-    if (activeProfile != null) {
-      profileViews = await ProfileViewsService.getProfileViews(activeProfile.id);
-    }
+    // TODO: Implement profile views tracking service
+    // if (activeProfile != null) {
+    //   profileViews = await ProfileViewsService.getProfileViews(activeProfile.id);
+    // }
 
     if (mounted) {
       setState(() {
@@ -245,9 +245,11 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                 children: [
                   Icon(CupertinoIcons.group, color: AppColors.success),
                   const SizedBox(width: 12),
-                  Text(
-                    'Multiple profiles enabled',
-                    style: AppTextStyles.body,
+                  Expanded(
+                    child: Text(
+                      'Multiple profiles enabled',
+                      style: AppTextStyles.body,
+                    ),
                   ),
                 ],
               ),
@@ -283,9 +285,11 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                 children: [
                   Icon(CupertinoIcons.person, color: Colors.blueAccent),
                   const SizedBox(width: 12),
-                  Text(
-                    'Multiple profiles disabled',
-                    style: AppTextStyles.body,
+                  Expanded(
+                    child: Text(
+                      'Multiple profiles disabled',
+                      style: AppTextStyles.body,
+                    ),
                   ),
                 ],
               ),
@@ -1966,9 +1970,11 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                 children: [
                   Icon(CupertinoIcons.checkmark_circle, color: AppColors.success),
                   const SizedBox(width: 12),
-                  Text(
-                    'Profile updated successfully',
-                    style: AppTextStyles.body,
+                  Expanded(
+                    child: Text(
+                      'Profile updated successfully',
+                      style: AppTextStyles.body,
+                    ),
                   ),
                 ],
               ),
@@ -2004,9 +2010,11 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                 children: [
                   Icon(CupertinoIcons.checkmark_circle, color: AppColors.success),
                   const SizedBox(width: 12),
-                  Text(
-                    'Data exported as $format',
-                    style: AppTextStyles.body,
+                  Expanded(
+                    child: Text(
+                      'Data exported as $format',
+                      style: AppTextStyles.body,
+                    ),
                   ),
                 ],
               ),
@@ -2049,9 +2057,11 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                 children: [
                   Icon(CupertinoIcons.hand_raised_fill, color: AppColors.warning),
                   const SizedBox(width: 12),
-                  Text(
-                    'All shares have been revoked',
-                    style: AppTextStyles.body,
+                  Expanded(
+                    child: Text(
+                      'All shares have been revoked',
+                      style: AppTextStyles.body,
+                    ),
                   ),
                 ],
               ),
@@ -2087,9 +2097,11 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                 children: [
                   Icon(CupertinoIcons.square_arrow_right, color: Colors.blueAccent),
                   const SizedBox(width: 12),
-                  Text(
-                    'Signed out successfully',
-                    style: AppTextStyles.body,
+                  Expanded(
+                    child: Text(
+                      'Signed out successfully',
+                      style: AppTextStyles.body,
+                    ),
                   ),
                 ],
               ),
@@ -2125,9 +2137,11 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                 children: [
                   Icon(CupertinoIcons.paintbrush, color: AppColors.highlight),
                   const SizedBox(width: 12),
-                  Text(
-                    'Theme will be applied in next update',
-                    style: AppTextStyles.body,
+                  Expanded(
+                    child: Text(
+                      'Theme will be applied in next update',
+                      style: AppTextStyles.body,
+                    ),
                   ),
                 ],
               ),
