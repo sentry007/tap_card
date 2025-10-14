@@ -41,6 +41,28 @@ class GlassCard extends StatelessWidget {
     final effectiveBackgroundColor = backgroundColor ??
         AppColors.glassBackground.withOpacity(opacity);
     final effectiveBorderColor = borderColor ?? AppColors.glassBorder;
+    final borderRad = BorderRadius.circular(borderRadius);
+
+    Widget content = Padding(
+      key: const Key('glass_card_padding'),
+      padding: padding ?? EdgeInsets.zero,
+      child: child,
+    );
+
+    if (onTap != null) {
+      content = Material(
+        key: const Key('glass_card_material'),
+        color: Colors.transparent,
+        child: InkWell(
+          key: const Key('glass_card_inkwell'),
+          onTap: enabled ? onTap : null,
+          borderRadius: borderRad,
+          splashColor: AppColors.primaryAction.withOpacity(0.1),
+          highlightColor: AppColors.primaryAction.withOpacity(0.05),
+          child: content,
+        ),
+      );
+    }
 
     return Container(
       key: const Key('glass_card_outer_container'),
@@ -48,7 +70,7 @@ class GlassCard extends StatelessWidget {
       height: height,
       margin: margin,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(borderRadius),
+        borderRadius: borderRad,
         boxShadow: shadows ?? [
           BoxShadow(
             color: AppColors.shadowLight,
@@ -64,7 +86,7 @@ class GlassCard extends StatelessWidget {
       ),
       child: ClipRRect(
         key: const Key('glass_card_clip_rrect'),
-        borderRadius: BorderRadius.circular(borderRadius),
+        borderRadius: borderRad,
         child: BackdropFilter(
           key: const Key('glass_card_backdrop_filter'),
           filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
@@ -72,7 +94,7 @@ class GlassCard extends StatelessWidget {
             key: const Key('glass_card_inner_container'),
             decoration: BoxDecoration(
               color: effectiveBackgroundColor,
-              borderRadius: BorderRadius.circular(borderRadius),
+              borderRadius: borderRad,
               border: Border.all(
                 color: effectiveBorderColor,
                 width: borderWidth,
@@ -87,22 +109,7 @@ class GlassCard extends StatelessWidget {
                 stops: const [0.0, 1.0],
               ),
             ),
-            child: Material(
-              key: const Key('glass_card_material'),
-              color: Colors.transparent,
-              child: InkWell(
-                key: const Key('glass_card_inkwell'),
-                onTap: enabled ? onTap : null,
-                borderRadius: BorderRadius.circular(borderRadius),
-                splashColor: AppColors.primaryAction.withOpacity(0.1),
-                highlightColor: AppColors.primaryAction.withOpacity(0.05),
-                child: Padding(
-                  key: const Key('glass_card_padding'),
-                  padding: padding ?? EdgeInsets.zero,
-                  child: child,
-                ),
-              ),
-            ),
+            child: content,
           ),
         ),
       ),
@@ -253,6 +260,8 @@ class GlassContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final borderRad = BorderRadius.circular(borderRadius);
+
     return Container(
       key: const Key('glass_container_outer'),
       width: width,
@@ -261,7 +270,7 @@ class GlassContainer extends StatelessWidget {
       alignment: alignment,
       child: ClipRRect(
         key: const Key('glass_container_clip'),
-        borderRadius: BorderRadius.circular(borderRadius),
+        borderRadius: borderRad,
         child: BackdropFilter(
           key: const Key('glass_container_backdrop'),
           filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
@@ -270,7 +279,7 @@ class GlassContainer extends StatelessWidget {
             padding: padding,
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(opacity),
-              borderRadius: BorderRadius.circular(borderRadius),
+              borderRadius: borderRad,
               border: Border.all(
                 color: Colors.white.withOpacity(0.2),
                 width: 1,

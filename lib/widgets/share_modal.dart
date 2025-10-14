@@ -73,6 +73,9 @@ class _ShareModalState extends State<ShareModal>
   QrSize _qrSize = QrSize.medium;
   int _errorCorrectionLevel = QrErrorCorrectLevel.M;
   int _colorMode = 0;
+  Color _borderColor = AppColors.p2pSecondary;
+  bool _showInitials = false;
+  String _initials = '';
 
   @override
   void initState() {
@@ -88,12 +91,18 @@ class _ShareModalState extends State<ShareModal>
     final size = await QrSettingsService.getQrSize();
     final errorLevel = await QrSettingsService.getErrorCorrectionLevel();
     final colorMode = await QrSettingsService.getColorMode();
+    final borderColorValue = await QrSettingsService.getBorderColor();
+    final showInitials = await QrSettingsService.getShowInitials();
+    final initials = await QrSettingsService.getInitials();
 
     if (mounted) {
       setState(() {
         _qrSize = size;
         _errorCorrectionLevel = errorLevel;
         _colorMode = colorMode;
+        _borderColor = borderColorValue != null ? Color(borderColorValue) : AppColors.p2pSecondary;
+        _showInitials = showInitials;
+        _initials = initials ?? '';
       });
     }
   }
@@ -457,13 +466,13 @@ class _ShareModalState extends State<ShareModal>
                   size: _qrSize.pixels.toDouble(),
                   backgroundColor: Colors.white,
                   errorCorrectionLevel: _errorCorrectionLevel,
-                  eyeStyle: const QrEyeStyle(
+                  eyeStyle: QrEyeStyle(
                     eyeShape: QrEyeShape.square,
-                    color: AppColors.primaryAction,
+                    color: _borderColor,
                   ),
                   dataModuleStyle: const QrDataModuleStyle(
                     dataModuleShape: QrDataModuleShape.square,
-                    color: AppColors.primaryAction,
+                    color: Colors.black,
                   ),
                 )
               : QrImageView(

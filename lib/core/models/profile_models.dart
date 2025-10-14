@@ -574,32 +574,6 @@ class ProfileData {
     return buffer.toString();
   }
 
-  /// Generate full URL from social media handle
-  String? _generateSocialUrl(String platform, String handle) {
-    // Trim whitespace and remove @ prefix
-    final trimmedHandle = handle.trim();
-    final cleanHandle = trimmedHandle.startsWith('@') ? trimmedHandle.substring(1).trim() : trimmedHandle;
-
-    // If already a URL, return as-is
-    if (trimmedHandle.startsWith('http://') || trimmedHandle.startsWith('https://')) {
-      return trimmedHandle;
-    }
-
-    switch (platform.toLowerCase()) {
-      case 'linkedin':
-        return 'https://linkedin.com/in/$cleanHandle';
-      case 'twitter':
-      case 'x':
-        return 'https://x.com/$cleanHandle';
-      case 'instagram':
-        return 'https://instagram.com/$cleanHandle';
-      case 'github':
-        return 'https://github.com/$cleanHandle';
-      default:
-        return null;
-    }
-  }
-
   /// Generate custom URL for full digital profile using unique UUID
   /// URL pattern: https://tap-card-site.vercel.app/share/[uuid]
   ///

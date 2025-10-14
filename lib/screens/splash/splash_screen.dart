@@ -7,7 +7,6 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'dart:ui';
 
 import '../../theme/theme.dart';
-import '../../widgets/widgets.dart';
 import '../../core/providers/app_state.dart';
 import '../../core/constants/routes.dart';
 

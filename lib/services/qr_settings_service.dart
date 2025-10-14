@@ -35,6 +35,9 @@ class QrSettingsService {
   static const String _qrErrorCorrectionKey = 'qr_error_correction';
   static const String _qrIncludeLogoKey = 'qr_include_logo';
   static const String _qrColorModeKey = 'qr_color_mode';
+  static const String _qrBorderColorKey = 'qr_border_color';
+  static const String _qrInitialsKey = 'qr_initials';
+  static const String _qrShowInitialsKey = 'qr_show_initials';
 
   static bool _isInitialized = false;
   static SharedPreferences? _prefs;
@@ -248,6 +251,128 @@ class QrSettingsService {
     }
   }
 
+  /// Get QR border color (for custom styling)
+  /// Returns null if not set (will use default deep purple)
+  static Future<int?> getBorderColor() async {
+    await _ensureInitialized();
+
+    try {
+      return _prefs?.getInt(_qrBorderColorKey);
+    } catch (e) {
+      developer.log(
+        '❌ Error getting border color: $e',
+        name: 'QR.Settings',
+        error: e
+      );
+      return null;
+    }
+  }
+
+  /// Set QR border color
+  static Future<void> setBorderColor(int colorValue) async {
+    await _ensureInitialized();
+
+    try {
+      await _prefs?.setInt(_qrBorderColorKey, colorValue);
+      developer.log(
+        '✅ Border color set',
+        name: 'QR.Settings'
+      );
+    } catch (e) {
+      developer.log(
+        '❌ Error setting border color: $e',
+        name: 'QR.Settings',
+        error: e
+      );
+    }
+  }
+
+  /// Get user initials for QR center logo
+  /// Returns null if not set
+  static Future<String?> getInitials() async {
+    await _ensureInitialized();
+
+    try {
+      return _prefs?.getString(_qrInitialsKey);
+    } catch (e) {
+      developer.log(
+        '❌ Error getting initials: $e',
+        name: 'QR.Settings',
+        error: e
+      );
+      return null;
+    }
+  }
+
+  /// Set user initials for QR center logo
+  static Future<void> setInitials(String initials) async {
+    await _ensureInitialized();
+
+    try {
+      await _prefs?.setString(_qrInitialsKey, initials.toUpperCase());
+      developer.log(
+        '✅ Initials set to: $initials',
+        name: 'QR.Settings'
+      );
+    } catch (e) {
+      developer.log(
+        '❌ Error setting initials: $e',
+        name: 'QR.Settings',
+        error: e
+      );
+    }
+  }
+
+  /// Get whether to show initials in QR center
+  /// Returns false by default (recommended for best scanning)
+  static Future<bool> getShowInitials() async {
+    await _ensureInitialized();
+
+    try {
+      return _prefs?.getBool(_qrShowInitialsKey) ?? false;
+    } catch (e) {
+      developer.log(
+        '❌ Error getting show initials setting: $e',
+        name: 'QR.Settings',
+        error: e
+      );
+      return false;
+    }
+  }
+
+  /// Set whether to show initials in QR center
+  static Future<void> setShowInitials(bool show) async {
+    await _ensureInitialized();
+
+    try {
+      await _prefs?.setBool(_qrShowInitialsKey, show);
+      developer.log(
+        '✅ Show initials ${show ? 'enabled' : 'disabled'}',
+        name: 'QR.Settings'
+      );
+    } catch (e) {
+      developer.log(
+        '❌ Error setting show initials: $e',
+        name: 'QR.Settings',
+        error: e
+      );
+    }
+  }
+
+  /// Extract initials from full name (e.g., "John Doe" → "JD")
+  static String extractInitials(String fullName) {
+    final parts = fullName.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty || parts[0].isEmpty) return '';
+
+    if (parts.length == 1) {
+      // Single name: take first character
+      return parts[0].substring(0, 1).toUpperCase();
+    }
+
+    // Multiple names: take first character of first and last name
+    return '${parts[0][0]}${parts[parts.length - 1][0]}'.toUpperCase();
+  }
+
   /// Reset all settings to defaults (for testing/debugging)
   static Future<void> resetToDefaults() async {
     await _ensureInitialized();
@@ -257,6 +382,9 @@ class QrSettingsService {
       await _prefs?.remove(_qrErrorCorrectionKey);
       await _prefs?.remove(_qrIncludeLogoKey);
       await _prefs?.remove(_qrColorModeKey);
+      await _prefs?.remove(_qrBorderColorKey);
+      await _prefs?.remove(_qrInitialsKey);
+      await _prefs?.remove(_qrShowInitialsKey);
       developer.log('🔄 QR settings reset to defaults', name: 'QR.Settings');
     } catch (e) {
       developer.log(
