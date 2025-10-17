@@ -575,8 +575,8 @@ class _HomeScreenState extends State<HomeScreen>
 
           // Show appropriate message based on payload type
           final String message = result.payloadType == 'dual'
-              ? 'Full card written to tag! 🎉'
-              : 'Mini card written to tag! 🎉';
+              ? 'Contact card written (with URL fallback)! 📇'
+              : 'Web card written! 🌐';
           _showSuccessMessage(message);
           _scheduleStateReset(duration: const Duration(seconds: 2));
 
@@ -691,20 +691,20 @@ class _HomeScreenState extends State<HomeScreen>
       );
       final startTime = DateTime.now();
 
-      // For P2P/HCE, use vCard for universal compatibility
-      // Any phone can now save the contact, even without our app installed!
-      // The vCard includes URL field that opens full digital card in browser
+      // For P2P/HCE, use dual-payload for universal compatibility
+      // Android phones save vCard contact, iPhone opens URL as fallback
       final vCardPayload = _cachedDualPayload!['vcard']!;
+      final urlPayload = _cachedDualPayload!['url']!;
 
       developer.log(
-        '📦 P2P vCard payload ready\n'
-        '   • Size: ${vCardPayload.length} bytes\n'
-        '   • Format: vCard 3.0 (universal standard)\n'
-        '   • Contains: Name, Phone, Email, Company, URL',
+        '📦 P2P dual-payload ready\n'
+        '   • vCard: ${vCardPayload.length} bytes\n'
+        '   • URL: $urlPayload\n'
+        '   • Android → Saves vCard | iPhone → Opens URL',
         name: 'Home.P2P'
       );
 
-      final result = await NFCService.startCardEmulation(vCardPayload);
+      final result = await NFCService.startCardEmulation(vCardPayload, urlPayload);
 
       final duration = DateTime.now().difference(startTime).inMilliseconds;
       developer.log('⏱️ P2P operation completed in ${duration}ms', name: 'Home.P2P');

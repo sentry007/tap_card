@@ -31,7 +31,6 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:flutter/services.dart';
 import 'package:nfc_manager/nfc_manager.dart';
-import 'package:flutter_nfc_hce/flutter_nfc_hce.dart';
 
 import '../core/constants/app_constants.dart';
 import '../models/unified_models.dart';
@@ -51,7 +50,6 @@ class NFCService {
   static DateTime? _writeStartTime;
 
   // HCE (Host Card Emulation) support
-  static final FlutterNfcHce _hcePlugin = FlutterNfcHce();
   static bool _isHceActive = false;
   static bool _isHceSupported = false;
 
@@ -81,20 +79,13 @@ class NFCService {
       // Set up method call handler for callbacks from native
       _channel.setMethodCallHandler(_handleNativeCallback);
 
-      // Check HCE support
+      // Check HCE support (always available since we have custom service)
       try {
-        _isHceSupported = await _hcePlugin.isNfcHceSupported() ?? false;
-        if (_isHceSupported) {
-          developer.log(
-            '✅ NFC HCE (card emulation) supported on this device',
-            name: 'NFC.Initialize'
-          );
-        } else {
-          developer.log(
-            'ℹ️ NFC HCE not supported (device limitation)',
-            name: 'NFC.Initialize'
-          );
-        }
+        _isHceSupported = true; // Custom NfcTagEmulatorService is always available
+        developer.log(
+          '✅ NFC HCE (card emulation) supported with custom Type 4 Tag service',
+          name: 'NFC.Initialize'
+        );
       } catch (e) {
         developer.log(
           '⚠️ Failed to check HCE support: $e',
@@ -606,95 +597,68 @@ class NFCService {
   // HCE (Host Card Emulation) Methods - Phone acts as NFC tag
   // ============================================================================
 
-  /// Enable card emulation mode - phone acts as an NFC tag
+  /// Enable card emulation with dual-payload (vCard + URL fallback)
   ///
   /// This allows other NFC-enabled phones to read your contact data by
   /// tapping their phone against yours. Your phone emulates an NFC tag.
   ///
-  /// @param jsonPayload The data to share when another phone reads
+  /// Uses pre-cached payloads from ProfileData for zero-latency activation.
+  ///
+  /// @param vCard Pre-cached vCard 3.0 contact string
+  /// @param url Pre-cached card URL for fallback
   /// @returns NFCResult with success/failure status
-  static Future<NFCResult> startCardEmulation(String jsonPayload) async {
+  static Future<NFCResult> startCardEmulation(String vCard, String url) async {
     final startTime = DateTime.now();
 
     // Check HCE support
     if (!_isHceSupported) {
-      developer.log(
-        '❌ HCE not supported on this device',
-        name: 'NFC.HCE'
-      );
-      return NFCResult.error('Card emulation not supported on this device. Try writing to a physical NFC tag instead.');
+      return NFCResult.error('Card emulation not supported on this device');
     }
 
     // Check if already active
     if (_isHceActive) {
-      developer.log(
-        '⚠️ Card emulation already active',
-        name: 'NFC.HCE'
-      );
       return NFCResult.error('Card emulation already active');
     }
 
-    final payloadSizeBytes = utf8.encode(jsonPayload).length;
-
-    developer.log(
-      '📤 Starting card emulation mode\n'
-      '   • Payload size: $payloadSizeBytes bytes\n'
-      '   • Your phone will act as an NFC tag',
-      name: 'NFC.HCE'
-    );
-
     try {
+      // Start custom NDEF emulation service
       developer.log(
-        '🔧 Calling flutter_nfc_hce plugin startNfcHce() with vCard MIME type...',
+        '🎯 Starting NDEF emulation with custom Type 4 Tag service...\n'
+        '   📇 vCard: ${vCard.length} chars\n'
+        '   🌐 URL: $url',
         name: 'NFC.HCE'
       );
 
-      // Start HCE with vCard MIME type - this tells Android to trigger contact save dialog
-      final result = await _hcePlugin.startNfcHce(
-        jsonPayload,
-        mimeType: 'text/x-vcard', // Critical: Use vCard MIME type, not text/plain
-      );
+      final result = await _channel.invokeMethod('startNdefEmulation', {
+        'vcard': vCard,
+        'url': url,
+      });
+
       final duration = DateTime.now().difference(startTime).inMilliseconds;
 
-      developer.log(
-        '📊 Plugin returned: $result (type: ${result.runtimeType}) in ${duration}ms',
-        name: 'NFC.HCE'
-      );
-
-      // Plugin returns String? on success (usually null or empty), throws on failure
-      // If we get here without exception, HCE started successfully
-      if (true) {
+      if (result != null && result['success'] == true) {
         _isHceActive = true;
+        final sizeBytes = result['size'] ?? 0;
+
         developer.log(
-          '✅ Card emulation started successfully (${duration}ms)\n'
-          '   📲 Other phones can now tap your phone to receive your card\n'
-          '   🔹 Service: com.novice.flutter_nfc_hce.KHostApduService\n'
+          '✅ NDEF emulation active (${duration}ms, $sizeBytes bytes)\n'
+          '   📲 Tap Android → Saves vCard\n'
+          '   📲 Tap iPhone → Opens URL\n'
+          '   🔹 Service: NfcTagEmulatorService\n'
           '   🔹 AID: D2760000850101\n'
-          '   🔹 Status: ACTIVE\n'
-          '   🔹 Plugin result: $result',
+          '   🔹 Type: NFC Forum Type 4 Tag',
           name: 'NFC.HCE'
         );
-        return NFCResult.success(duration, payloadSizeBytes);
+
+        return NFCResult.success(duration, sizeBytes);
       } else {
-        developer.log(
-          '❌ Failed to start card emulation (${duration}ms)\n'
-          '   Plugin returned: $result\n'
-          '   Expected: true\n'
-          '   Possible causes:\n'
-          '   - HCE service not properly registered in AndroidManifest\n'
-          '   - Missing permissions\n'
-          '   - NFC disabled on device\n'
-          '   - Device does not support HCE',
-          name: 'NFC.HCE'
-        );
-        return NFCResult.error('Failed to start card emulation. Check logs for details.', duration);
+        return NFCResult.error('Failed to start NDEF emulation', duration);
       }
+
     } catch (e, stackTrace) {
       final duration = DateTime.now().difference(startTime).inMilliseconds;
       developer.log(
-        '❌ Card emulation exception: $e (${duration}ms)\n'
-        '   Error type: ${e.runtimeType}\n'
-        '   Stack trace:\n$stackTrace',
+        '❌ HCE exception: $e (${duration}ms)',
         name: 'NFC.HCE',
         error: e,
         stackTrace: stackTrace
@@ -714,15 +678,15 @@ class NFCService {
     }
 
     try {
-      await _hcePlugin.stopNfcHce();
+      await _channel.invokeMethod('stopNdefEmulation');
       _isHceActive = false;
       developer.log(
-        '🛑 Card emulation stopped',
+        '🛑 NDEF emulation stopped',
         name: 'NFC.HCE'
       );
     } catch (e) {
       developer.log(
-        '⚠️ Error stopping card emulation: $e',
+        '⚠️ Error stopping NDEF emulation: $e',
         name: 'NFC.HCE',
         error: e
       );

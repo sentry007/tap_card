@@ -17,6 +17,7 @@ import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.File
 import java.nio.charset.Charset
 
 class MainActivity: FlutterActivity() {
@@ -209,6 +210,56 @@ class MainActivity: FlutterActivity() {
                         nfcWriteMode = false
                         pendingWriteData = null
                         disableForegroundDispatch()
+                        result.success(true)
+                    }
+                    "startNdefEmulation" -> {
+                        try {
+                            val vcard = call.argument<String>("vcard") ?: ""
+                            val url = call.argument<String>("url") ?: ""
+
+                            if (vcard.isEmpty() || url.isEmpty()) {
+                                result.error("INVALID_ARGS", "vCard and URL are required for NDEF emulation", null)
+                                return@setMethodCallHandler
+                            }
+
+                            Log.d(TAG, "🎯 Starting NDEF emulation (custom HCE)")
+                            Log.d(TAG, "   📇 vCard: ${vcard.length} chars")
+                            Log.d(TAG, "   🌐 URL: $url")
+
+                            // Create dual-payload NDEF message
+                            val vCardRecord = createMimeRecord("text/vcard", vcard)
+                            val urlRecord = createUrlRecord(url)
+                            val ndefMessage = NdefMessage(arrayOf(vCardRecord, urlRecord))
+
+                            // Set the NDEF message in the service
+                            NfcTagEmulatorService.setNdefMessage(ndefMessage.toByteArray())
+
+                            val sizeBytes = ndefMessage.toByteArray().size
+                            Log.d(TAG, "✅ NDEF emulation started ($sizeBytes bytes)")
+                            Log.d(TAG, "   🔹 Service: NfcTagEmulatorService")
+                            Log.d(TAG, "   🔹 AID: D2760000850101")
+                            Log.d(TAG, "   📲 Tap Android → Saves vCard")
+                            Log.d(TAG, "   📲 Tap iPhone → Opens URL")
+
+                            result.success(mapOf("success" to true, "size" to sizeBytes))
+                        } catch (e: Exception) {
+                            Log.e(TAG, "❌ startNdefEmulation exception: ${e.message}", e)
+                            result.error("START_FAILED", e.message, null)
+                        }
+                    }
+                    "stopNdefEmulation" -> {
+                        try {
+                            Log.d(TAG, "🛑 Stopping NDEF emulation")
+                            NfcTagEmulatorService.clearNdefMessage()
+                            result.success(true)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "❌ stopNdefEmulation exception: ${e.message}", e)
+                            result.error("STOP_FAILED", e.message, null)
+                        }
+                    }
+                    "isNdefEmulationActive" -> {
+                        // Always return true if HCE is supported (service is always registered)
+                        // The actual emulation state is managed by whether NDEF message is set
                         result.success(true)
                     }
                     else -> {
@@ -445,12 +496,14 @@ class MainActivity: FlutterActivity() {
 
             // STEP 3: Calculate sizes for both strategies
             val dualNdefMessage: NdefMessage? = if (vcard.isNotEmpty()) {
-                val vCardRecord = createMimeRecord("text/x-vcard", vcard)
+                // Use "text/vcard" (lowercase, no x-prefix) for better Android compatibility
+                val vCardRecord = createMimeRecord("text/vcard", vcard)
                 val urlRecord = createUrlRecord(url)
-                // IMPORTANT: URL first, vCard second for proper Android behavior
-                // - Android reads first record → opens URL (website)
-                // - vCard saves in background (second record still processed)
-                NdefMessage(arrayOf(urlRecord, vCardRecord))
+                // IMPORTANT: vCard first, URL second (industry standard + fallback)
+                // - Android: Opens Contacts app, saves vCard (primary action)
+                // - URL serves as fallback for devices that can't read vCard
+                // - iOS: Skips vCard, opens URL (built-in fallback behavior)
+                NdefMessage(arrayOf(vCardRecord, urlRecord))
             } else null
 
             val urlOnlyNdefMessage = NdefMessage(arrayOf(createUrlRecord(url)))
@@ -468,11 +521,11 @@ class MainActivity: FlutterActivity() {
                 payloadType = "dual"
 
                 Log.d(TAG, "✅ DUAL-PAYLOAD STRATEGY SELECTED")
-                Log.d(TAG, "   📝 Record Order (Android priority):")
-                Log.d(TAG, "   ├─ Record 1 (Primary): URL → Opens website")
+                Log.d(TAG, "   📝 Record Order (vCard-first with URL fallback):")
+                Log.d(TAG, "   ├─ Record 1 (Primary): vCard → Saves contact")
+                Log.d(TAG, "   │  └─ ${vcard.length} chars with embedded URL")
+                Log.d(TAG, "   ├─ Record 2 (Fallback): URL → For unsupported devices")
                 Log.d(TAG, "   │  └─ ${url.length} chars: $url")
-                Log.d(TAG, "   ├─ Record 2 (Background): vCard → Saves contact")
-                Log.d(TAG, "   │  └─ ${vcard.length} chars")
                 Log.d(TAG, "   ├─ Total size: $dualPayloadSize bytes")
                 Log.d(TAG, "   ├─ Tag capacity: $maxSize bytes")
                 Log.d(TAG, "   └─ Status: ✅ FITS (${(dualPayloadSize * 100 / maxSize)}% used)")
@@ -574,16 +627,10 @@ class MainActivity: FlutterActivity() {
     }
 
     private fun createMimeRecord(mimeType: String, data: String): NdefRecord {
-        // Create MIME type record for vCard
-        val mimeBytes = mimeType.toByteArray(Charset.forName("US-ASCII"))
+        // Use createMime() helper for proper MIME type normalization (API 16+)
+        // This ensures Android's intent filter matching works correctly for vCard imports
         val dataBytes = data.toByteArray(Charset.forName("UTF-8"))
-
-        return NdefRecord(
-            NdefRecord.TNF_MIME_MEDIA,
-            mimeBytes,
-            ByteArray(0), // Empty ID
-            dataBytes
-        )
+        return NdefRecord.createMime(mimeType, dataBytes)
     }
 
     private fun logIntentInfo(intent: Intent?) {
