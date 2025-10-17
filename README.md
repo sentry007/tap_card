@@ -21,32 +21,58 @@
 
 ### 🏷️ **NFC Tag Writing**
 - **Multi-Tag Support**: NTAG213 (144 bytes), NTAG215 (504 bytes), NTAG216 (888 bytes)
-- **Dual-Payload Strategy**: Writes both vCard (universal contact) + URL (full digital card)
-- **Optimized Performance**: Pre-cached payloads for instant (0ms) NFC sharing
-- **Smart Fallback**: Automatically selects best payload strategy based on tag capacity
+- **Intelligent Payload Selection**: Auto-detects tag capacity and chooses optimal payload
+  - Dual-Payload (vCard + URL) for large tags
+  - URL-only for small tags with automatic fallback
+- **Payload Type Tracking**: Visual indicators show "Full card" vs "Mini card" writes
+- **Record Order Optimization**: vCard-first for Android contact saving, URL-second for iOS fallback
+- **Pre-cached Payloads**: Instant (0ms) NFC sharing with zero latency
+- **vCard 3.0 Format**: Universal contact compatibility across all platforms
 
-### 📲 **Phone-to-Phone Sharing**
-- **Host Card Emulation (HCE)**: Your phone acts as an NFC tag
-- **Universal Compatibility**: Other phones can tap yours to receive your contact
-- **vCard Format**: Auto-saveable contacts on any NFC-enabled phone
+### 📲 **Phone-to-Phone Sharing (P2P)**
+- **Custom Type 4 Tag Emulation**: Native NFC Forum Type 4 Tag implementation
+- **iOS/iPhone Compatible**: Full CoreNFC support via proper APDU handling
+- **Cross-Platform**: Works with Android and iPhone NFC readers
+- **Dual-Payload HCE**: Same vCard + URL strategy as physical tags
+- **Context-Aware Protocol**: Intelligent file selection (Capability Container vs NDEF)
 - **No App Required**: Recipients don't need TapCard installed
-- **Share Context Metadata**: Tracks timestamp and method for analytics
+- **Auto-Save Contacts**: vCard format triggers native contact save on any phone
 
 ### 👤 **Multiple Profile Types**
-- **Personal Profile**: For friends, family, and casual connections
-- **Professional Profile**: For work, business, and networking
-- **Custom Profile**: Fully customizable fields for specific needs
-- **Profile Switching**: Instant switching between profiles
+- **Personal Profile**: Friends, family, casual connections
+  - Social: Instagram, Snapchat, TikTok, Twitter, Facebook, Discord
+  - Color: Orange gradient
+- **Professional Profile**: Business networking, conferences
+  - Social: LinkedIn, Twitter, GitHub, Behance, Dribbble
+  - Company, Title, Website fields
+  - Color: Blue gradient
+- **Custom Profile**: Fully customizable for any use case
+  - All fields and social platforms
+  - Color: Purple gradient
+- **Profile Switching**: Instant switching between active profiles
 - **Visual Customization**: Gradient color pickers and background images
-- **Firebase Storage**: Cloud-hosted profile and background images with caching
+- **Cloud Storage**: Firebase Storage for profile and background images with caching
 
-### 📊 **Smart History Tracking**
+### 📊 **Smart History & Analytics**
 - **Three Entry Types**: Sent, Received, and Tag Writes
-- **Location Tracking**: GPS coordinates with reverse geocoding for addresses
-- **Contact Scanning**: Automatically detects TapCard contacts in device contacts
+- **Contact Scanning**: Auto-detects TapCard contacts in device contacts
 - **Firestore Integration**: Fetches full profile data for received contacts
-- **Filters & Search**: Filter by date, method, or type; search by name/location
-- **Rich Metadata**: Device info, tag type, capacity, timestamps, share context
+- **Profile View Tracking**: Track how many times your profiles are viewed
+- **Location Tracking**: GPS coordinates with reverse geocoding for addresses
+- **Filters & Search**: Filter by date, method, type; search by name/location
+- **Rich Metadata**:
+  - Tag info (ID, type, capacity, payload type)
+  - Share context (timestamp, method, location)
+  - Device information
+- **Firebase Analytics**: User event tracking for insights
+
+### 🔥 **Firebase Backend**
+- **Cloud Firestore**: Real-time profile and history sync
+- **Firebase Storage**: Cloud-hosted images with automatic caching
+- **Network Image Caching**: Optimized loading with cached_network_image
+- **Background Image Management**: Upload, update, delete with cloud sync
+- **Profile Views Service**: Track profile engagement metrics
+- **Analytics Events**: User behavior tracking and insights
 
 ### 🎨 **Modern UI/UX**
 - **Glassmorphism Design**: Frosted glass effects throughout
@@ -54,7 +80,23 @@
 - **Breathing Animations**: Pulsing effects when waiting for NFC
 - **Responsive Feedback**: Haptics, visual cues, and clear messaging
 - **Dark Theme**: Eye-friendly design optimized for low-light use
-- **Improved Settings Dialog**: Quick access to NFC settings with app_settings integration
+- **Snackbar Consistency**: Icons and proper text wrapping across all screens
+- **Profile Detail Modals**: Rich profile previews with full data
+- **Badges & Polish**: Visual indicators for entry types and statuses
+
+### ⚙️ **Settings & Preferences**
+- **QR Code Settings**: Size, error correction, and color customization
+- **App Settings Service**: Persistent preferences with SharedPreferences
+- **Quick NFC Access**: Direct link to device NFC settings via app_settings
+- **Settings Dialog**: Improved UX with real data integration
+
+### 🔗 **Social Media Integration**
+- **Android URL Scheme Support**: Native app deep links for:
+  - Instagram, Twitter, LinkedIn, GitHub
+  - Facebook, Snapchat, TikTok, Discord
+  - Behance, Dribbble, and more
+- **Fallback URLs**: Web profiles if native apps not installed
+- **Email & Phone**: Direct mailto: and tel: scheme support
 
 ---
 
@@ -285,9 +327,9 @@ graph TB
 
 ### **NFC Technology**
 - **nfc_manager** - Core NFC reading/writing
-- **flutter_nfc_hce** - Host Card Emulation (P2P)
+- **Custom NfcTagEmulatorService** - Native Type 4 Tag emulation for iOS compatibility
 - **ndef** - NDEF message formatting
-- **Native Android** - Custom foreground dispatch
+- **Native Android** - Custom foreground dispatch & APDU handling
 
 ### **Backend & Storage**
 - **Firebase Core** - Backend infrastructure
@@ -375,10 +417,11 @@ tap_card/
 │   └── app/
 │       ├── src/main/
 │       │   ├── kotlin/com/example/tap_card/
-│       │   │   └── MainActivity.kt      # Native NFC handling
-│       │   └── AndroidManifest.xml      # Permissions & HCE service
-│       ├── build.gradle.kts             # Android config
-│       └── google-services.json         # Firebase credentials
+│       │   │   ├── MainActivity.kt              # Native NFC handling
+│       │   │   └── NfcTagEmulatorService.kt     # Custom Type 4 Tag HCE
+│       │   └── AndroidManifest.xml              # Permissions & HCE service
+│       ├── build.gradle.kts                     # Android config
+│       └── google-services.json                 # Firebase credentials
 ├── assets/
 │   └── images/                          # App images
 ├── pubspec.yaml                         # Dependencies
@@ -506,25 +549,39 @@ await NFCService.writeData(dualPayload);
 
 Cache refresh: Every 5 minutes or when profile changes.
 
-### Phone-to-Phone Sharing (HCE)
+### Phone-to-Phone Sharing (HCE) - Custom Type 4 Tag Emulation
 
 **How it works:**
 
-1. **Your phone** acts as an NFC tag using Android HCE
-2. **Other phone** initiates NFC read
-3. **HCE service** responds with vCard data
-4. **Other phone** shows "Save Contact" dialog
+1. **Your phone** emulates an NFC Forum Type 4 Tag using custom HCE service
+2. **Other phone** (Android or iPhone) initiates NFC read
+3. **HCE service** handles APDU commands (SELECT, READ BINARY)
+4. **Service** returns Capability Container and NDEF message
+5. **Other phone** parses vCard + URL and shows "Save Contact" dialog
 
-**Technical Details:**
-- Uses `flutter_nfc_hce` plugin
-- Implements `KHostApduService` on Android
-- AID: `D2760000850101` (custom)
-- Supports ISO 14443-4 protocol
+**Technical Implementation:**
+- Custom `NfcTagEmulatorService` (Kotlin)
+- Implements full NFC Forum Type 4 Tag specification
+- APDU command handling:
+  - SELECT Application (AID: D2760000850101)
+  - SELECT Capability Container (File ID: E103)
+  - SELECT NDEF File (File ID: E104)
+  - READ BINARY with context-aware file selection
+- Capability Container structure (15 bytes)
+- NDEF file with 2-byte length prefix + message data
+- State tracking for selected file (CC vs NDEF)
+
+**Cross-Platform Compatibility:**
+- ✅ **Android NFC**: Saves vCard contact automatically
+- ✅ **iPhone iOS CoreNFC**: Opens URL in Safari (vCard fallback)
+- ✅ **Handles APDU variations**: Optional Le (expected length) byte
+- ✅ **Proper record order**: vCard first, URL second
 
 **Advantages:**
 - No physical tags needed
+- Works with iPhone (iOS CoreNFC compatible)
 - Instant profile updates
-- Real-time analytics
+- Same dual-payload as physical tags
 - No recipient app required
 
 ### Profile System
@@ -573,7 +630,67 @@ Use Case: Flexible use cases, special events
 - Active profile used for NFC sharing
 - Each profile has unique aesthetic
 
-### History System
+### NFC Type 4 Tag Emulation Architecture
+
+TapCard implements a custom NFC Forum Type 4 Tag emulator for cross-platform P2P sharing:
+
+#### File System Structure
+
+```
+NDEF Application (AID: D2760000850101)
+├── Capability Container (E103) - 15 bytes
+│   ├── Version: 2.0
+│   ├── Max read: 59 bytes
+│   ├── Max write: 52 bytes
+│   └── NDEF file info (E104, 2048 byte max)
+│
+└── NDEF File (E104) - Variable size
+    ├── NLEN (2 bytes) - Message length
+    └── NDEF Message
+        ├── Record 1: vCard (text/vcard)
+        └── Record 2: URL
+```
+
+#### APDU Command Flow
+
+```
+Reader → SELECT Application (D2760000850101)
+       ← OK (0x90 0x00)
+
+Reader → SELECT CC File (E103)
+       ← OK (0x90 0x00)
+
+Reader → READ BINARY CC (15 bytes)
+       ← [Capability Container] + OK
+
+Reader → SELECT NDEF File (E104)
+       ← OK (0x90 0x00)
+
+Reader → READ BINARY offset=0, length=2
+       ← [NLEN: 0x01 0x1E] + OK  (286 bytes)
+
+Reader → READ BINARY offset=2, length=59
+       ← [NDEF chunk 1] + OK
+
+Reader → READ BINARY offset=61, length=59
+       ← [NDEF chunk 2] + OK
+
+... continues until all data read
+```
+
+#### State Management
+
+The service tracks which file is currently selected:
+- `NONE` - No file selected
+- `CAPABILITY_CONTAINER` - CC file selected (returns CC data)
+- `NDEF_FILE` - NDEF file selected (returns NLEN or NDEF data)
+
+This context-aware approach ensures:
+- Correct data returned based on selected file
+- Proper handling of offset-based reads
+- iPhone iOS compatibility (strict APDU conformance)
+
+###History System
 
 **Three entry types:**
 
@@ -655,15 +772,23 @@ The floating action button (FAB) provides clear visual feedback:
 ### ✅ Completed
 - [x] NFC tag writing (NTAG213/215/216)
 - [x] Phone-to-phone sharing (HCE)
+- [x] Custom NFC Type 4 Tag emulator (iOS/iPhone compatible P2P)
+- [x] Intelligent tag capacity detection and payload optimization
+- [x] Payload type tracking (dual vs url-only) with UI indicators
 - [x] Multiple profile types
 - [x] History tracking with Firestore integration
 - [x] Contact scanning with profile fetching
 - [x] Glassmorphism UI
 - [x] Firebase integration (Firestore + Storage)
+- [x] Firebase Analytics integration
+- [x] Profile view tracking
 - [x] Background image upload/deletion
 - [x] Network image caching
 - [x] Share context metadata
 - [x] Location tracking with geocoding
+- [x] QR code settings and customization
+- [x] Settings persistence service
+- [x] Snackbar consistency with icons
 - [x] Social media URL scheme support (Android)
 
 ### 🚧 In Progress
@@ -671,14 +796,13 @@ The floating action button (FAB) provides clear visual feedback:
 - [ ] Cloud sync optimization
 
 ### 📋 Planned
-- [ ] iOS support (CoreNFC)
-- [ ] QR code generation
+- [ ] iOS app support (native iOS build)
 - [ ] Batch tag writing
 - [ ] Export history (CSV)
 - [ ] Dark/light theme toggle
 - [ ] Multi-language support
 - [ ] Web profile viewer
-- [ ] Share analytics (views, saves)
+- [ ] Enhanced share analytics dashboard
 
 ---
 
