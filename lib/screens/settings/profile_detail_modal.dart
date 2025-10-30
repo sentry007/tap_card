@@ -17,9 +17,9 @@ class ProfileDetailModal extends StatelessWidget {
   final ProfileData profile;
 
   const ProfileDetailModal({
-    Key? key,
+    super.key,
     required this.profile,
-  }) : super(key: key);
+  });
 
   static void show(BuildContext context, ProfileData profile) {
     showModalBottomSheet(
@@ -70,12 +70,12 @@ class ProfileDetailModal extends StatelessWidget {
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                SizedBox(height: AppSpacing.lg),
+                const SizedBox(height: AppSpacing.lg),
 
                 // Profile content
                 Flexible(
                   child: SingleChildScrollView(
-                    padding: EdgeInsets.all(AppSpacing.lg),
+                    padding: const EdgeInsets.all(AppSpacing.lg),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -115,7 +115,7 @@ class ProfileDetailModal extends StatelessWidget {
                                       : _buildDefaultAvatar(),
                                 ),
                               ),
-                              SizedBox(height: AppSpacing.md),
+                              const SizedBox(height: AppSpacing.md),
 
                               // Name
                               Text(
@@ -125,11 +125,11 @@ class ProfileDetailModal extends StatelessWidget {
                                 ),
                                 textAlign: TextAlign.center,
                               ),
-                              SizedBox(height: AppSpacing.xs),
+                              const SizedBox(height: AppSpacing.xs),
 
                               // Profile type badge
                               Container(
-                                padding: EdgeInsets.symmetric(
+                                padding: const EdgeInsets.symmetric(
                                   horizontal: 12,
                                   vertical: 6,
                                 ),
@@ -149,7 +149,7 @@ class ProfileDetailModal extends StatelessWidget {
                                       size: 14,
                                       color: profile.cardAesthetics.primaryColor,
                                     ),
-                                    SizedBox(width: 4),
+                                    const SizedBox(width: 4),
                                     Text(
                                       profile.type.label,
                                       style: AppTextStyles.caption.copyWith(
@@ -164,9 +164,9 @@ class ProfileDetailModal extends StatelessWidget {
                           ),
                         ),
 
-                        SizedBox(height: AppSpacing.xl),
+                        const SizedBox(height: AppSpacing.xl),
                         const Divider(color: AppColors.glassBorder),
-                        SizedBox(height: AppSpacing.lg),
+                        const SizedBox(height: AppSpacing.lg),
 
                         // Contact information
                         Text(
@@ -175,7 +175,7 @@ class ProfileDetailModal extends StatelessWidget {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        SizedBox(height: AppSpacing.md),
+                        const SizedBox(height: AppSpacing.md),
 
                         if (profile.email != null && profile.email!.isNotEmpty)
                           _buildInfoRow(
@@ -210,16 +210,16 @@ class ProfileDetailModal extends StatelessWidget {
 
                         // Social media links
                         if (profile.socialMedia.isNotEmpty) ...[
-                          SizedBox(height: AppSpacing.lg),
+                          const SizedBox(height: AppSpacing.lg),
                           const Divider(color: AppColors.glassBorder),
-                          SizedBox(height: AppSpacing.lg),
+                          const SizedBox(height: AppSpacing.lg),
                           Text(
                             'Social Media',
                             style: AppTextStyles.h3.copyWith(
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                          SizedBox(height: AppSpacing.md),
+                          const SizedBox(height: AppSpacing.md),
                           ...profile.socialMedia.entries.map(
                             (entry) => _buildInfoRow(
                               _getSocialIcon(entry.key),
@@ -235,7 +235,7 @@ class ProfileDetailModal extends StatelessWidget {
 
                 // Action buttons
                 Container(
-                  padding: EdgeInsets.all(AppSpacing.lg),
+                  padding: const EdgeInsets.all(AppSpacing.lg),
                   decoration: BoxDecoration(
                     border: Border(
                       top: BorderSide(
@@ -252,7 +252,7 @@ class ProfileDetailModal extends StatelessWidget {
                           onPressed: () => Navigator.pop(context),
                         ),
                       ),
-                      SizedBox(width: AppSpacing.md),
+                      const SizedBox(width: AppSpacing.md),
                       Expanded(
                         child: GestureDetector(
                           onTap: () {
@@ -261,7 +261,7 @@ class ProfileDetailModal extends StatelessWidget {
                             // context.go('/profile');
                           },
                           child: Container(
-                            padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+                            padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
                             decoration: BoxDecoration(
                               gradient: AppColors.primaryGradient,
                               borderRadius: BorderRadius.circular(AppRadius.md),
@@ -270,7 +270,7 @@ class ProfileDetailModal extends StatelessWidget {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 const Icon(CupertinoIcons.pencil, size: 18, color: Colors.white),
-                                SizedBox(width: AppSpacing.xs),
+                                const SizedBox(width: AppSpacing.xs),
                                 Text(
                                   'Edit Profile',
                                   style: AppTextStyles.body.copyWith(
@@ -322,12 +322,12 @@ class ProfileDetailModal extends StatelessWidget {
 
   Widget _buildInfoRow(IconData icon, String label, String value) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: EdgeInsets.all(8),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: AppColors.highlight.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
@@ -338,7 +338,7 @@ class ProfileDetailModal extends StatelessWidget {
               size: 16,
             ),
           ),
-          SizedBox(width: AppSpacing.md),
+          const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -349,7 +349,7 @@ class ProfileDetailModal extends StatelessWidget {
                     color: AppColors.textSecondary,
                   ),
                 ),
-                SizedBox(height: 2),
+                const SizedBox(height: 2),
                 Text(
                   value,
                   style: AppTextStyles.body.copyWith(

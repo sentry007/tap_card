@@ -17,7 +17,7 @@ import '../../core/constants/app_constants.dart';
 import '../../core/services/profile_service.dart';
 
 class QrSettingsScreen extends StatefulWidget {
-  const QrSettingsScreen({Key? key}) : super(key: key);
+  const QrSettingsScreen({super.key});
 
   @override
   State<QrSettingsScreen> createState() => _QrSettingsScreenState();
@@ -89,17 +89,17 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
             slivers: [
               _buildAppBar(),
               SliverPadding(
-                padding: EdgeInsets.all(AppSpacing.md),
+                padding: const EdgeInsets.all(AppSpacing.md),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
                     _buildPreviewCard(),
-                    SizedBox(height: AppSpacing.lg),
+                    const SizedBox(height: AppSpacing.lg),
                     _buildQrSizeSettings(),
-                    SizedBox(height: AppSpacing.lg),
+                    const SizedBox(height: AppSpacing.lg),
                     _buildErrorCorrectionSettings(),
-                    SizedBox(height: AppSpacing.lg),
+                    const SizedBox(height: AppSpacing.lg),
                     _buildStyleSettings(),
-                    SizedBox(height: AppSpacing.bottomNavHeight + AppSpacing.md),
+                    const SizedBox(height: AppSpacing.bottomNavHeight + AppSpacing.md),
                     // TODO: Implement initials feature
                     // Requires text-to-image rendering using custom painter
                     // For now, initials are saved but not displayed in QR codes
@@ -144,7 +144,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
               ),
             ),
             child: FlexibleSpaceBar(
-              titlePadding: EdgeInsets.only(
+              titlePadding: const EdgeInsets.only(
                 left: AppSpacing.md + 40,
                 right: AppSpacing.md,
                 bottom: AppSpacing.md,
@@ -160,7 +160,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                       fontSize: 18,
                     ),
                   ),
-                  SizedBox(height: 1),
+                  const SizedBox(height: 1),
                   Text(
                     'Customize your QR code appearance',
                     style: AppTextStyles.caption.copyWith(
@@ -184,7 +184,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
           Row(
             children: [
               Container(
-                padding: EdgeInsets.all(AppSpacing.sm),
+                padding: const EdgeInsets.all(AppSpacing.sm),
                 decoration: BoxDecoration(
                   gradient: AppColors.primaryGradient,
                   borderRadius: BorderRadius.circular(AppRadius.sm),
@@ -195,7 +195,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                   color: Colors.white,
                 ),
               ),
-              SizedBox(width: AppSpacing.md),
+              const SizedBox(width: AppSpacing.md),
               Text(
                 'Preview',
                 style: AppTextStyles.h3.copyWith(
@@ -204,7 +204,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
               ),
             ],
           ),
-          SizedBox(height: AppSpacing.lg),
+          const SizedBox(height: AppSpacing.lg),
           Center(
             child: Container(
               padding: const EdgeInsets.all(16),
@@ -222,7 +222,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
               child: _buildQrCodePreview(),
             ),
           ),
-          SizedBox(height: AppSpacing.md),
+          const SizedBox(height: AppSpacing.md),
           Text(
             '${_qrSize.pixels}×${_qrSize.pixels} pixels',
             style: AppTextStyles.caption.copyWith(
@@ -241,11 +241,11 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: EdgeInsets.all(AppSpacing.md),
+            padding: const EdgeInsets.all(AppSpacing.md),
             child: Row(
               children: [
                 Container(
-                  padding: EdgeInsets.all(AppSpacing.sm),
+                  padding: const EdgeInsets.all(AppSpacing.sm),
                   decoration: BoxDecoration(
                     color: AppColors.highlight.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(AppRadius.sm),
@@ -256,7 +256,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                     size: 20,
                   ),
                 ),
-                SizedBox(width: AppSpacing.md),
+                const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -267,8 +267,8 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                      SizedBox(height: AppSpacing.xs),
-                      Text(
+                      const SizedBox(height: AppSpacing.xs),
+                      const Text(
                         'Choose display size for QR codes',
                         style: AppTextStyles.caption,
                       ),
@@ -280,7 +280,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
           ),
           const Divider(color: AppColors.glassBorder, height: 1),
           Padding(
-            padding: EdgeInsets.all(AppSpacing.md),
+            padding: const EdgeInsets.all(AppSpacing.md),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: QrSize.values.map((size) {
@@ -294,7 +294,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
                     width: 90,
-                    padding: EdgeInsets.all(AppSpacing.sm),
+                    padding: const EdgeInsets.all(AppSpacing.sm),
                     decoration: BoxDecoration(
                       color: isSelected
                           ? AppColors.primaryAction.withOpacity(0.2)
@@ -316,9 +316,9 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                               : AppColors.textSecondary,
                           size: 24,
                         ),
-                        SizedBox(height: AppSpacing.xs),
+                        const SizedBox(height: AppSpacing.xs),
                         Text(
-                          size == QrSize.medium ? '${size.label}' : size.label,
+                          size == QrSize.medium ? size.label : size.label,
                           textAlign: TextAlign.center,
                           style: AppTextStyles.caption.copyWith(
                             color: isSelected
@@ -330,7 +330,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                           ),
                         ),
                         if (size == QrSize.medium) ...[
-                          SizedBox(height: 2),
+                          const SizedBox(height: 2),
                           _buildRecommendedBadge(),
                         ],
                       ],
@@ -352,11 +352,11 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: EdgeInsets.all(AppSpacing.md),
+            padding: const EdgeInsets.all(AppSpacing.md),
             child: Row(
               children: [
                 Container(
-                  padding: EdgeInsets.all(AppSpacing.sm),
+                  padding: const EdgeInsets.all(AppSpacing.sm),
                   decoration: BoxDecoration(
                     color: AppColors.highlight.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(AppRadius.sm),
@@ -367,7 +367,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                     size: 20,
                   ),
                 ),
-                SizedBox(width: AppSpacing.md),
+                const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -378,8 +378,8 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                      SizedBox(height: AppSpacing.xs),
-                      Text(
+                      const SizedBox(height: AppSpacing.xs),
+                      const Text(
                         'Higher levels work better if QR is damaged',
                         style: AppTextStyles.caption,
                       ),
@@ -414,7 +414,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
           QrSettingsService.setErrorCorrectionLevel(level);
         },
         child: Container(
-          padding: EdgeInsets.all(AppSpacing.md),
+          padding: const EdgeInsets.all(AppSpacing.md),
           child: Row(
             children: [
               Container(
@@ -434,7 +434,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                         child: Container(
                           width: 10,
                           height: 10,
-                          decoration: BoxDecoration(
+                          decoration: const BoxDecoration(
                             shape: BoxShape.circle,
                             color: AppColors.primaryAction,
                           ),
@@ -442,7 +442,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                       )
                     : null,
               ),
-              SizedBox(width: AppSpacing.md),
+              const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -456,7 +456,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                             : AppColors.textPrimary,
                       ),
                     ),
-                    SizedBox(height: 2),
+                    const SizedBox(height: 2),
                     Text(
                       description,
                       style: AppTextStyles.caption.copyWith(
@@ -484,11 +484,11 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
       child: Column(
         children: [
           Padding(
-            padding: EdgeInsets.all(AppSpacing.md),
+            padding: const EdgeInsets.all(AppSpacing.md),
             child: Row(
               children: [
                 Container(
-                  padding: EdgeInsets.all(AppSpacing.sm),
+                  padding: const EdgeInsets.all(AppSpacing.sm),
                   decoration: BoxDecoration(
                     color: AppColors.highlight.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(AppRadius.sm),
@@ -499,7 +499,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                     size: 20,
                   ),
                 ),
-                SizedBox(width: AppSpacing.md),
+                const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -510,8 +510,8 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                      SizedBox(height: AppSpacing.xs),
-                      Text(
+                      const SizedBox(height: AppSpacing.xs),
+                      const Text(
                         'Customize QR code appearance',
                         style: AppTextStyles.caption,
                       ),
@@ -523,7 +523,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
           ),
           const Divider(color: AppColors.glassBorder, height: 1),
           Padding(
-            padding: EdgeInsets.all(AppSpacing.md),
+            padding: const EdgeInsets.all(AppSpacing.md),
             child: Row(
               children: [
                 Expanded(
@@ -535,7 +535,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                     },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
-                      padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
                       decoration: BoxDecoration(
                         color: _colorMode == 0
                             ? AppColors.primaryAction.withOpacity(0.2)
@@ -557,7 +557,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                                 : AppColors.textSecondary,
                             size: 24,
                           ),
-                          SizedBox(height: AppSpacing.xs),
+                          const SizedBox(height: AppSpacing.xs),
                           Text(
                             'Classic',
                             textAlign: TextAlign.center,
@@ -570,14 +570,14 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                                   : FontWeight.w400,
                             ),
                           ),
-                          SizedBox(height: 2),
+                          const SizedBox(height: 2),
                           _buildRecommendedBadge(),
                         ],
                       ),
                     ),
                   ),
                 ),
-                SizedBox(width: AppSpacing.sm),
+                const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: GestureDetector(
                     onTap: () {
@@ -587,7 +587,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                     },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
-                      padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
                       decoration: BoxDecoration(
                         color: _colorMode == 1
                             ? AppColors.primaryAction.withOpacity(0.2)
@@ -609,7 +609,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                                 : AppColors.textSecondary,
                             size: 24,
                           ),
-                          SizedBox(height: AppSpacing.xs),
+                          const SizedBox(height: AppSpacing.xs),
                           Text(
                             'Custom Border',
                             textAlign: TextAlign.center,
@@ -633,7 +633,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
           if (_colorMode == 1) ...[
             const Divider(color: AppColors.glassBorder, height: 1),
             Padding(
-              padding: EdgeInsets.all(AppSpacing.md),
+              padding: const EdgeInsets.all(AppSpacing.md),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -644,7 +644,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  SizedBox(height: AppSpacing.sm),
+                  const SizedBox(height: AppSpacing.sm),
                   GestureDetector(
                     onTap: _showColorPickerDialog,
                     child: Container(
@@ -659,7 +659,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                       ),
                       child: Row(
                         children: [
-                          SizedBox(width: 12),
+                          const SizedBox(width: 12),
                           Container(
                             width: 30,
                             height: 30,
@@ -675,19 +675,19 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                               ],
                             ),
                           ),
-                          SizedBox(width: 12),
-                          Expanded(
+                          const SizedBox(width: 12),
+                          const Expanded(
                             child: Text(
                               'Tap to change color',
                               style: AppTextStyles.body,
                             ),
                           ),
-                          Icon(
+                          const Icon(
                             CupertinoIcons.chevron_right,
                             color: AppColors.textSecondary,
                             size: 20,
                           ),
-                          SizedBox(width: 12),
+                          const SizedBox(width: 12),
                         ],
                       ),
                     ),
@@ -783,7 +783,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                           child: TextButton(
                             onPressed: () => Navigator.pop(context),
                             style: TextButton.styleFrom(
-                              padding: EdgeInsets.symmetric(vertical: 12),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
                             ),
                             child: Text(
                               'Cancel',
@@ -793,7 +793,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                             ),
                           ),
                         ),
-                        SizedBox(width: 12),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: ElevatedButton(
                             onPressed: () {
@@ -804,7 +804,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.primaryAction,
-                              padding: EdgeInsets.symmetric(vertical: 12),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
                             ),
                             child: Text(
                               'Select',

@@ -6,6 +6,7 @@ import 'dart:ui';
 
 import '../../theme/theme.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/settings/settings_tiles.dart';
 import '../../core/providers/app_state.dart';
 import '../../core/services/profile_service.dart';
 import '../../core/constants/app_constants.dart';
@@ -18,7 +19,7 @@ import 'qr_settings_screen.dart';
 import 'package:app_settings/app_settings.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({Key? key}) : super(key: key);
+  const SettingsScreen({super.key});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -32,10 +33,6 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
   String _userName = 'John Doe';
   String _userEmail = 'john.doe@example.com';
   String? _profileImageUrl;
-
-  // Real stats
-  int _receivedCount = 0;
-  int _profileViews = 0; // TODO: Implement Firebase tracking
 
   // Account settings
   bool _multipleProfiles = false;
@@ -53,7 +50,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
   bool _vibrationEnabled = true;
 
   // UI settings
-  double _glassIntensity = 0.15; // Keep for GlassCard opacity
+  final double _glassIntensity = 0.15; // Keep for GlassCard opacity
 
   // NFC settings (moved from old version)
   bool _nfcEnabled = true;
@@ -95,16 +92,8 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
     // Load app settings
     final settings = await SettingsService.loadAllSettings();
 
-    // Load real stats
-    final receivedCount = await HistoryService.getReceivedCount();
-
-    // Load profile views from Firestore
+    // Get active profile
     final activeProfile = _profileService.activeProfile;
-    int profileViews = 0;
-    // TODO: Implement profile views tracking service
-    // if (activeProfile != null) {
-    //   profileViews = await ProfileViewsService.getProfileViews(activeProfile.id);
-    // }
 
     if (mounted) {
       setState(() {
@@ -132,10 +121,6 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
         _vibrationEnabled = settings['vibrationEnabled'] ?? true;
         _nfcEnabled = settings['nfcEnabled'] ?? true;
         _autoShare = settings['autoShare'] ?? false;
-
-        // Update stats
-        _receivedCount = receivedCount;
-        _profileViews = profileViews;
       });
     }
   }
@@ -168,13 +153,13 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
+            const Icon(
               CupertinoIcons.exclamationmark_triangle,
               color: AppColors.warning,
               size: 48,
             ),
             const SizedBox(height: 16),
-            Text(
+            const Text(
               'This will keep only your active profile and remove all other profiles permanently.',
               style: AppTextStyles.body,
               textAlign: TextAlign.center,
@@ -241,10 +226,10 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                   width: 1,
                 ),
               ),
-              child: Row(
+              child: const Row(
                 children: [
                   Icon(CupertinoIcons.group, color: AppColors.success),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       'Multiple profiles enabled',
@@ -281,10 +266,10 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                   width: 1,
                 ),
               ),
-              child: Row(
+              child: const Row(
                 children: [
                   Icon(CupertinoIcons.person, color: Colors.blueAccent),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       'Multiple profiles disabled',
@@ -325,21 +310,21 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             slivers: [
               _buildAppBar(),
               SliverPadding(
-                padding: EdgeInsets.all(AppSpacing.md),
+                padding: const EdgeInsets.all(AppSpacing.md),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
                     _buildUserProfileHeader(),
-                    SizedBox(height: AppSpacing.lg),
+                    const SizedBox(height: AppSpacing.lg),
                     _buildAccountSettings(),
-                    SizedBox(height: AppSpacing.lg),
+                    const SizedBox(height: AppSpacing.lg),
                     _buildPrivacyControls(),
-                    SizedBox(height: AppSpacing.lg),
+                    const SizedBox(height: AppSpacing.lg),
                     _buildNFCSettings(),
-                    SizedBox(height: AppSpacing.lg),
+                    const SizedBox(height: AppSpacing.lg),
                     _buildNotificationPreferences(),
-                    SizedBox(height: AppSpacing.lg),
+                    const SizedBox(height: AppSpacing.lg),
                     _buildAdvancedOptions(),
-                    SizedBox(height: AppSpacing.bottomNavHeight + AppSpacing.md),
+                    const SizedBox(height: AppSpacing.bottomNavHeight + AppSpacing.md),
                   ]),
                 ),
               ),
@@ -379,7 +364,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             ),
             child: FlexibleSpaceBar(
               key: const Key('settings_appbar_flexible_space'),
-              titlePadding: EdgeInsets.only(
+              titlePadding: const EdgeInsets.only(
                 left: AppSpacing.md,
                 right: AppSpacing.md,
                 bottom: AppSpacing.md,
@@ -398,7 +383,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                     ),
                   ),
                   Container(
-                    padding: EdgeInsets.all(AppSpacing.sm),
+                    padding: const EdgeInsets.all(AppSpacing.sm),
                     decoration: BoxDecoration(
                       gradient: AppColors.primaryGradient,
                       borderRadius: BorderRadius.circular(AppRadius.md),
@@ -465,7 +450,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                   ),
                   borderRadius: BorderRadius.circular(AppRadius.card),
                 ),
-                padding: EdgeInsets.all(AppSpacing.lg),
+                padding: const EdgeInsets.all(AppSpacing.lg),
                 child: Column(
                 children: [
                   Row(
@@ -514,7 +499,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                                 ),
                         ),
                       ),
-                      SizedBox(width: AppSpacing.md),
+                      const SizedBox(width: AppSpacing.md),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -527,7 +512,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            SizedBox(height: AppSpacing.xs),
+                            const SizedBox(height: AppSpacing.xs),
                             Text(
                               _userEmail,
                               style: AppTextStyles.bodySecondary,
@@ -537,24 +522,11 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                           ],
                         ),
                       ),
-                      Icon(
+                      const Icon(
                         CupertinoIcons.chevron_right,
                         color: AppColors.textTertiary,
                         size: 20,
                       ),
-                    ],
-                  ),
-                  SizedBox(height: AppSpacing.md),
-                  const Divider(
-                    color: AppColors.glassBorder,
-                    height: 1,
-                  ),
-                  SizedBox(height: AppSpacing.md),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _buildProfileStat('Received', _receivedCount.toString()),
-                      _buildProfileStat('Profile Views', _profileViews > 0 ? _profileViews.toString() : '---'),
                     ],
                   ),
                 ],
@@ -567,38 +539,19 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
     );
   }
 
-  Widget _buildProfileStat(String label, String value) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: AppTextStyles.h3.copyWith(
-            color: AppColors.primaryAction,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        SizedBox(height: AppSpacing.xs),
-        Text(
-          label,
-          style: AppTextStyles.caption,
-        ),
-      ],
-    );
-  }
-
   Widget _buildAccountSettings() {
     return _buildSettingsSection(
       'Account Settings',
       CupertinoIcons.person_circle,
       [
-        _buildSwitchTile(
+        SettingsSwitchTile(
           icon: CupertinoIcons.person_3,
           title: 'Multiple Profiles',
           subtitle: 'Manage multiple contact profiles',
           value: _multipleProfiles,
           onChanged: _toggleMultipleProfiles,
         ),
-        _buildActionTile(
+        const SettingsActionTile(
           icon: CupertinoIcons.arrow_up_circle,
           title: 'Backup & Sync',
           subtitle: 'Sync data across devices',
@@ -615,7 +568,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
       'Privacy & Security',
       CupertinoIcons.lock_shield,
       [
-        _buildSwitchTile(
+        SettingsSwitchTile(
           icon: CupertinoIcons.chart_bar,
           title: 'Analytics',
           subtitle: 'Help improve the app with usage data',
@@ -625,7 +578,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             await SettingsService.setAnalyticsEnabled(value);
           },
         ),
-        _buildSwitchTile(
+        SettingsSwitchTile(
           icon: CupertinoIcons.ant,
           title: 'Crash Reporting',
           subtitle: 'Send crash reports to help fix issues',
@@ -635,7 +588,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             await SettingsService.setCrashReportingEnabled(value);
           },
         ),
-        _buildSliderTile(
+        SettingsSliderTile(
           icon: CupertinoIcons.timer,
           title: 'Share Expiry',
           subtitle: 'Auto-revoke shares after $_shareExpiry days',
@@ -649,14 +602,14 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             await SettingsService.setShareExpiryDays(days);
           },
         ),
-        _buildActionTile(
+        SettingsActionTile(
           icon: CupertinoIcons.hand_raised,
           title: 'Revoke All Shares',
           subtitle: 'Remove access to all shared contacts',
           onTap: () => _showRevokeAllDialog(),
           isDestructive: true,
         ),
-        _buildActionTile(
+        SettingsActionTile(
           icon: CupertinoIcons.lock_fill,
           title: 'Privacy Policy',
           subtitle: 'View our privacy policy',
@@ -664,7 +617,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             // TODO: Show privacy policy
           },
         ),
-        _buildActionTile(
+        SettingsActionTile(
           icon: CupertinoIcons.lock_shield,
           title: 'App Permissions',
           subtitle: 'Manage app permissions in system settings',
@@ -685,7 +638,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
       'Notifications',
       CupertinoIcons.bell,
       [
-        _buildSwitchTile(
+        SettingsSwitchTile(
           icon: CupertinoIcons.bell_fill,
           title: 'Push Notifications',
           subtitle: 'Receive notifications from the app',
@@ -695,7 +648,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             await SettingsService.setPushNotificationsEnabled(value);
           },
         ),
-        _buildSwitchTile(
+        SettingsSwitchTile(
           icon: CupertinoIcons.share,
           title: 'Share Notifications',
           subtitle: 'Notify when you share contact info',
@@ -705,7 +658,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             await SettingsService.setShareNotificationsEnabled(value);
           },
         ),
-        _buildSwitchTile(
+        SettingsSwitchTile(
           icon: CupertinoIcons.arrow_down_left,
           title: 'Receive Notifications',
           subtitle: 'Notify when you receive contact info',
@@ -715,7 +668,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             await SettingsService.setReceiveNotificationsEnabled(value);
           },
         ),
-        _buildSwitchTile(
+        SettingsSwitchTile(
           icon: CupertinoIcons.speaker_2,
           title: 'Sound',
           subtitle: 'Play sound for sharing events',
@@ -725,7 +678,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             await SettingsService.setSoundEnabled(value);
           },
         ),
-        _buildSwitchTile(
+        SettingsSwitchTile(
           icon: CupertinoIcons.device_phone_portrait,
           title: 'Vibration',
           subtitle: 'Vibrate on successful sharing',
@@ -735,7 +688,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             await SettingsService.setVibrationEnabled(value);
           },
         ),
-        _buildActionTile(
+        SettingsActionTile(
           icon: CupertinoIcons.settings,
           title: 'System Notification Settings',
           subtitle: 'Manage notifications in system settings',
@@ -757,7 +710,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
       'NFC & Sharing',
       CupertinoIcons.antenna_radiowaves_left_right,
       [
-        _buildSwitchTile(
+        SettingsSwitchTile(
           icon: CupertinoIcons.antenna_radiowaves_left_right,
           title: 'NFC Enabled',
           subtitle: 'Allow NFC sharing and receiving (app-level)',
@@ -767,7 +720,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             await SettingsService.setNfcEnabled(value);
           },
         ),
-        _buildSwitchTile(
+        SettingsSwitchTile(
           icon: CupertinoIcons.sparkles,
           title: 'Auto Share',
           subtitle: 'Automatically share when NFC is detected',
@@ -778,7 +731,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           },
         ),
         _buildDefaultNfcModeTile(),
-        _buildSwitchTile(
+        SettingsSwitchTile(
           icon: CupertinoIcons.location_fill,
           title: 'Track Location',
           subtitle: 'Save location when sharing cards',
@@ -788,7 +741,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             await NfcSettingsService.setLocationTrackingEnabled(value);
           },
         ),
-        _buildActionTile(
+        SettingsActionTile(
           icon: CupertinoIcons.qrcode,
           title: 'QR Code Settings',
           subtitle: 'Configure QR code generation',
@@ -801,7 +754,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             );
           },
         ),
-        _buildActionTile(
+        SettingsActionTile(
           icon: CupertinoIcons.settings,
           title: 'System NFC Settings',
           subtitle: 'Open device NFC settings',
@@ -822,13 +775,13 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
       'Advanced',
       CupertinoIcons.settings,
       [
-        _buildActionTile(
+        SettingsActionTile(
           icon: CupertinoIcons.info_circle,
           title: 'About',
           subtitle: 'App version and information',
           onTap: () => _showAboutDialog(),
         ),
-        _buildActionTile(
+        SettingsActionTile(
           icon: CupertinoIcons.doc_text,
           title: 'Terms of Service',
           subtitle: 'View terms and conditions',
@@ -836,7 +789,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             // TODO: Show terms of service
           },
         ),
-        _buildActionTile(
+        SettingsActionTile(
           icon: CupertinoIcons.chat_bubble_2,
           title: 'Help & Support',
           subtitle: 'Get help or contact support',
@@ -844,7 +797,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             // TODO: Navigate to support
           },
         ),
-        _buildActionTile(
+        SettingsActionTile(
           icon: CupertinoIcons.star,
           title: 'Rate App',
           subtitle: 'Rate us on the App Store',
@@ -852,7 +805,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             // TODO: Open app store rating
           },
         ),
-        _buildActionTile(
+        SettingsActionTile(
           icon: CupertinoIcons.chat_bubble_text,
           title: 'Send Feedback',
           subtitle: 'Share your thoughts with us',
@@ -860,14 +813,14 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             // TODO: Open feedback form
           },
         ),
-        _buildActionTile(
+        SettingsActionTile(
           icon: CupertinoIcons.delete,
           title: 'Clear All Data',
           subtitle: 'Remove all app data permanently',
           onTap: () => _showClearDataDialog(),
           isDestructive: true,
         ),
-        _buildActionTile(
+        const SettingsActionTile(
           icon: CupertinoIcons.arrow_right_square,
           title: 'Sign Out',
           subtitle: 'Sign out of your account',
@@ -884,7 +837,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: EdgeInsets.only(
+          padding: const EdgeInsets.only(
             left: AppSpacing.xs,
             right: AppSpacing.xs,
             bottom: AppSpacing.sm,
@@ -892,7 +845,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           child: Row(
             children: [
               Container(
-                padding: EdgeInsets.all(AppSpacing.sm),
+                padding: const EdgeInsets.all(AppSpacing.sm),
                 decoration: BoxDecoration(
                   gradient: AppColors.primaryGradient,
                   borderRadius: BorderRadius.circular(AppRadius.sm),
@@ -910,7 +863,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                   color: Colors.white,
                 ),
               ),
-              SizedBox(width: AppSpacing.md),
+              const SizedBox(width: AppSpacing.md),
               Text(
                 title,
                 style: AppTextStyles.h3.copyWith(
@@ -937,7 +890,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
     for (int i = 0; i < children.length; i++) {
       result.add(children[i]);
       if (i < children.length - 1) {
-        result.add(Divider(
+        result.add(const Divider(
           color: AppColors.glassBorder,
           height: 1,
           indent: 60,
@@ -950,22 +903,22 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
 
   Widget _buildDefaultNfcModeTile() {
     return Container(
-      padding: EdgeInsets.all(AppSpacing.md),
+      padding: const EdgeInsets.all(AppSpacing.md),
       child: Row(
         children: [
           Container(
-            padding: EdgeInsets.all(AppSpacing.sm),
+            padding: const EdgeInsets.all(AppSpacing.sm),
             decoration: BoxDecoration(
               color: AppColors.highlight.withOpacity(0.1),
               borderRadius: BorderRadius.circular(AppRadius.sm),
             ),
-            child: Icon(
+            child: const Icon(
               CupertinoIcons.arrow_up_arrow_down_square,
               color: AppColors.highlight,
               size: 20,
             ),
           ),
-          SizedBox(width: AppSpacing.md),
+          const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -977,8 +930,8 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                SizedBox(height: AppSpacing.xs),
-                Text(
+                const SizedBox(height: AppSpacing.xs),
+                const Text(
                   'Choose your preferred FAB mode',
                   style: AppTextStyles.caption,
                   maxLines: 1,
@@ -996,7 +949,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                 width: 0.5,
               ),
             ),
-            padding: EdgeInsets.all(3),
+            padding: const EdgeInsets.all(3),
             child: Column(
               children: [
                 _buildToggleOption(
@@ -1010,7 +963,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                     await NfcSettingsService.setDefaultMode(NfcMode.tagWrite);
                   },
                 ),
-                SizedBox(height: 3),
+                const SizedBox(height: 3),
                 _buildToggleOption(
                   icon: CupertinoIcons.radiowaves_right,
                   label: 'P2P',
@@ -1040,7 +993,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
           color: isSelected
               ? color
@@ -1055,7 +1008,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
               color: isSelected ? Colors.white : AppColors.textTertiary,
               size: 15,
             ),
-            SizedBox(width: 6),
+            const SizedBox(width: 6),
             Text(
               label,
               style: TextStyle(
@@ -1070,354 +1023,6 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
     );
   }
 
-  Widget _buildSwitchTile({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return Container(
-      padding: EdgeInsets.all(AppSpacing.md),
-      child: Row(
-        children: [
-          Container(
-            padding: EdgeInsets.all(AppSpacing.sm),
-            decoration: BoxDecoration(
-              color: AppColors.highlight.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(AppRadius.sm),
-            ),
-            child: Icon(
-              icon,
-              color: AppColors.highlight,
-              size: 20,
-            ),
-          ),
-          SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: AppTextStyles.body.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                SizedBox(height: AppSpacing.xs),
-                Text(
-                  subtitle,
-                  style: AppTextStyles.caption,
-                ),
-              ],
-            ),
-          ),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 200),
-            child: Switch(
-              key: ValueKey(value),
-              value: value,
-              onChanged: (newValue) {
-                HapticFeedback.selectionClick();
-                onChanged(newValue);
-              },
-              activeTrackColor: AppColors.primaryAction.withOpacity(0.5),
-              thumbColor: WidgetStateProperty.resolveWith((states) {
-                if (states.contains(WidgetState.selected)) {
-                  return AppColors.primaryAction;
-                }
-                return AppColors.textTertiary;
-              }),
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionTile({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback? onTap,
-    bool isDestructive = false,
-    bool isDisabled = false,
-    String? badge,
-  }) {
-    final iconColor = isDisabled
-        ? AppColors.textTertiary
-        : (isDestructive ? AppColors.error : AppColors.highlight);
-    final titleColor = isDisabled
-        ? AppColors.textTertiary
-        : (isDestructive ? AppColors.error : AppColors.textPrimary);
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: isDisabled || onTap == null ? null : () {
-          HapticFeedback.lightImpact();
-          onTap();
-        },
-        borderRadius: BorderRadius.circular(AppRadius.sm),
-        splashColor: isDisabled ? Colors.transparent : iconColor.withOpacity(0.1),
-        child: Opacity(
-          opacity: isDisabled ? 0.5 : 1.0,
-          child: Container(
-            padding: EdgeInsets.all(AppSpacing.md),
-            child: Row(
-              children: [
-                Container(
-                  padding: EdgeInsets.all(AppSpacing.sm),
-                  decoration: BoxDecoration(
-                    color: iconColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(AppRadius.sm),
-                  ),
-                  child: Icon(
-                    icon,
-                    color: iconColor,
-                    size: 20,
-                  ),
-                ),
-                SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            title,
-                            style: AppTextStyles.body.copyWith(
-                              fontWeight: FontWeight.w500,
-                              color: titleColor,
-                            ),
-                          ),
-                          if (badge != null) ...[
-                            SizedBox(width: AppSpacing.sm),
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.highlight.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(AppRadius.xs),
-                                border: Border.all(
-                                  color: AppColors.highlight.withOpacity(0.3),
-                                  width: 1,
-                                ),
-                              ),
-                              child: Text(
-                                badge,
-                                style: AppTextStyles.caption.copyWith(
-                                  color: AppColors.highlight,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 10,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      SizedBox(height: AppSpacing.xs),
-                      Text(
-                        subtitle,
-                        style: AppTextStyles.caption.copyWith(
-                          color: isDisabled ? AppColors.textTertiary : AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (!isDisabled)
-                  Icon(
-                    CupertinoIcons.chevron_right,
-                    color: AppColors.textTertiary,
-                    size: 20,
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSliderTile({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required double value,
-    required double min,
-    required double max,
-    required int divisions,
-    required ValueChanged<double> onChanged,
-  }) {
-    return Container(
-      padding: EdgeInsets.all(AppSpacing.md),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: EdgeInsets.all(AppSpacing.sm),
-                decoration: BoxDecoration(
-                  color: AppColors.highlight.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(AppRadius.sm),
-                ),
-                child: Icon(
-                  icon,
-                  color: AppColors.highlight,
-                  size: 20,
-                ),
-              ),
-              SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: AppTextStyles.body.copyWith(
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    SizedBox(height: AppSpacing.xs),
-                    Text(
-                      subtitle,
-                      style: AppTextStyles.caption,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: AppSpacing.sm),
-          SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              activeTrackColor: AppColors.primaryAction,
-              inactiveTrackColor: AppColors.glassBorder,
-              thumbColor: AppColors.primaryAction,
-              overlayColor: AppColors.primaryAction.withOpacity(0.2),
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-              trackHeight: 4,
-            ),
-            child: Slider(
-              value: value,
-              min: min,
-              max: max,
-              divisions: divisions,
-              onChanged: (newValue) {
-                HapticFeedback.selectionClick();
-                onChanged(newValue);
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSelectionTile({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required List<String> options,
-    required int selectedIndex,
-    required ValueChanged<int> onChanged,
-  }) {
-    return Container(
-      padding: EdgeInsets.all(AppSpacing.md),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: EdgeInsets.all(AppSpacing.sm),
-                decoration: BoxDecoration(
-                  color: AppColors.highlight.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(AppRadius.sm),
-                ),
-                child: Icon(
-                  icon,
-                  color: AppColors.highlight,
-                  size: 20,
-                ),
-              ),
-              SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: AppTextStyles.body.copyWith(
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    SizedBox(height: AppSpacing.xs),
-                    Text(
-                      subtitle,
-                      style: AppTextStyles.caption,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: AppSpacing.sm),
-          Row(
-            children: options.asMap().entries.map((entry) {
-              final index = entry.key;
-              final option = entry.value;
-              final isSelected = index == selectedIndex;
-
-              return Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    onChanged(index);
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    margin: EdgeInsets.only(
-                      right: index < options.length - 1 ? AppSpacing.sm : 0,
-                    ),
-                    padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppColors.primaryAction.withOpacity(0.2)
-                          : AppColors.glassBorder.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(AppRadius.sm),
-                      border: Border.all(
-                        color: isSelected
-                            ? AppColors.primaryAction
-                            : AppColors.glassBorder,
-                        width: isSelected ? 2 : 1,
-                      ),
-                    ),
-                    child: Text(
-                      option,
-                      textAlign: TextAlign.center,
-                      style: AppTextStyles.body.copyWith(
-                        color: isSelected
-                            ? AppColors.primaryAction
-                            : AppColors.textSecondary,
-                        fontWeight: isSelected
-                            ? FontWeight.w600
-                            : FontWeight.w400,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
 
   // Glassmorphic dialog helper for consistent styling
   Future<T?> _showGlassDialog<T>({
@@ -1461,7 +1066,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
               children: [
                 // Title
                 Container(
-                  padding: EdgeInsets.all(AppSpacing.lg),
+                  padding: const EdgeInsets.all(AppSpacing.lg),
                   decoration: BoxDecoration(
                     border: Border(
                       bottom: BorderSide(
@@ -1480,14 +1085,14 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                 // Content
                 Flexible(
                   child: SingleChildScrollView(
-                    padding: EdgeInsets.all(AppSpacing.lg),
+                    padding: const EdgeInsets.all(AppSpacing.lg),
                     child: content,
                   ),
                 ),
                 // Actions
                 if (actions != null && actions.isNotEmpty)
                   Container(
-                    padding: EdgeInsets.all(AppSpacing.md),
+                    padding: const EdgeInsets.all(AppSpacing.md),
                     decoration: BoxDecoration(
                       border: Border(
                         top: BorderSide(
@@ -1526,7 +1131,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
               prefixIcon: Icon(CupertinoIcons.person),
             ),
           ),
-          SizedBox(height: AppSpacing.md),
+          const SizedBox(height: AppSpacing.md),
           TextField(
             controller: emailController,
             style: AppTextStyles.body,
@@ -1535,14 +1140,14 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
               prefixIcon: Icon(CupertinoIcons.mail),
             ),
           ),
-          SizedBox(height: AppSpacing.md),
+          const SizedBox(height: AppSpacing.md),
           GlassCard(
             onTap: () {
               // TODO: Implement photo picker
             },
-            child: Row(
+            child: const Row(
               children: [
-                const Icon(CupertinoIcons.camera),
+                Icon(CupertinoIcons.camera),
                 SizedBox(width: AppSpacing.sm),
                 Text(
                   'Change Profile Photo',
@@ -1563,7 +1168,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             ),
           ),
         ),
-        SizedBox(width: AppSpacing.sm),
+        const SizedBox(width: AppSpacing.sm),
         TextButton(
           onPressed: () {
             setState(() {
@@ -1575,7 +1180,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           },
           style: TextButton.styleFrom(
             backgroundColor: AppColors.primaryAction.withOpacity(0.2),
-            padding: EdgeInsets.symmetric(
+            padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.lg,
               vertical: AppSpacing.sm,
             ),
@@ -1598,11 +1203,11 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
+          const Text(
             'Choose the format for your data export:',
             style: AppTextStyles.body,
           ),
-          SizedBox(height: AppSpacing.md),
+          const SizedBox(height: AppSpacing.md),
           Row(
             children: [
               Expanded(
@@ -1611,25 +1216,25 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                     Navigator.pop(context);
                     _showExportSuccessSnackBar('JSON');
                   },
-                  child: Column(
+                  child: const Column(
                     children: [
-                      const Icon(CupertinoIcons.doc_on_doc, size: 32),
+                      Icon(CupertinoIcons.doc_on_doc, size: 32),
                       SizedBox(height: AppSpacing.sm),
                       Text('JSON', style: AppTextStyles.body),
                     ],
                   ),
                 ),
               ),
-              SizedBox(width: AppSpacing.md),
+              const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: GlassCard(
                   onTap: () {
                     Navigator.pop(context);
                     _showExportSuccessSnackBar('CSV');
                   },
-                  child: Column(
+                  child: const Column(
                     children: [
-                      const Icon(CupertinoIcons.table, size: 32),
+                      Icon(CupertinoIcons.table, size: 32),
                       SizedBox(height: AppSpacing.sm),
                       Text('CSV', style: AppTextStyles.body),
                     ],
@@ -1660,14 +1265,14 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(CupertinoIcons.exclamationmark_triangle, color: AppColors.error, size: 48),
-          SizedBox(height: AppSpacing.md),
-          Text(
+          const Icon(CupertinoIcons.exclamationmark_triangle, color: AppColors.error, size: 48),
+          const SizedBox(height: AppSpacing.md),
+          const Text(
             'This will immediately revoke access to all your shared contact information. Recipients will no longer be able to view your details.',
             style: AppTextStyles.body,
             textAlign: TextAlign.center,
           ),
-          SizedBox(height: AppSpacing.md),
+          const SizedBox(height: AppSpacing.md),
           Text(
             'This action cannot be undone.',
             style: AppTextStyles.body.copyWith(
@@ -1688,7 +1293,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             ),
           ),
         ),
-        SizedBox(width: AppSpacing.sm),
+        const SizedBox(width: AppSpacing.sm),
         TextButton(
           onPressed: () {
             Navigator.pop(context);
@@ -1696,7 +1301,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           },
           style: TextButton.styleFrom(
             backgroundColor: AppColors.error.withOpacity(0.2),
-            padding: EdgeInsets.symmetric(
+            padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.lg,
               vertical: AppSpacing.sm,
             ),
@@ -1719,25 +1324,25 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(CupertinoIcons.trash, color: AppColors.error, size: 48),
-          SizedBox(height: AppSpacing.md),
-          Text(
+          const Icon(CupertinoIcons.trash, color: AppColors.error, size: 48),
+          const SizedBox(height: AppSpacing.md),
+          const Text(
             'This will permanently delete all your data including:',
             style: AppTextStyles.body,
             textAlign: TextAlign.center,
           ),
-          SizedBox(height: AppSpacing.sm),
-          Column(
-            key: const Key('settings_delete_account_list'),
+          const SizedBox(height: AppSpacing.sm),
+          const Column(
+            key: Key('settings_delete_account_list'),
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(key: const Key('settings_delete_account_contact_info'), '• Contact information', style: AppTextStyles.body),
-              Text(key: const Key('settings_delete_account_sharing_history'), '• Sharing history', style: AppTextStyles.body),
-              Text(key: const Key('settings_delete_account_app_preferences'), '• App preferences', style: AppTextStyles.body),
-              Text(key: const Key('settings_delete_account_account_settings'), '• Account settings', style: AppTextStyles.body),
+              Text(key: Key('settings_delete_account_contact_info'), '• Contact information', style: AppTextStyles.body),
+              Text(key: Key('settings_delete_account_sharing_history'), '• Sharing history', style: AppTextStyles.body),
+              Text(key: Key('settings_delete_account_app_preferences'), '• App preferences', style: AppTextStyles.body),
+              Text(key: Key('settings_delete_account_account_settings'), '• Account settings', style: AppTextStyles.body),
             ],
           ),
-          SizedBox(height: AppSpacing.md),
+          const SizedBox(height: AppSpacing.md),
           Text(
             'This action cannot be undone.',
             style: AppTextStyles.body.copyWith(
@@ -1758,7 +1363,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             ),
           ),
         ),
-        SizedBox(width: AppSpacing.sm),
+        const SizedBox(width: AppSpacing.sm),
         TextButton(
           onPressed: () {
             Navigator.pop(context);
@@ -1767,7 +1372,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           },
           style: TextButton.styleFrom(
             backgroundColor: AppColors.error.withOpacity(0.2),
-            padding: EdgeInsets.symmetric(
+            padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.lg,
               vertical: AppSpacing.sm,
             ),
@@ -1805,8 +1410,8 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
               ),
             ),
             const SizedBox(width: 12),
-            Text(
-              'About Tap Card',
+            const Text(
+              'About Atlas Linq',
               style: AppTextStyles.h3,
             ),
           ],
@@ -1823,14 +1428,14 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                Text(
+                const Text(
                   '1.0.0',
                   style: AppTextStyles.body,
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            Text(
+            const Text(
               'A modern NFC sharing app with beautiful glassmorphism UI design. Share your contact information effortlessly with just a tap.',
               style: AppTextStyles.bodySecondary,
             ),
@@ -1844,19 +1449,19 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
               ),
             ),
             const SizedBox(height: 8),
-            Column(
-              key: const Key('settings_about_features_list'),
+            const Column(
+              key: Key('settings_about_features_list'),
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(key: const Key('settings_about_nfc_feature'), '• NFC-enabled contact sharing', style: AppTextStyles.bodySecondary),
-                Text(key: const Key('settings_about_qr_feature'), '• QR code generation', style: AppTextStyles.bodySecondary),
-                Text(key: const Key('settings_about_privacy_feature'), '• Privacy controls', style: AppTextStyles.bodySecondary),
-                Text(key: const Key('settings_about_design_feature'), '• Beautiful glassmorphism design', style: AppTextStyles.bodySecondary),
-                Text(key: const Key('settings_about_appearance_feature'), '• Customizable appearance', style: AppTextStyles.bodySecondary),
+                Text(key: Key('settings_about_nfc_feature'), '• NFC-enabled contact sharing', style: AppTextStyles.bodySecondary),
+                Text(key: Key('settings_about_qr_feature'), '• QR code generation', style: AppTextStyles.bodySecondary),
+                Text(key: Key('settings_about_privacy_feature'), '• Privacy controls', style: AppTextStyles.bodySecondary),
+                Text(key: Key('settings_about_design_feature'), '• Beautiful glassmorphism design', style: AppTextStyles.bodySecondary),
+                Text(key: Key('settings_about_appearance_feature'), '• Customizable appearance', style: AppTextStyles.bodySecondary),
               ],
             ),
             const SizedBox(height: 16),
-            Row(
+            const Row(
               children: [
                 Text(
                   'Build: ',
@@ -1900,7 +1505,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
   void _showSignOutDialog() {
     _showGlassDialog(
       title: 'Sign Out',
-      content: Column(
+      content: const Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(CupertinoIcons.square_arrow_right, color: AppColors.primaryAction, size: 48),
@@ -1922,7 +1527,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             ),
           ),
         ),
-        SizedBox(width: AppSpacing.sm),
+        const SizedBox(width: AppSpacing.sm),
         TextButton(
           onPressed: () {
             Navigator.pop(context);
@@ -1932,7 +1537,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           },
           style: TextButton.styleFrom(
             backgroundColor: AppColors.primaryAction.withOpacity(0.2),
-            padding: EdgeInsets.symmetric(
+            padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.lg,
               vertical: AppSpacing.sm,
             ),
@@ -1966,10 +1571,10 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                   width: 1,
                 ),
               ),
-              child: Row(
+              child: const Row(
                 children: [
                   Icon(CupertinoIcons.checkmark_circle, color: AppColors.success),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       'Profile updated successfully',
@@ -2008,7 +1613,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
               ),
               child: Row(
                 children: [
-                  Icon(CupertinoIcons.checkmark_circle, color: AppColors.success),
+                  const Icon(CupertinoIcons.checkmark_circle, color: AppColors.success),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
@@ -2053,10 +1658,10 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                   width: 1,
                 ),
               ),
-              child: Row(
+              child: const Row(
                 children: [
                   Icon(CupertinoIcons.hand_raised_fill, color: AppColors.warning),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       'All shares have been revoked',
@@ -2093,10 +1698,10 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                   width: 1,
                 ),
               ),
-              child: Row(
+              child: const Row(
                 children: [
                   Icon(CupertinoIcons.square_arrow_right, color: Colors.blueAccent),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       'Signed out successfully',
@@ -2133,10 +1738,10 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                   width: 1,
                 ),
               ),
-              child: Row(
+              child: const Row(
                 children: [
                   Icon(CupertinoIcons.paintbrush, color: AppColors.highlight),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       'Theme will be applied in next update',
@@ -2175,7 +1780,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
               ),
               child: Row(
                 children: [
-                  Icon(CupertinoIcons.exclamationmark_circle, color: AppColors.error),
+                  const Icon(CupertinoIcons.exclamationmark_circle, color: AppColors.error),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
