@@ -5,10 +5,12 @@
 library;
 
 import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'dart:developer' as developer;
 
 class FirebaseAnalyticsService {
   static final FirebaseAnalytics _analytics = FirebaseAnalytics.instance;
+  static final FirebaseFunctions _functions = FirebaseFunctions.instance;
   static final FirebaseAnalyticsObserver observer =
       FirebaseAnalyticsObserver(analytics: _analytics);
 
@@ -86,6 +88,81 @@ class FirebaseAnalyticsService {
       developer.log(
         '❌ Failed to track contact viewed: $e',
         name: 'Analytics.ContactViewed',
+        error: e,
+      );
+    }
+  }
+
+  /// Track profile view (web profile page view)
+  ///
+  /// Increments Firestore viewCount via Cloud Function and logs Analytics event
+  /// Called when:
+  /// - User taps NFC card and views shared profile
+  /// - User scans QR code
+  /// - User clicks received contact link
+  /// - User views contact from history
+  ///
+  /// Source options:
+  /// - 'app_nfc': NFC tap
+  /// - 'app_qr': QR code scan
+  /// - 'app_link': Opened from link
+  /// - 'app_history': Viewed from history
+  static Future<void> logProfileView({
+    required String profileId,
+    required String profileType,
+    String source = 'app_nfc',
+  }) async {
+    try {
+      // 1. Log Analytics event (for dashboards/insights)
+      await _analytics.logEvent(
+        name: 'profile_view',
+        parameters: {
+          'profile_id': profileId,
+          'profile_type': profileType,
+          'view_source': source,
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+        },
+      );
+      developer.log(
+        '📊 Profile view tracked in Analytics: $profileId',
+        name: 'Analytics.ProfileView',
+      );
+
+      // 2. Increment Firestore view count via Cloud Function
+      try {
+        final incrementView = _functions.httpsCallable('incrementProfileView');
+        final result = await incrementView.call({
+          'profileId': profileId,
+          'source': source,
+        });
+
+        final data = result.data as Map<String, dynamic>;
+        final viewCount = data['viewCount'] as int? ?? 0;
+        final rateLimited = data['rateLimited'] as bool? ?? false;
+
+        if (rateLimited) {
+          developer.log(
+            '⏱️ Profile view rate limited: $profileId (count: $viewCount)',
+            name: 'Analytics.ProfileView',
+          );
+        } else {
+          developer.log(
+            '✅ Profile view count incremented: $profileId → $viewCount',
+            name: 'Analytics.ProfileView',
+          );
+        }
+      } catch (functionError) {
+        // Don't fail the entire operation if Cloud Function fails
+        developer.log(
+          '⚠️ Failed to increment view count (non-critical): $functionError',
+          name: 'Analytics.ProfileView',
+          error: functionError,
+        );
+      }
+    } catch (e) {
+      developer.log(
+        '❌ Failed to track profile view: $e',
+        name: 'Analytics.ProfileView',
         error: e,
       );
     }

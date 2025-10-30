@@ -39,7 +39,7 @@ class FirebaseConfig {
   }
 
   /// Firebase initialization status
-  static bool _isInitialized = false;
+  static const bool _isInitialized = false;
   static bool get isInitialized => _isInitialized;
 
   /// Initialize Firebase (placeholder for future implementation)
