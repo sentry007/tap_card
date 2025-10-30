@@ -10,13 +10,13 @@ class GlassmorphicDialog extends StatelessWidget {
   final bool isDangerous;
 
   const GlassmorphicDialog({
-    Key? key,
+    super.key,
     this.icon,
     required this.title,
     required this.content,
     required this.actions,
     this.isDangerous = false,
-  }) : super(key: key);
+  });
 
   static Future<T?> show<T>({
     required BuildContext context,

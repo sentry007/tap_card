@@ -5,9 +5,9 @@ class NavigationWrapper extends StatelessWidget {
   final Widget child;
 
   const NavigationWrapper({
-    Key? key,
+    super.key,
     required this.child,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -24,10 +24,10 @@ class NavigationGuard extends StatelessWidget {
   final bool requiresAuth;
 
   const NavigationGuard({
-    Key? key,
+    super.key,
     required this.child,
     this.requiresAuth = false,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

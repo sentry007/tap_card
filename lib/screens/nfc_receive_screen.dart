@@ -7,13 +7,11 @@ import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 
 import '../models/unified_models.dart';
-import '../models/history_models.dart';
 import '../services/nfc_service.dart';
 import '../services/history_service.dart';
 import '../services/nfc_settings_service.dart';
 import '../core/constants/routes.dart';
 import '../core/providers/app_state.dart';
-import '../core/models/profile_models.dart';
 import '../widgets/widgets.dart';
 import '../theme/theme.dart';
 
@@ -22,9 +20,9 @@ class NFCReceiveScreen extends StatefulWidget {
   final String? nfcData;
 
   const NFCReceiveScreen({
-    Key? key,
+    super.key,
     this.nfcData,
-  }) : super(key: key);
+  });
 
   @override
   State<NFCReceiveScreen> createState() => _NFCReceiveScreenState();

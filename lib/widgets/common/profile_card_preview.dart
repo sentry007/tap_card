@@ -21,10 +21,11 @@ class ProfileCardPreview extends StatelessWidget {
   final VoidCallback? onPhoneTap;
   final VoidCallback? onWebsiteTap;
   final Function(String platform, String url)? onSocialTap;
+  final Function(String title, String url)? onCustomLinkTap;
   final VoidCallback? onProfileImageTap;
 
   const ProfileCardPreview({
-    Key? key,
+    super.key,
     required this.profile,
     this.width = 300,
     this.height = 180,
@@ -34,14 +35,14 @@ class ProfileCardPreview extends StatelessWidget {
     this.onPhoneTap,
     this.onWebsiteTap,
     this.onSocialTap,
+    this.onCustomLinkTap,
     this.onProfileImageTap,
-  }) : super(key: key);
+  });
 
   /// Helper method to build image from either local file or network URL
   Widget _buildImage(
     String imagePath, {
     required BoxFit fit,
-    BorderRadius? borderRadius,
   }) {
     final isNetworkImage = imagePath.startsWith('http://') || imagePath.startsWith('https://');
 
@@ -320,6 +321,11 @@ class ProfileCardPreview extends StatelessWidget {
                           SizedBox(height: height * 0.025),
                           _buildSocialIcons(height),
                         ],
+                        // Custom links icons
+                        if (profile.customLinks.isNotEmpty && onCustomLinkTap != null) ...[
+                          SizedBox(height: height * 0.015),
+                          _buildCustomLinkIcons(height),
+                        ],
                       ],
                     ),
                 ],
@@ -371,7 +377,7 @@ class ProfileCardPreview extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(8),
         child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
           child: row,
         ),
       ),
@@ -381,7 +387,7 @@ class ProfileCardPreview extends StatelessWidget {
   Widget _buildSocialIcons(double height) {
     final iconSize = height * 0.12; // 24px for 200px height
     final socialEntries = profile.socialMedia.entries.toList();
-    final maxVisible = 6;
+    const maxVisible = 6;
     final visibleSocials = socialEntries.take(maxVisible).toList();
 
     return Row(
@@ -434,32 +440,69 @@ class ProfileCardPreview extends StatelessWidget {
   Map<String, dynamic> _getSocialIconData(String platform) {
     switch (platform.toLowerCase()) {
       case 'linkedin':
-        return {'icon': FontAwesomeIcons.linkedin, 'color': Color(0xFF0077B5)};
+        return {'icon': FontAwesomeIcons.linkedin, 'color': const Color(0xFF0077B5)};
       case 'twitter':
       case 'x':
-        return {'icon': FontAwesomeIcons.xTwitter, 'color': Color(0xFF000000)};
+        return {'icon': FontAwesomeIcons.xTwitter, 'color': const Color(0xFF000000)};
       case 'github':
-        return {'icon': FontAwesomeIcons.github, 'color': Color(0xFF333333)};
+        return {'icon': FontAwesomeIcons.github, 'color': const Color(0xFF333333)};
       case 'instagram':
-        return {'icon': FontAwesomeIcons.instagram, 'color': Color(0xFFE4405F)};
+        return {'icon': FontAwesomeIcons.instagram, 'color': const Color(0xFFE4405F)};
       case 'snapchat':
-        return {'icon': FontAwesomeIcons.snapchat, 'color': Color(0xFFFFFC00)};
+        return {'icon': FontAwesomeIcons.snapchat, 'color': const Color(0xFFFFFC00)};
       case 'facebook':
-        return {'icon': FontAwesomeIcons.facebook, 'color': Color(0xFF1877F2)};
+        return {'icon': FontAwesomeIcons.facebook, 'color': const Color(0xFF1877F2)};
       case 'discord':
-        return {'icon': FontAwesomeIcons.discord, 'color': Color(0xFF5865F2)};
+        return {'icon': FontAwesomeIcons.discord, 'color': const Color(0xFF5865F2)};
       case 'behance':
-        return {'icon': FontAwesomeIcons.behance, 'color': Color(0xFF1769FF)};
+        return {'icon': FontAwesomeIcons.behance, 'color': const Color(0xFF1769FF)};
       case 'dribbble':
-        return {'icon': FontAwesomeIcons.dribbble, 'color': Color(0xFFEA4C89)};
+        return {'icon': FontAwesomeIcons.dribbble, 'color': const Color(0xFFEA4C89)};
       case 'tiktok':
-        return {'icon': FontAwesomeIcons.tiktok, 'color': Color(0xFF000000)};
+        return {'icon': FontAwesomeIcons.tiktok, 'color': const Color(0xFF000000)};
       case 'youtube':
-        return {'icon': FontAwesomeIcons.youtube, 'color': Color(0xFFFF0000)};
+        return {'icon': FontAwesomeIcons.youtube, 'color': const Color(0xFFFF0000)};
       case 'twitch':
-        return {'icon': FontAwesomeIcons.twitch, 'color': Color(0xFF9146FF)};
+        return {'icon': FontAwesomeIcons.twitch, 'color': const Color(0xFF9146FF)};
       default:
         return {'icon': CupertinoIcons.link, 'color': AppColors.primaryAction};
     }
+  }
+
+  Widget _buildCustomLinkIcons(double height) {
+    final iconSize = height * 0.12; // Same size as social icons
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: profile.customLinks.map((link) =>
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          child: _buildCustomLinkIcon(link, iconSize),
+        )
+      ).toList(),
+    );
+  }
+
+  Widget _buildCustomLinkIcon(CustomLink link, double size) {
+    // Use card border color instead of brand colors for a more cohesive look
+    final iconColor = profile.cardAesthetics.borderColor != Colors.transparent
+        ? profile.cardAesthetics.borderColor
+        : Colors.white;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => onCustomLinkTap?.call(link.title, link.url),
+        borderRadius: BorderRadius.circular(4),
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: Icon(
+            CupertinoIcons.link,
+            color: iconColor.withOpacity(0.9),
+            size: size * 0.8,
+          ),
+        ),
+      ),
+    );
   }
 }

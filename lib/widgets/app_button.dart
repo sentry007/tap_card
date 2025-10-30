@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
@@ -16,7 +15,7 @@ class AppButton extends StatefulWidget {
   final EdgeInsetsGeometry? margin;
 
   const AppButton({
-    Key? key,
+    super.key,
     required this.text,
     this.onPressed,
     this.type = AppButtonType.contained,
@@ -26,10 +25,10 @@ class AppButton extends StatefulWidget {
     this.loading = false,
     this.width,
     this.margin,
-  }) : super(key: key);
+  });
 
   const AppButton.contained({
-    Key? key,
+    super.key,
     required this.text,
     this.onPressed,
     this.size = AppButtonSize.medium,
@@ -38,10 +37,10 @@ class AppButton extends StatefulWidget {
     this.loading = false,
     this.width,
     this.margin,
-  }) : type = AppButtonType.contained, super(key: key);
+  }) : type = AppButtonType.contained;
 
   const AppButton.outlined({
-    Key? key,
+    super.key,
     required this.text,
     this.onPressed,
     this.size = AppButtonSize.medium,
@@ -50,10 +49,10 @@ class AppButton extends StatefulWidget {
     this.loading = false,
     this.width,
     this.margin,
-  }) : type = AppButtonType.outlined, super(key: key);
+  }) : type = AppButtonType.outlined;
 
   const AppButton.text({
-    Key? key,
+    super.key,
     required this.text,
     this.onPressed,
     this.size = AppButtonSize.medium,
@@ -62,10 +61,10 @@ class AppButton extends StatefulWidget {
     this.loading = false,
     this.width,
     this.margin,
-  }) : type = AppButtonType.text, super(key: key);
+  }) : type = AppButtonType.text;
 
   const AppButton.glass({
-    Key? key,
+    super.key,
     required this.text,
     this.onPressed,
     this.size = AppButtonSize.medium,
@@ -74,7 +73,7 @@ class AppButton extends StatefulWidget {
     this.loading = false,
     this.width,
     this.margin,
-  }) : type = AppButtonType.glass, super(key: key);
+  }) : type = AppButtonType.glass;
 
   @override
   State<AppButton> createState() => _AppButtonState();

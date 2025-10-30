@@ -19,7 +19,7 @@ class GlassCard extends StatelessWidget {
   final double opacity;
 
   const GlassCard({
-    Key? key,
+    super.key,
     required this.child,
     this.width,
     this.height,
@@ -34,7 +34,7 @@ class GlassCard extends StatelessWidget {
     this.onTap,
     this.enabled = true,
     this.opacity = 0.15,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -72,15 +72,15 @@ class GlassCard extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: borderRad,
         boxShadow: shadows ?? [
-          BoxShadow(
+          const BoxShadow(
             color: AppColors.shadowLight,
             blurRadius: 8,
-            offset: const Offset(0, 4),
+            offset: Offset(0, 4),
           ),
-          BoxShadow(
+          const BoxShadow(
             color: AppColors.shadowMedium,
             blurRadius: 20,
-            offset: const Offset(0, 8),
+            offset: Offset(0, 8),
           ),
         ],
       ),
@@ -128,7 +128,7 @@ class GlassCardVariant extends StatelessWidget {
   final bool enabled;
 
   const GlassCardVariant({
-    Key? key,
+    super.key,
     required this.child,
     this.type = GlassCardType.normal,
     this.width,
@@ -137,7 +137,7 @@ class GlassCardVariant extends StatelessWidget {
     this.margin,
     this.onTap,
     this.enabled = true,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -163,16 +163,16 @@ class GlassCardVariant extends StatelessWidget {
           onTap: onTap,
           enabled: enabled,
           blur: 15,
-          shadows: [
+          shadows: const [
             BoxShadow(
               color: AppColors.shadowMedium,
               blurRadius: 12,
-              offset: const Offset(0, 6),
+              offset: Offset(0, 6),
             ),
             BoxShadow(
               color: AppColors.shadowDark,
               blurRadius: 30,
-              offset: const Offset(0, 12),
+              offset: Offset(0, 12),
             ),
           ],
           child: child,
@@ -189,11 +189,11 @@ class GlassCardVariant extends StatelessWidget {
           blur: 5,
           opacity: 0.08,
           borderWidth: 0.5,
-          shadows: [
+          shadows: const [
             BoxShadow(
               color: AppColors.shadowLight,
               blurRadius: 4,
-              offset: const Offset(0, 2),
+              offset: Offset(0, 2),
             ),
           ],
           child: child,
@@ -215,10 +215,10 @@ class GlassCardVariant extends StatelessWidget {
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),
-            BoxShadow(
+            const BoxShadow(
               color: AppColors.shadowMedium,
               blurRadius: 20,
-              offset: const Offset(0, 8),
+              offset: Offset(0, 8),
             ),
           ],
           child: child,
@@ -246,7 +246,7 @@ class GlassContainer extends StatelessWidget {
   final double opacity;
 
   const GlassContainer({
-    Key? key,
+    super.key,
     required this.child,
     this.width,
     this.height,
@@ -256,7 +256,7 @@ class GlassContainer extends StatelessWidget {
     this.borderRadius = 12,
     this.blur = 8,
     this.opacity = 0.1,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

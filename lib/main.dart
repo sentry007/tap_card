@@ -1,4 +1,4 @@
-/// Tap Card - NFC-enabled Digital Business Card Application
+/// Atlas Linq - NFC-enabled Digital Business Card Application
 ///
 /// A modern Flutter application for sharing contact information via NFC,
 /// featuring glassmorphism UI, multiple profile support, and real-time updates.
@@ -29,7 +29,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   developer.log(
-    '🚀 Tap Card app starting - Initializing system configuration',
+    '🚀 Atlas Linq app starting - Initializing system configuration',
     name: 'App.Main',
   );
 
@@ -87,20 +87,20 @@ void main() async {
     name: 'App.Main',
   );
 
-  runApp(const TapCardApp());
+  runApp(const AtlasLinqApp());
 }
 
-/// Root widget for Tap Card application
+/// Root widget for Atlas Linq application
 ///
 /// Manages global state, routing, and theme configuration
-class TapCardApp extends StatefulWidget {
-  const TapCardApp({super.key});
+class AtlasLinqApp extends StatefulWidget {
+  const AtlasLinqApp({super.key});
 
   @override
-  State<TapCardApp> createState() => _TapCardAppState();
+  State<AtlasLinqApp> createState() => _AtlasLinqAppState();
 }
 
-class _TapCardAppState extends State<TapCardApp> {
+class _AtlasLinqAppState extends State<AtlasLinqApp> {
   /// Global router instance for navigation
   late final GoRouter _router;
 
@@ -157,7 +157,7 @@ class _TapCardAppState extends State<TapCardApp> {
         builder: (context, appState, child) {
           return MaterialApp.router(
             key: WidgetKeys.appMaterialRouter,
-            title: 'Tap Card',
+            title: 'Atlas Linq',
             debugShowCheckedModeBanner: false,
             theme: AppTheme.darkTheme,
             routerConfig: _router,

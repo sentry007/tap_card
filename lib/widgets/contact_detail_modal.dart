@@ -14,11 +14,11 @@ class ContactDetailModal extends StatefulWidget {
   final VoidCallback? onShared;
 
   const ContactDetailModal({
-    Key? key,
+    super.key,
     required this.contact,
     this.onSaved,
     this.onShared,
-  }) : super(key: key);
+  });
 
   @override
   State<ContactDetailModal> createState() => _ContactDetailModalState();
@@ -285,7 +285,7 @@ class _ContactDetailModalState extends State<ContactDetailModal>
                         fit: BoxFit.cover,
                       )
                     : Container(
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           gradient: AppColors.primaryGradient,
                           shape: BoxShape.circle,
                         ),
@@ -438,7 +438,7 @@ class _ContactDetailModalState extends State<ContactDetailModal>
                     ],
                   ),
                 ),
-                Icon(
+                const Icon(
                   CupertinoIcons.arrow_up_right_square,
                   size: 16,
                   color: AppColors.textTertiary,
@@ -535,8 +535,8 @@ class _ContactDetailModalState extends State<ContactDetailModal>
                 child: InkWell(
                   onTap: () => setState(() => _isAddingNote = true),
                   borderRadius: BorderRadius.circular(8),
-                  child: Padding(
-                    padding: const EdgeInsets.all(4),
+                  child: const Padding(
+                    padding: EdgeInsets.all(4),
                     child: Icon(
                       CupertinoIcons.pencil,
                       size: 16,
@@ -867,7 +867,7 @@ class _ContactDetailModalState extends State<ContactDetailModal>
               ),
               child: Row(
                 children: [
-                  Icon(CupertinoIcons.check_mark_circled_solid, color: AppColors.success),
+                  const Icon(CupertinoIcons.check_mark_circled_solid, color: AppColors.success),
                   const SizedBox(width: 12),
                   Expanded(child: Text(message, style: AppTextStyles.body)),
                 ],
@@ -903,7 +903,7 @@ class _ContactDetailModalState extends State<ContactDetailModal>
               ),
               child: Row(
                 children: [
-                  Icon(CupertinoIcons.exclamationmark_circle, color: AppColors.error),
+                  const Icon(CupertinoIcons.exclamationmark_circle, color: AppColors.error),
                   const SizedBox(width: 12),
                   Expanded(child: Text(message, style: AppTextStyles.body)),
                 ],

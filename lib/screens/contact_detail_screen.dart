@@ -11,7 +11,7 @@ import '../theme/theme.dart';
 class ContactDetailScreen extends StatefulWidget {
   final ReceivedContact receivedContact;
 
-  const ContactDetailScreen({Key? key, required this.receivedContact}) : super(key: key);
+  const ContactDetailScreen({super.key, required this.receivedContact});
 
   @override
   State<ContactDetailScreen> createState() => _ContactDetailScreenState();
@@ -40,7 +40,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
               Align(
                 alignment: Alignment.topRight,
                 child: IconButton(
-                  icon: Icon(CupertinoIcons.xmark, color: Color(0xFF673AB7)),
+                  icon: const Icon(CupertinoIcons.xmark, color: Color(0xFF673AB7)),
                   onPressed: () => Navigator.pop(context),
                 ),
               ),
@@ -55,7 +55,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
               if (_contact.contact.socialMedia.isNotEmpty)
                 _buildSocialMedia(),
 
-              Spacer(),
+              const Spacer(),
 
               // Action buttons
               _buildActionButtons(),
@@ -74,10 +74,10 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
           radius: 40,
           child: Text(
             _contact.contact.name.isNotEmpty ? _contact.contact.name[0] : '?',
-            style: TextStyle(fontSize: 24, color: Color(0xFFF7F7F7)),
+            style: const TextStyle(fontSize: 24, color: Color(0xFFF7F7F7)),
           ),
         ),
-        SizedBox(height: 16),
+        const SizedBox(height: 16),
 
         // Name
         Text(
@@ -88,19 +88,19 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
 
         // Title and company
         if (_contact.contact.title != null) ...[
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
           Text(
             _contact.contact.title!,
-            style: TextStyle(color: Color(0xFF673AB7), fontSize: 16),
+            style: const TextStyle(color: Color(0xFF673AB7), fontSize: 16),
             textAlign: TextAlign.center,
           ),
         ],
 
         if (_contact.contact.company != null) ...[
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
           Text(
             _contact.contact.company!,
-            style: TextStyle(color: Color(0xFFF7F7F7), fontSize: 14),
+            style: const TextStyle(color: Color(0xFFF7F7F7), fontSize: 14),
             textAlign: TextAlign.center,
           ),
         ],
@@ -111,7 +111,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
   Widget _buildContactInfo() {
     return Column(
       children: [
-        SizedBox(height: 24),
+        const SizedBox(height: 24),
 
         // Phone
         if (_contact.contact.phone != null)
@@ -143,7 +143,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
   Widget _buildSocialMedia() {
     return Column(
       children: [
-        SizedBox(height: 16),
+        const SizedBox(height: 16),
         Wrap(
           spacing: 8,
           children: _contact.contact.socialMedia.entries.map((entry) {
@@ -160,7 +160,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
 
   Widget _buildActionButtons() {
     return Padding(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       child: Column(
         children: [
           // Save contact button
@@ -184,10 +184,10 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                             width: 1,
                           ),
                         ),
-                        child: Row(
+                        child: const Row(
                           children: [
                             Icon(CupertinoIcons.check_mark_circled_solid, color: AppColors.success),
-                            const SizedBox(width: 12),
+                            SizedBox(width: 12),
                             Expanded(child: Text('Contact saved successfully!')),
                           ],
                         ),
@@ -203,7 +203,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
             },
           ),
 
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
 
           // Add note button
           AppButton.outlined(
@@ -252,11 +252,11 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Add Note'),
+        title: const Text('Add Note'),
         content: TextField(
           controller: TextEditingController(text: noteText),
           onChanged: (value) => noteText = value,
-          decoration: InputDecoration(
+          decoration: const InputDecoration(
             hintText: 'Enter your note...',
             border: OutlineInputBorder(),
           ),
@@ -265,7 +265,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel'),
+            child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () async {
@@ -291,7 +291,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                         ),
                         child: Row(
                           children: [
-                            Icon(CupertinoIcons.check_mark_circled_solid, color: AppColors.success),
+                            const Icon(CupertinoIcons.check_mark_circled_solid, color: AppColors.success),
                             const SizedBox(width: 12),
                             Expanded(child: Text('Note ${noteText.isEmpty ? 'removed' : 'saved'}')),
                           ],
@@ -305,7 +305,7 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                 ),
               );
             },
-            child: Text('Save'),
+            child: const Text('Save'),
           ),
         ],
       ),
@@ -320,30 +320,30 @@ class ContactInfoRow extends StatelessWidget {
   final VoidCallback? onTap;
 
   const ContactInfoRow({
-    Key? key,
+    super.key,
     required this.icon,
     required this.text,
     this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
       child: Padding(
-        padding: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
         child: Row(
           children: [
-            Icon(icon, color: Color(0xFF673AB7), size: 20),
-            SizedBox(width: 12),
+            Icon(icon, color: const Color(0xFF673AB7), size: 20),
+            const SizedBox(width: 12),
             Expanded(
               child: Text(
                 text,
-                style: TextStyle(color: Color(0xFFF7F7F7), fontSize: 14),
+                style: const TextStyle(color: Color(0xFFF7F7F7), fontSize: 14),
               ),
             ),
             if (onTap != null)
-              Icon(CupertinoIcons.arrow_up_right_square, color: Color(0xFF673AB7), size: 16),
+              const Icon(CupertinoIcons.arrow_up_right_square, color: Color(0xFF673AB7), size: 16),
           ],
         ),
       ),
@@ -357,31 +357,31 @@ class GlassChip extends StatelessWidget {
   final VoidCallback? onTap;
 
   const GlassChip({
-    Key? key,
+    super.key,
     required this.icon,
     required this.label,
     this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: Color(0xFF673AB7).withOpacity(0.2),
+          color: const Color(0xFF673AB7).withOpacity(0.2),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Color(0xFF673AB7).withOpacity(0.3)),
+          border: Border.all(color: const Color(0xFF673AB7).withOpacity(0.3)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: Color(0xFF673AB7), size: 16),
-            SizedBox(width: 4),
+            Icon(icon, color: const Color(0xFF673AB7), size: 16),
+            const SizedBox(width: 4),
             Text(
               label,
-              style: TextStyle(color: Color(0xFFF7F7F7), fontSize: 12),
+              style: const TextStyle(color: Color(0xFFF7F7F7), fontSize: 12),
             ),
           ],
         ),

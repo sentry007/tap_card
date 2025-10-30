@@ -11,7 +11,7 @@ import '../../core/providers/app_state.dart';
 import '../../core/constants/routes.dart';
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({Key? key}) : super(key: key);
+  const SplashScreen({super.key});
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -123,7 +123,7 @@ class _SplashScreenState extends State<SplashScreen>
           key: const Key('splash_main_stack'),
           children: [
             // Background gradient overlay
-            Container(
+            SizedBox(
               key: const Key('splash_background_container'),
               width: double.infinity,
               height: double.infinity,
@@ -170,7 +170,7 @@ class _SplashScreenState extends State<SplashScreen>
   Widget _buildMainCard(double cardSize) {
     // Make card taller to accommodate content
     final cardHeight = cardSize * 1.3; // 30% taller
-    return Container(
+    return SizedBox(
       key: const Key('splash_main_card'),
       width: cardSize,
       height: cardHeight,
@@ -256,7 +256,7 @@ class _SplashScreenState extends State<SplashScreen>
 
         // Main headline
         Text(
-          'Welcome to\nTap Card',
+          'Welcome to\nAtlas Linq',
           key: const Key('splash_headline_text'),
           style: AppTextStyles.h1.copyWith(
             fontSize: titleSize,

@@ -9,7 +9,7 @@ import '../../core/providers/app_state.dart';
 import '../../core/constants/routes.dart';
 
 class OnboardingScreen extends StatefulWidget {
-  const OnboardingScreen({Key? key}) : super(key: key);
+  const OnboardingScreen({super.key});
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -22,7 +22,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final List<OnboardingPage> _pages = [
     OnboardingPage(
       icon: CupertinoIcons.antenna_radiowaves_left_right,
-      title: 'Welcome to TapCard',
+      title: 'Welcome to Atlas Linq',
       subtitle: 'Your smart digital business card',
       description: 'Share your contact info effortlessly with NFC, QR codes, and customizable profiles.',
     ),

@@ -6,7 +6,7 @@ import '../../theme/theme.dart';
 import '../constants/routes.dart';
 
 class GlassBottomNav extends StatefulWidget {
-  const GlassBottomNav({Key? key}) : super(key: key);
+  const GlassBottomNav({super.key});
 
   @override
   State<GlassBottomNav> createState() => _GlassBottomNavState();
@@ -222,10 +222,10 @@ class GlassNavIndicator extends StatelessWidget {
   final bool isVisible;
 
   const GlassNavIndicator({
-    Key? key,
+    super.key,
     required this.width,
     required this.isVisible,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

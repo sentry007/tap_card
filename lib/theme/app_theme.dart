@@ -20,12 +20,10 @@ class AppTheme {
         secondary: AppColors.secondaryAction,
         tertiary: AppColors.highlight,
         surface: AppColors.surfaceDark,
-        background: AppColors.primaryBackground,
         error: AppColors.error,
         onPrimary: AppColors.textPrimary,
         onSecondary: AppColors.textPrimary,
         onSurface: AppColors.textPrimary,
-        onBackground: AppColors.textPrimary,
         onError: AppColors.textPrimary,
         outline: AppColors.glassBorder,
         shadow: AppColors.shadowDark,
@@ -171,14 +169,14 @@ class AppTheme {
 
       // Switch Theme
       switchTheme: SwitchThemeData(
-        thumbColor: MaterialStateProperty.resolveWith((states) {
-          if (states.contains(MaterialState.selected)) {
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
             return AppColors.primaryAction;
           }
           return AppColors.textTertiary;
         }),
-        trackColor: MaterialStateProperty.resolveWith((states) {
-          if (states.contains(MaterialState.selected)) {
+        trackColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
             return AppColors.primaryAction.withOpacity(0.5);
           }
           return AppColors.surfaceLight;
@@ -187,21 +185,21 @@ class AppTheme {
 
       // Checkbox Theme
       checkboxTheme: CheckboxThemeData(
-        fillColor: MaterialStateProperty.resolveWith((states) {
-          if (states.contains(MaterialState.selected)) {
+        fillColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
             return AppColors.primaryAction;
           }
           return Colors.transparent;
         }),
-        checkColor: MaterialStateProperty.all(AppColors.textPrimary),
+        checkColor: WidgetStateProperty.all(AppColors.textPrimary),
         side: const BorderSide(color: AppColors.glassBorder, width: 2),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
       ),
 
       // Radio Theme
       radioTheme: RadioThemeData(
-        fillColor: MaterialStateProperty.resolveWith((states) {
-          if (states.contains(MaterialState.selected)) {
+        fillColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
             return AppColors.primaryAction;
           }
           return AppColors.glassBorder;

@@ -6,7 +6,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:cross_file/cross_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -23,13 +22,13 @@ class ShareModal extends StatefulWidget {
   final ProfileData profile;  // Full profile data for generating metadata
 
   const ShareModal({
-    Key? key,
+    super.key,
     required this.userName,
     required this.userEmail,
     this.profileImageUrl,
     this.onNFCShare,
     required this.profile,
-  }) : super(key: key);
+  });
 
   @override
   State<ShareModal> createState() => _ShareModalState();
@@ -534,8 +533,8 @@ class _ShareModalState extends State<ShareModal>
                 child: InkWell(
                   onTap: _copyLink,
                   borderRadius: BorderRadius.circular(8),
-                  child: Padding(
-                    padding: const EdgeInsets.all(8),
+                  child: const Padding(
+                    padding: EdgeInsets.all(8),
                     child: Icon(
                       CupertinoIcons.doc_on_doc,
                       size: 18,
@@ -807,7 +806,7 @@ class _ShareModalState extends State<ShareModal>
               ),
               child: Row(
                 children: [
-                  Icon(CupertinoIcons.checkmark_circle, color: AppColors.success),
+                  const Icon(CupertinoIcons.checkmark_circle, color: AppColors.success),
                   const SizedBox(width: 12),
                   Expanded(child: Text(message, style: AppTextStyles.body)),
                 ],
@@ -842,7 +841,7 @@ class _ShareModalState extends State<ShareModal>
               ),
               child: Row(
                 children: [
-                  Icon(CupertinoIcons.exclamationmark_circle, color: AppColors.error),
+                  const Icon(CupertinoIcons.exclamationmark_circle, color: AppColors.error),
                   const SizedBox(width: 12),
                   Expanded(child: Text(message, style: AppTextStyles.body)),
                 ],
