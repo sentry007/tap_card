@@ -5,6 +5,7 @@ class AppRoutes {
   static const String profile = '/profile';
   static const String history = '/history';
   static const String settings = '/settings';
+  static const String insights = '/insights';
   static const String contactDetail = '/contact-detail';
   static const String nfcReceive = '/nfc-receive';
 

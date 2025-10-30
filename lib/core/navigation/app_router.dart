@@ -40,6 +40,7 @@ import '../../screens/home/home_screen.dart';
 import '../../screens/profile/profile_screen.dart';
 import '../../screens/history/history_screen.dart';
 import '../../screens/settings/settings_screen.dart';
+import '../../screens/insights/insights_screen.dart';
 import '../../screens/contact_detail_screen.dart';
 import '../../models/unified_models.dart';
 import 'navigation_wrapper.dart';
@@ -103,7 +104,8 @@ class AppRouter {
         // Access main app after onboarding complete
         if (!appState.shouldShowSplash &&
             appState.canAccessMainApp &&
-            (currentRoute == AppRoutes.splash || currentRoute == AppRoutes.onboarding)) {
+            (currentRoute == AppRoutes.splash ||
+                currentRoute == AppRoutes.onboarding)) {
           developer.log(
             '🏠 Redirecting to home (onboarding complete)',
             name: 'Router.Redirect',
@@ -145,7 +147,8 @@ class AppRouter {
           path: AppRoutes.onboarding,
           name: 'onboarding',
           builder: (context, state) {
-            developer.log('📍 Navigated to Onboarding', name: 'Router.Navigate');
+            developer.log('📍 Navigated to Onboarding',
+                name: 'Router.Navigate');
             return const OnboardingScreen();
           },
         ),
@@ -159,8 +162,8 @@ class AppRouter {
 
             developer.log(
               receivedContact != null
-                ? '📍 Navigated to Contact Detail: ${receivedContact.contact.name}'
-                : '⚠️  Navigated to Contact Detail with no data',
+                  ? '📍 Navigated to Contact Detail: ${receivedContact.contact.name}'
+                  : '⚠️  Navigated to Contact Detail with no data',
               name: 'Router.Navigate',
             );
 
@@ -205,7 +208,8 @@ class AppRouter {
               path: AppRoutes.profile,
               name: 'profile',
               pageBuilder: (context, state) {
-                developer.log('📍 Navigated to Profile', name: 'Router.Navigate');
+                developer.log('📍 Navigated to Profile',
+                    name: 'Router.Navigate');
                 return _buildPageWithTransition(
                   context,
                   state,
@@ -219,11 +223,16 @@ class AppRouter {
               path: AppRoutes.history,
               name: 'history',
               pageBuilder: (context, state) {
-                developer.log('📍 Navigated to History', name: 'Router.Navigate');
+                final entryId = state.uri.queryParameters['entryId'];
+                developer.log(
+                    entryId != null
+                        ? '📍 Navigated to History with entry: $entryId'
+                        : '📍 Navigated to History',
+                    name: 'Router.Navigate');
                 return _buildPageWithTransition(
                   context,
                   state,
-                  const HistoryScreen(),
+                  HistoryScreen(initialEntryId: entryId),
                 );
               },
             ),
@@ -233,11 +242,27 @@ class AppRouter {
               path: AppRoutes.settings,
               name: 'settings',
               pageBuilder: (context, state) {
-                developer.log('📍 Navigated to Settings', name: 'Router.Navigate');
+                developer.log('📍 Navigated to Settings',
+                    name: 'Router.Navigate');
                 return _buildPageWithTransition(
                   context,
                   state,
                   const SettingsScreen(),
+                );
+              },
+            ),
+
+            // Insights Screen
+            GoRoute(
+              path: AppRoutes.insights,
+              name: 'insights',
+              pageBuilder: (context, state) {
+                developer.log('📍 Navigated to Insights',
+                    name: 'Router.Navigate');
+                return _buildPageWithTransition(
+                  context,
+                  state,
+                  const InsightsScreen(),
                 );
               },
             ),
@@ -265,7 +290,7 @@ class AppRouter {
         // Slide animation from right to left
         final slideAnimation = Tween<Offset>(
           begin: const Offset(1.0, 0.0), // Start off-screen to the right
-          end: Offset.zero,                // End at normal position
+          end: Offset.zero, // End at normal position
         ).animate(
           CurvedAnimation(
             parent: animation,
@@ -281,7 +306,8 @@ class AppRouter {
           ),
         );
       },
-      transitionDuration: const Duration(milliseconds: AppDurations.pageTransition),
+      transitionDuration:
+          const Duration(milliseconds: AppDurations.pageTransition),
     );
   }
 }
