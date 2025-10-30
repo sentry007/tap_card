@@ -30,11 +30,17 @@ import '../../services/history_service.dart';
 import '../../services/contact_service.dart';
 import '../../services/firebase_analytics_service.dart';
 import '../../widgets/history/method_chip.dart';
+import '../../widgets/history/history_card.dart';
+import '../../widgets/history/history_detail_modal.dart';
+import '../../widgets/history/history_states.dart';
+import '../../widgets/history/history_app_bar.dart';
+import '../../widgets/history/permission_banner.dart';
 import '../../core/constants/app_constants.dart';
-import 'dart:developer' as developer;
 
 class HistoryScreen extends StatefulWidget {
-  const HistoryScreen({Key? key}) : super(key: key);
+  final String? initialEntryId;
+
+  const HistoryScreen({super.key, this.initialEntryId});
 
   @override
   State<HistoryScreen> createState() => _HistoryScreenState();
@@ -54,16 +60,25 @@ class _HistoryScreenState extends State<HistoryScreen>
   // Controllers and state
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final GlobalKey<RefreshIndicatorState> _refreshKey = GlobalKey<RefreshIndicatorState>();
+  final GlobalKey<RefreshIndicatorState> _refreshKey =
+      GlobalKey<RefreshIndicatorState>();
 
   String _selectedFilter = 'All';
   bool _isSearching = false;
   bool _isLoading = false;
   String _searchQuery = '';
   List<HistoryEntry> _scannedContactEntries = []; // Cache for scanned contacts
-  bool? _hasContactsPermission; // null = checking, false = denied, true = granted
+  bool?
+      _hasContactsPermission; // null = checking, false = denied, true = granted
+  bool _hasShownInitialModal = false;
 
-  final List<String> _filters = ['All', 'NFC Tags', 'Today', 'This Week', 'This Month'];
+  final List<String> _filters = [
+    'All',
+    'NFC Tags',
+    'Today',
+    'This Week',
+    'This Month'
+  ];
 
   @override
   void initState() {
@@ -95,7 +110,8 @@ class _HistoryScreenState extends State<HistoryScreen>
 
     // If already granted, scan immediately
     if (hasPermission) {
-      print('📇 [History] Permission already granted, scanning automatically...');
+      print(
+          '📇 [History] Permission already granted, scanning automatically...');
       await _scanContactsForReceived();
     } else {
       print('📇 [History] Permission not granted, showing banner...');
@@ -207,35 +223,45 @@ class _HistoryScreenState extends State<HistoryScreen>
 
       print('📇 [History] Found ${contacts.length} TapCard contacts:');
       for (final contact in contacts) {
-        print('  - ${contact.displayName} (ID: ${contact.profileId}, legacy: ${contact.isLegacyFormat})');
+        print(
+            '  - ${contact.displayName} (ID: ${contact.profileId}, legacy: ${contact.isLegacyFormat})');
       }
 
       // Convert contacts to history entries (async fetch from Firestore)
-      print('🔄 [History] Converting to HistoryEntry objects with Firestore fetch...');
+      print(
+          '🔄 [History] Converting to HistoryEntry objects with Firestore fetch...');
       final contactEntries = await Future.wait(
         contacts.map((contact) async {
-          print('  🔄 Processing: ${contact.displayName} (${contact.profileId})...');
+          print(
+              '  🔄 Processing: ${contact.displayName} (${contact.profileId})...');
           final entry = await HistoryService.createReceivedEntryFromContact(
             contact: contact, // Pass full contact with metadata
           );
-          final source = entry.metadata?['firestore_fetched'] == true ? 'Firestore' : 'Placeholder';
-          print('  ✅ Created entry for: ${contact.displayName} (source: $source)');
+          final source = entry.metadata?['firestore_fetched'] == true
+              ? 'Firestore'
+              : 'Placeholder';
+          print(
+              '  ✅ Created entry for: ${contact.displayName} (source: $source)');
           return entry;
         }),
       );
 
-      print('🔄 [History] Created ${contactEntries.length} history entries with full Firestore data');
+      print(
+          '🔄 [History] Created ${contactEntries.length} history entries with full Firestore data');
 
       // Update cache
-      print('🔄 [History] Current _scannedContactEntries length: ${_scannedContactEntries.length}');
+      print(
+          '🔄 [History] Current _scannedContactEntries length: ${_scannedContactEntries.length}');
       print('🔄 [History] Mounted: $mounted');
 
       if (mounted) {
         setState(() {
           _scannedContactEntries = contactEntries;
         });
-        print('✅ [History] setState completed - _scannedContactEntries.length: ${_scannedContactEntries.length}');
-        print('✅ [History] Contact names in cache: ${_scannedContactEntries.map((e) => e.senderProfile?.name).join(", ")}');
+        print(
+            '✅ [History] setState completed - _scannedContactEntries.length: ${_scannedContactEntries.length}');
+        print(
+            '✅ [History] Contact names in cache: ${_scannedContactEntries.map((e) => e.senderProfile?.name).join(", ")}');
       } else {
         print('⚠️ [History] Widget not mounted, cannot update state');
       }
@@ -247,21 +273,26 @@ class _HistoryScreenState extends State<HistoryScreen>
 
   /// Merge history entries with scanned contacts from device
   /// Returns combined list with contacts showing as "received" entries
-  List<HistoryEntry> _mergeWithScannedContacts(List<HistoryEntry> historyItems) {
+  List<HistoryEntry> _mergeWithScannedContacts(
+      List<HistoryEntry> historyItems) {
     print('🔀 [History] Starting merge...');
     print('  📊 historyItems count: ${historyItems.length}');
-    print('  📊 _scannedContactEntries count: ${_scannedContactEntries.length}');
+    print(
+        '  📊 _scannedContactEntries count: ${_scannedContactEntries.length}');
 
     if (_scannedContactEntries.isEmpty) {
       print('  ℹ️ No scanned contacts to merge, returning original history');
       return historyItems;
     }
 
-    print('  📋 Scanned contact names: ${_scannedContactEntries.map((e) => e.senderProfile?.name).join(", ")}');
+    print(
+        '  📋 Scanned contact names: ${_scannedContactEntries.map((e) => e.senderProfile?.name).join(", ")}');
 
     // Use a Set to track existing profile IDs to avoid duplicates
     final existingProfileIds = historyItems
-        .where((item) => item.type == HistoryEntryType.received && item.senderProfile != null)
+        .where((item) =>
+            item.type == HistoryEntryType.received &&
+            item.senderProfile != null)
         .map((item) => item.senderProfile!.id)
         .toSet();
 
@@ -273,7 +304,8 @@ class _HistoryScreenState extends State<HistoryScreen>
         .toList();
 
     print('  ✅ Unique contact entries: ${uniqueContactEntries.length}');
-    print('  📋 Unique contact names: ${uniqueContactEntries.map((e) => e.senderProfile?.name).join(", ")}');
+    print(
+        '  📋 Unique contact names: ${uniqueContactEntries.map((e) => e.senderProfile?.name).join(", ")}');
 
     // Merge: history first, then unique contacts
     final merged = [...historyItems, ...uniqueContactEntries];
@@ -320,7 +352,8 @@ class _HistoryScreenState extends State<HistoryScreen>
     switch (_selectedFilter) {
       case 'NFC Tags':
         // Only show NFC tag writes
-        items = items.where((item) => item.type == HistoryEntryType.tag).toList();
+        items =
+            items.where((item) => item.type == HistoryEntryType.tag).toList();
         break;
       case 'Today':
         // Last 24 hours
@@ -335,18 +368,21 @@ class _HistoryScreenState extends State<HistoryScreen>
       case 'This Month':
         // Last 30 days
         final monthAgo = DateTime.now().subtract(const Duration(days: 30));
-        items = items.where((item) => item.timestamp.isAfter(monthAgo)).toList();
+        items =
+            items.where((item) => item.timestamp.isAfter(monthAgo)).toList();
         break;
       default:
         // 'All' - show both tags and received (exclude sent)
-        items = items.where((item) => item.type != HistoryEntryType.sent).toList();
+        items =
+            items.where((item) => item.type != HistoryEntryType.sent).toList();
         break;
     }
 
     return items;
   }
 
-  Future<void> _deleteItem(String itemId, {bool isReceivedEntry = false}) async {
+  Future<void> _deleteItem(String itemId,
+      {bool isReceivedEntry = false}) async {
     await HistoryService.deleteEntry(itemId);
     HapticFeedback.mediumImpact();
     if (mounted) {
@@ -366,7 +402,9 @@ class _HistoryScreenState extends State<HistoryScreen>
                     width: 1,
                   ),
                 ),
-                child: Text(isReceivedEntry ? 'Contact and history deleted' : 'Item deleted'),
+                child: Text(isReceivedEntry
+                    ? 'Contact and history deleted'
+                    : 'Item deleted'),
               ),
             ),
           ),
@@ -419,7 +457,8 @@ class _HistoryScreenState extends State<HistoryScreen>
     HapticFeedback.lightImpact();
 
     // Track contact viewed for received entries using Firebase Analytics
-    if (item.type == HistoryEntryType.received && item.senderProfile?.id != null) {
+    if (item.type == HistoryEntryType.received &&
+        item.senderProfile?.id != null) {
       FirebaseAnalyticsService.logContactViewed(
         profileId: item.senderProfile!.id,
         source: 'history',
@@ -435,8 +474,34 @@ class _HistoryScreenState extends State<HistoryScreen>
         minChildSize: 0.5,
         maxChildSize: 0.95,
         snap: true,
-        snapSizes: [0.5, item.type == HistoryEntryType.received ? 0.85 : 0.75, 0.95],
-        builder: (context, scrollController) => _buildItemDetailModal(item, scrollController),
+        snapSizes: [
+          0.5,
+          item.type == HistoryEntryType.received ? 0.85 : 0.75,
+          0.95
+        ],
+        builder: (context, scrollController) => HistoryDetailModal(
+          item: item,
+          scrollController: scrollController,
+          onArchive: () {
+            Navigator.pop(context);
+            _softDeleteItem(item.id);
+          },
+          onDelete: () {
+            Navigator.pop(context);
+            if (item.type == HistoryEntryType.sent) {
+              _softDeleteItem(item.id);
+            } else {
+              _deleteItem(item.id,
+                  isReceivedEntry: item.type == HistoryEntryType.received);
+            }
+          },
+          onSaveToContacts: (profile) => _saveToContacts(profile),
+          onLaunchUrl: (url) => _launchUrl(url),
+          onLaunchEmail: (email) => _launchEmail(email),
+          onLaunchPhone: (phone) => _launchPhone(phone),
+          onLaunchSocialMedia: (platform, url) =>
+              _launchSocialMedia(platform, url),
+        ),
       ),
     );
   }
@@ -487,7 +552,13 @@ class _HistoryScreenState extends State<HistoryScreen>
             top: 0,
             left: 0,
             right: 0,
-            child: _buildGlassAppBar(),
+            child: HistoryGlassAppBar(
+              isSearching: _isSearching,
+              onSearchToggle: _toggleSearch,
+              onSettingsTap: _openSettings,
+              searchController: _searchController,
+              searchScale: _searchScale,
+            ),
           ),
         ],
       ),
@@ -526,7 +597,7 @@ class _HistoryScreenState extends State<HistoryScreen>
                 ],
               ),
               child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
                 child: Row(
                   children: [
                     AnimatedBuilder(
@@ -535,23 +606,27 @@ class _HistoryScreenState extends State<HistoryScreen>
                         return Transform.scale(
                           scale: _searchScale.value,
                           child: _buildAppBarIcon(
-                            _isSearching ? CupertinoIcons.xmark : CupertinoIcons.search,
+                            _isSearching
+                                ? CupertinoIcons.xmark
+                                : CupertinoIcons.search,
                             _toggleSearch,
                           ),
                         );
                       },
                     ),
-                    SizedBox(width: AppSpacing.sm),
+                    const SizedBox(width: AppSpacing.sm),
                     Expanded(
                       child: AnimatedSwitcher(
                         duration: const Duration(milliseconds: 300),
-                        transitionBuilder: (Widget child, Animation<double> animation) {
+                        transitionBuilder:
+                            (Widget child, Animation<double> animation) {
                           return SlideTransition(
                             position: Tween<Offset>(
                               begin: const Offset(0.0, -0.5),
                               end: Offset.zero,
                             ).animate(animation),
-                            child: FadeTransition(opacity: animation, child: child),
+                            child: FadeTransition(
+                                opacity: animation, child: child),
                           );
                         },
                         child: _isSearching
@@ -588,7 +663,7 @@ class _HistoryScreenState extends State<HistoryScreen>
                               ),
                       ),
                     ),
-                    SizedBox(width: AppSpacing.sm),
+                    const SizedBox(width: AppSpacing.sm),
                     _buildAppBarIcon(CupertinoIcons.settings, _openSettings),
                   ],
                 ),
@@ -626,7 +701,8 @@ class _HistoryScreenState extends State<HistoryScreen>
           offset: Offset(_filterSlide.value * 100, 0),
           child: Container(
             height: 36,
-            margin: EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+            margin: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md, vertical: AppSpacing.xs),
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               itemCount: _filters.length,
@@ -636,7 +712,7 @@ class _HistoryScreenState extends State<HistoryScreen>
                 final filterColors = _getFilterColors(filter);
 
                 return Container(
-                  margin: EdgeInsets.only(right: AppSpacing.sm),
+                  margin: const EdgeInsets.only(right: AppSpacing.sm),
                   child: Material(
                     color: Colors.transparent,
                     child: InkWell(
@@ -647,7 +723,8 @@ class _HistoryScreenState extends State<HistoryScreen>
                         child: BackdropFilter(
                           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                           child: Container(
-                            padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: AppSpacing.md),
                             decoration: BoxDecoration(
                               color: isSelected
                                   ? filterColors['background']!.withOpacity(0.2)
@@ -662,7 +739,8 @@ class _HistoryScreenState extends State<HistoryScreen>
                               boxShadow: isSelected
                                   ? [
                                       BoxShadow(
-                                        color: filterColors['shadow']!.withOpacity(0.2),
+                                        color: filterColors['shadow']!
+                                            .withOpacity(0.2),
                                         blurRadius: 8,
                                         offset: const Offset(0, 2),
                                       ),
@@ -676,7 +754,9 @@ class _HistoryScreenState extends State<HistoryScreen>
                                 color: isSelected
                                     ? filterColors['text']!
                                     : AppColors.textPrimary,
-                                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                                fontWeight: isSelected
+                                    ? FontWeight.w600
+                                    : FontWeight.w500,
                                 fontSize: 13,
                               ),
                             ),
@@ -760,11 +840,11 @@ class _HistoryScreenState extends State<HistoryScreen>
       stream: HistoryService.historyStream(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting || _isLoading) {
-          return _buildLoadingGrid();
+          return const HistoryLoadingGrid();
         }
 
         if (snapshot.hasError) {
-          return _buildErrorState(snapshot.error.toString());
+          return HistoryErrorState(error: snapshot.error.toString());
         }
 
         final historyItems = snapshot.data ?? [];
@@ -773,34 +853,69 @@ class _HistoryScreenState extends State<HistoryScreen>
         final allItems = _mergeWithScannedContacts(historyItems);
         final filteredItems = _filterHistoryItems(allItems);
 
-        print('📊 [History] Build - allItems: ${allItems.length}, filteredItems: ${filteredItems.length}');
-        print('📊 [History] Filtered item names: ${filteredItems.map((e) => e.displayName).take(10).join(", ")}');
+        print(
+            '📊 [History] Build - allItems: ${allItems.length}, filteredItems: ${filteredItems.length}');
+        print(
+            '📊 [History] Filtered item names: ${filteredItems.map((e) => e.displayName).take(10).join(", ")}');
+
+        // Auto-open modal if initialEntryId is provided
+        if (widget.initialEntryId != null && !_hasShownInitialModal) {
+          _hasShownInitialModal = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            final entry = allItems.firstWhere(
+              (e) => e.id == widget.initialEntryId,
+              orElse: () => allItems.first,
+            );
+            _showItemDetails(entry);
+          });
+        }
 
         if (filteredItems.isEmpty) {
-          return _buildEmptyState();
+          return HistoryEmptyState(selectedFilter: _selectedFilter);
         }
 
         return Stack(
           children: [
             GridView.builder(
-          controller: _scrollController,
-          padding: EdgeInsets.only(
-            top: statusBarHeight + 80 + 36 + AppSpacing.xs + AppSpacing.md, // App bar + filter chips + margins + grid padding
-            left: AppSpacing.md,
-            right: AppSpacing.md,
-            bottom: AppSpacing.md + 80, // Grid padding + bottom nav space
-          ),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 0.85,
-          ),
+              controller: _scrollController,
+              padding: EdgeInsets.only(
+                top: statusBarHeight +
+                    80 +
+                    36 +
+                    AppSpacing.xs +
+                    AppSpacing
+                        .md, // App bar + filter chips + margins + grid padding
+                left: AppSpacing.md,
+                right: AppSpacing.md,
+                bottom: AppSpacing.md + 80, // Grid padding + bottom nav space
+              ),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 0.85,
+              ),
               itemCount: filteredItems.length,
-              itemBuilder: (context, index) => _buildHistoryCard(filteredItems[index], index),
+              itemBuilder: (context, index) => HistoryCard(
+                item: filteredItems[index],
+                onTap: () => _showItemDetails(filteredItems[index]),
+                onDelete: () {
+                  final item = filteredItems[index];
+                  if (item.type == HistoryEntryType.sent) {
+                    _softDeleteItem(item.id);
+                  } else {
+                    _deleteItem(item.id,
+                        isReceivedEntry: item.type == HistoryEntryType.received);
+                  }
+                },
+              ),
             ),
             // Permission banner (shows when permission not granted)
-            if (_hasContactsPermission == false) _buildPermissionBanner(statusBarHeight),
+            if (_hasContactsPermission == false)
+              ContactPermissionBanner(
+                onAllowAccess: _requestContactsPermission,
+                statusBarHeight: statusBarHeight,
+              ),
           ],
         );
       },
@@ -831,18 +946,18 @@ class _HistoryScreenState extends State<HistoryScreen>
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
+                const Row(
                   children: [
                     Icon(
                       CupertinoIcons.person_2_square_stack,
                       color: AppColors.primaryAction,
                       size: 24,
                     ),
-                    const SizedBox(width: AppSpacing.sm),
+                    SizedBox(width: AppSpacing.sm),
                     Expanded(
                       child: Text(
                         'Enable Contact Scanning',
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Colors.white,
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -853,7 +968,7 @@ class _HistoryScreenState extends State<HistoryScreen>
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
-                  'TapCard can detect contacts you\'ve received by scanning your device contacts for TapCard URLs.',
+                  'Atlas Linq can detect contacts you\'ve received by scanning your device contacts for Atlas Linq URLs.',
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.7),
                     fontSize: 14,
@@ -891,7 +1006,8 @@ class _HistoryScreenState extends State<HistoryScreen>
 
     // Debug: Log if tag entry is missing location
     if (item.type == HistoryEntryType.tag && item.location == null) {
-      print('⚠️ [History] Tag entry missing location: ${item.displayName} (${item.id})');
+      print(
+          '⚠️ [History] Tag entry missing location: ${item.displayName} (${item.id})');
     }
 
     return Dismissible(
@@ -903,14 +1019,16 @@ class _HistoryScreenState extends State<HistoryScreen>
           borderRadius: BorderRadius.circular(AppRadius.card),
         ),
         alignment: Alignment.centerRight,
-        padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-        child: const Icon(CupertinoIcons.delete, color: AppColors.error, size: 24),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+        child:
+            const Icon(CupertinoIcons.delete, color: AppColors.error, size: 24),
       ),
       onDismissed: (direction) {
         if (item.type == HistoryEntryType.sent) {
           _softDeleteItem(item.id);
         } else {
-          _deleteItem(item.id, isReceivedEntry: item.type == HistoryEntryType.received);
+          _deleteItem(item.id,
+              isReceivedEntry: item.type == HistoryEntryType.received);
         }
       },
       child: Material(
@@ -936,7 +1054,7 @@ class _HistoryScreenState extends State<HistoryScreen>
                   ],
                 ),
                 child: Padding(
-                  padding: EdgeInsets.all(AppSpacing.md),
+                  padding: const EdgeInsets.all(AppSpacing.md),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -949,7 +1067,7 @@ class _HistoryScreenState extends State<HistoryScreen>
                           ),
                           const Spacer(),
                           Container(
-                            padding: EdgeInsets.all(AppSpacing.xs),
+                            padding: const EdgeInsets.all(AppSpacing.xs),
                             decoration: BoxDecoration(
                               color: _getItemColor(item.type).withOpacity(0.2),
                               borderRadius: BorderRadius.circular(AppRadius.sm),
@@ -962,38 +1080,42 @@ class _HistoryScreenState extends State<HistoryScreen>
                           ),
                         ],
                       ),
-                      SizedBox(height: AppSpacing.sm),
+                      const SizedBox(height: AppSpacing.sm),
                       Text(
                         item.displayName,
-                        style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600),
+                        style: AppTextStyles.body
+                            .copyWith(fontWeight: FontWeight.w600),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      SizedBox(height: AppSpacing.xs),
+                      const SizedBox(height: AppSpacing.xs),
                       Row(
                         children: [
                           Expanded(
                             child: Text(
                               item.subtitle,
-                              style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                              style: AppTextStyles.caption
+                                  .copyWith(color: AppColors.textSecondary),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
                       ),
-                      SizedBox(height: AppSpacing.sm),
+                      const SizedBox(height: AppSpacing.sm),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          MethodChip(method: item.method, fontSize: 9, iconSize: 10),
+                          MethodChip(
+                              method: item.method, fontSize: 9, iconSize: 10),
                           if (item.location != null)
                             Expanded(
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
-                                  Icon(CupertinoIcons.location_fill, color: AppColors.textTertiary, size: 10),
-                                  SizedBox(width: AppSpacing.xs),
+                                  const Icon(CupertinoIcons.location_fill,
+                                      color: AppColors.textTertiary, size: 10),
+                                  const SizedBox(width: AppSpacing.xs),
                                   Flexible(
                                     child: Text(
                                       item.location!,
@@ -1045,7 +1167,7 @@ class _HistoryScreenState extends State<HistoryScreen>
                 : '?';
             return Container(
               decoration: BoxDecoration(
-                gradient: LinearGradient(
+                gradient: const LinearGradient(
                   colors: [
                     AppColors.primaryAction,
                     AppColors.secondaryAction,
@@ -1074,48 +1196,52 @@ class _HistoryScreenState extends State<HistoryScreen>
                   color: AppColors.success.withOpacity(0.3),
                   borderRadius: BorderRadius.circular(radius),
                 ),
-                child: Icon(CupertinoIcons.person, color: AppColors.success, size: iconSize),
+                child: Icon(CupertinoIcons.person,
+                    color: AppColors.success, size: iconSize),
               );
             }
 
-            if (profile.profileImagePath != null && profile.profileImagePath!.isNotEmpty) {
-              final isNetworkImage = profile.profileImagePath!.startsWith('http://') ||
-                                      profile.profileImagePath!.startsWith('https://');
+            if (profile.profileImagePath != null &&
+                profile.profileImagePath!.isNotEmpty) {
+              final isNetworkImage =
+                  profile.profileImagePath!.startsWith('http://') ||
+                      profile.profileImagePath!.startsWith('https://');
 
               return ClipRRect(
                 borderRadius: BorderRadius.circular(radius),
                 child: isNetworkImage
-                  ? CachedNetworkImage(
-                      imageUrl: profile.profileImagePath!,
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) => Container(
-                        color: Colors.grey.withOpacity(0.2),
-                        child: const Center(
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                    ? CachedNetworkImage(
+                        imageUrl: profile.profileImagePath!,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => Container(
+                          color: Colors.grey.withOpacity(0.2),
+                          child: const Center(
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
                         ),
-                      ),
-                      errorWidget: (context, url, error) => Icon(
-                        CupertinoIcons.person,
-                        color: AppColors.success,
-                        size: iconSize,
-                      ),
-                    )
-                  : Image.file(
-                      File(profile.profileImagePath!),
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Icon(
+                        errorWidget: (context, url, error) => Icon(
                           CupertinoIcons.person,
                           color: AppColors.success,
                           size: iconSize,
-                        );
-                      },
-                    ),
+                        ),
+                      )
+                    : Image.file(
+                        File(profile.profileImagePath!),
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Icon(
+                            CupertinoIcons.person,
+                            color: AppColors.success,
+                            size: iconSize,
+                          );
+                        },
+                      ),
               );
             }
 
             // Show initial in gradient
-            final initial = profile.name.isNotEmpty ? profile.name[0].toUpperCase() : '?';
+            final initial =
+                profile.name.isNotEmpty ? profile.name[0].toUpperCase() : '?';
             return Container(
               decoration: BoxDecoration(
                 gradient: profile.cardAesthetics.gradient,
@@ -1139,7 +1265,7 @@ class _HistoryScreenState extends State<HistoryScreen>
               children: [
                 Container(
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
+                    gradient: const LinearGradient(
                       colors: [
                         AppColors.secondaryAction,
                         AppColors.highlight,
@@ -1161,7 +1287,8 @@ class _HistoryScreenState extends State<HistoryScreen>
                     bottom: 0,
                     right: 0,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 3, vertical: 1),
                       decoration: BoxDecoration(
                         color: AppColors.highlight,
                         borderRadius: BorderRadius.circular(6),
@@ -1184,204 +1311,10 @@ class _HistoryScreenState extends State<HistoryScreen>
     );
   }
 
-  Widget _buildItemDetailModal(HistoryEntry item, ScrollController scrollController) {
-    return Container(
-      margin: const EdgeInsets.all(12),  // Match share modal width
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(AppRadius.xl),
-              border: Border.all(
-                color: _getModalBorderColor(item.type),
-                width: 2.0,
-              ),
-            ),
-            child: SingleChildScrollView(
-              controller: scrollController,
-              physics: BouncingScrollPhysics(),
-              child: Padding(
-                padding: EdgeInsets.all(AppSpacing.lg),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: _getItemColor(item.type).withOpacity(0.6),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                SizedBox(height: AppSpacing.lg),
-                Row(
-                  children: [
-                    Container(
-                      width: 56,
-                      height: 56,
-                      child: _buildProfileAvatar(item),
-                    ),
-                    SizedBox(width: AppSpacing.md),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item.displayName,
-                            style: AppTextStyles.h2.copyWith(fontWeight: FontWeight.w700),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          SizedBox(height: AppSpacing.xs),
-                          // Chips side by side with glassmorphic styling
-                          Row(
-                            children: [
-                              // Entry type chip
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(AppRadius.md),
-                                child: BackdropFilter(
-                                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                                  child: Container(
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: AppSpacing.sm,
-                                      vertical: 6,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: _getItemColor(item.type).withOpacity(0.15),
-                                      borderRadius: BorderRadius.circular(AppRadius.md),
-                                      border: Border.all(
-                                        color: _getItemColor(item.type).withOpacity(0.3),
-                                        width: 1,
-                                      ),
-                                    ),
-                                    child: Text(
-                                      item.type.label,
-                                      style: AppTextStyles.caption.copyWith(
-                                        color: _getItemColor(item.type),
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              // Profile type badge for received entries
-                              if (item.type == HistoryEntryType.received && item.senderProfile?.type != null) ...[
-                                SizedBox(width: 8),
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(AppRadius.md),
-                                  child: BackdropFilter(
-                                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                                    child: Container(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 6,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: _getProfileTypeColor(item.senderProfile!.type).withOpacity(0.15),
-                                        borderRadius: BorderRadius.circular(AppRadius.md),
-                                        border: Border.all(
-                                          color: _getProfileTypeColor(item.senderProfile!.type).withOpacity(0.3),
-                                          width: 1,
-                                        ),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            _getProfileTypeIcon(item.senderProfile!.type),
-                                            size: 12,
-                                            color: _getProfileTypeColor(item.senderProfile!.type),
-                                          ),
-                                          SizedBox(width: 4),
-                                          Text(
-                                            item.senderProfile!.type.label,
-                                            style: AppTextStyles.caption.copyWith(
-                                              color: _getProfileTypeColor(item.senderProfile!.type),
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: AppSpacing.lg),
-                _buildDetailRow(CupertinoIcons.arrow_right_arrow_left, 'Method', item.method.label),
-                // Show metadata verification badge for received entries
-                if (item.type == HistoryEntryType.received && item.metadata?['has_metadata'] == true)
-                  Padding(
-                    padding: EdgeInsets.only(top: 4, left: 24 + 8 + 72 + 8), // Align with detail row value
-                    child: Container(
-                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.green.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        '✓ Verified metadata',
-                        style: TextStyle(fontSize: 10, color: Colors.green),
-                      ),
-                    ),
-                  ),
-                if (item.recipientDevice != null)
-                  _buildDetailRow(CupertinoIcons.device_phone_portrait, 'Device', item.recipientDevice!),
-                if (item.location != null)
-                  _buildDetailRow(CupertinoIcons.location_fill, 'Location', item.location!),
-                // Debug: Show if location is missing for tag entries
-                if (item.type == HistoryEntryType.tag && item.location == null)
-                  Padding(
-                    padding: EdgeInsets.symmetric(vertical: AppSpacing.xs),
-                    child: Text(
-                      '⚠️ Location tracking disabled or permission denied',
-                      style: TextStyle(color: Colors.orange.withOpacity(0.7), fontSize: 10),
-                    ),
-                  ),
-                if (item.tagType != null)
-                  _buildDetailRow(
-                    CupertinoIcons.tag,
-                    'Tag Info',
-                    _formatTagInfo(item)
-                  ),
-                // Show time for sent/tag always, and received IF we have real metadata
-                if (item.type != HistoryEntryType.received || item.metadata?['has_metadata'] == true)
-                  _buildDetailRow(CupertinoIcons.time, 'Time', _formatDetailTimestamp(item.timestamp)),
-                // Show warning if no real timestamp for received entry
-                if (item.type == HistoryEntryType.received && item.metadata?['has_metadata'] != true)
-                  Padding(
-                    padding: EdgeInsets.symmetric(vertical: AppSpacing.xs),
-                    child: Text(
-                      '⚠️ Estimated time (exact time not available)',
-                      style: TextStyle(color: Colors.orange.withOpacity(0.7), fontSize: 10),
-                    ),
-                  ),
-                SizedBox(height: AppSpacing.lg),
-                _buildModalActions(item),
-                // Bottom padding to clear nav bar (match share modal)
-                SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
   Widget _buildDetailRow(IconData icon, String label, String value) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1394,7 +1327,7 @@ class _HistoryScreenState extends State<HistoryScreen>
               size: 16,
             ),
           ),
-          SizedBox(width: AppSpacing.xs),
+          const SizedBox(width: AppSpacing.xs),
           // Label column with fixed width
           SizedBox(
             width: 72,
@@ -1405,7 +1338,7 @@ class _HistoryScreenState extends State<HistoryScreen>
               ),
             ),
           ),
-          SizedBox(width: AppSpacing.xs),
+          const SizedBox(width: AppSpacing.xs),
           // Value takes remaining space
           Expanded(
             child: Text(
@@ -1444,7 +1377,7 @@ class _HistoryScreenState extends State<HistoryScreen>
           children: [
             if (item.senderProfile != null) ...[
               _buildSenderProfileCard(item.senderProfile!),
-              SizedBox(height: AppSpacing.md),
+              const SizedBox(height: AppSpacing.sm),
             ],
             Row(
               children: [
@@ -1454,11 +1387,13 @@ class _HistoryScreenState extends State<HistoryScreen>
                     icon: const Icon(CupertinoIcons.delete, size: 18),
                     onPressed: () {
                       Navigator.pop(context);
-                      _deleteItem(item.id, isReceivedEntry: item.type == HistoryEntryType.received);
+                      _deleteItem(item.id,
+                          isReceivedEntry:
+                              item.type == HistoryEntryType.received);
                     },
                   ),
                 ),
-                SizedBox(width: AppSpacing.sm),
+                const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: AppButton.contained(
                     text: 'Save',
@@ -1482,7 +1417,8 @@ class _HistoryScreenState extends State<HistoryScreen>
             icon: const Icon(CupertinoIcons.delete, size: 18),
             onPressed: () {
               Navigator.pop(context);
-              _deleteItem(item.id, isReceivedEntry: item.type == HistoryEntryType.received);
+              _deleteItem(item.id,
+                  isReceivedEntry: item.type == HistoryEntryType.received);
             },
           ),
         );
@@ -1503,147 +1439,21 @@ class _HistoryScreenState extends State<HistoryScreen>
     return Center(
       child: ProfileCardPreview(
         profile: profile,
-        width: MediaQuery.of(context).size.width * 0.85,
-        height: 200,
+        width: MediaQuery.of(context).size.width * 0.92,
+        height: 180,
         borderRadius: AppRadius.xl,
-        onEmailTap: profile.email != null
-          ? () => _launchEmail(profile.email!)
-          : null,
-        onPhoneTap: profile.phone != null
-          ? () => _launchPhone(profile.phone!)
-          : null,
-        onWebsiteTap: profile.website != null
-          ? () => _launchUrl(profile.website!)
-          : null,
+        onEmailTap:
+            profile.email != null ? () => _launchEmail(profile.email!) : null,
+        onPhoneTap:
+            profile.phone != null ? () => _launchPhone(profile.phone!) : null,
+        onWebsiteTap:
+            profile.website != null ? () => _launchUrl(profile.website!) : null,
         onSocialTap: (platform, url) => _launchSocialMedia(platform, url),
+        onCustomLinkTap: (title, url) => _launchUrl(url),
       ),
     );
   }
 
-  Widget _buildLoadingGrid() {
-    return GridView.builder(
-      padding: EdgeInsets.all(AppSpacing.md),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 0.85,
-      ),
-      itemCount: 6,
-      itemBuilder: (context, index) => ClipRRect(
-        borderRadius: BorderRadius.circular(AppRadius.card),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(AppRadius.card),
-              border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: AppColors.textTertiary.withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                ),
-                SizedBox(height: AppSpacing.sm),
-                Container(
-                  width: 80,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    color: AppColors.textTertiary.withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 120,
-            height: 120,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(30),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(30),
-                    border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
-                  ),
-                  child: const Icon(
-                    CupertinoIcons.person_2,
-                    size: 60,
-                    color: AppColors.textTertiary,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          SizedBox(height: AppSpacing.xl),
-          Text(
-            _getEmptyStateTitle(),
-            style: AppTextStyles.h3.copyWith(fontWeight: FontWeight.w600),
-          ),
-          SizedBox(height: AppSpacing.sm),
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-            child: Text(
-              _getEmptyStateMessage(),
-              style: AppTextStyles.body.copyWith(
-                color: AppColors.textSecondary,
-                height: 1.5,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          SizedBox(height: AppSpacing.lg),
-          AppButton.outlined(
-            text: 'Start Sharing',
-            icon: const Icon(CupertinoIcons.antenna_radiowaves_left_right, size: 20),
-            onPressed: () {},
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildErrorState(String error) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(CupertinoIcons.exclamationmark_circle, size: 60, color: AppColors.error),
-          SizedBox(height: AppSpacing.md),
-          Text(
-            'Error loading history',
-            style: AppTextStyles.h3.copyWith(color: AppColors.error),
-          ),
-          SizedBox(height: AppSpacing.sm),
-          Text(
-            error,
-            style: AppTextStyles.caption,
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
 
   Map<String, Color> _getHistoryColors(HistoryEntryType type) {
     switch (type) {
@@ -1698,36 +1508,6 @@ class _HistoryScreenState extends State<HistoryScreen>
     }
   }
 
-  String _getEmptyStateTitle() {
-    switch (_selectedFilter) {
-      case 'NFC Tags':
-        return 'No NFC Tags Written';
-      case 'Today':
-        return 'No Activity Today';
-      case 'This Week':
-        return 'No Activity This Week';
-      case 'This Month':
-        return 'No Activity This Month';
-      default:
-        return 'Start Your Journey';
-    }
-  }
-
-  String _getEmptyStateMessage() {
-    switch (_selectedFilter) {
-      case 'NFC Tags':
-        return 'You haven\'t written to any NFC tags yet. Write your contact info to stickers or cards to get started!';
-      case 'Today':
-        return 'No sharing activity today. Tap an NFC tag or device to start connecting!';
-      case 'This Week':
-        return 'No sharing activity this week. Time to make some new connections!';
-      case 'This Month':
-        return 'No sharing activity this month. Write to tags or receive contacts with a simple tap!';
-      default:
-        return 'Your NFC journey starts here. Write to tags and receive contacts with a simple tap!';
-    }
-  }
-
   String _formatTimestamp(DateTime timestamp) {
     final now = DateTime.now();
     final difference = now.difference(timestamp);
@@ -1774,36 +1554,78 @@ class _HistoryScreenState extends State<HistoryScreen>
 
     // Today: Show "Today at 2:30 PM"
     if (diff.inDays == 0 && timestamp.day == now.day) {
-      final hour = timestamp.hour > 12 ? timestamp.hour - 12 : (timestamp.hour == 0 ? 12 : timestamp.hour);
+      final hour = timestamp.hour > 12
+          ? timestamp.hour - 12
+          : (timestamp.hour == 0 ? 12 : timestamp.hour);
       final period = timestamp.hour >= 12 ? 'PM' : 'AM';
       return 'Today at $hour:${timestamp.minute.toString().padLeft(2, '0')} $period';
     }
 
     // Yesterday: Show "Yesterday at 2:30 PM"
     if (diff.inDays == 1 || (diff.inDays == 0 && timestamp.day != now.day)) {
-      final hour = timestamp.hour > 12 ? timestamp.hour - 12 : (timestamp.hour == 0 ? 12 : timestamp.hour);
+      final hour = timestamp.hour > 12
+          ? timestamp.hour - 12
+          : (timestamp.hour == 0 ? 12 : timestamp.hour);
       final period = timestamp.hour >= 12 ? 'PM' : 'AM';
       return 'Yesterday at $hour:${timestamp.minute.toString().padLeft(2, '0')} $period';
     }
 
     // This week (within 7 days): Show "Mon, 2:30 PM"
     if (diff.inDays < 7) {
-      final weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][timestamp.weekday % 7];
-      final hour = timestamp.hour > 12 ? timestamp.hour - 12 : (timestamp.hour == 0 ? 12 : timestamp.hour);
+      final weekday = [
+        'Sun',
+        'Mon',
+        'Tue',
+        'Wed',
+        'Thu',
+        'Fri',
+        'Sat'
+      ][timestamp.weekday % 7];
+      final hour = timestamp.hour > 12
+          ? timestamp.hour - 12
+          : (timestamp.hour == 0 ? 12 : timestamp.hour);
       final period = timestamp.hour >= 12 ? 'PM' : 'AM';
       return '$weekday, $hour:${timestamp.minute.toString().padLeft(2, '0')} $period';
     }
 
     // This year: Show "Jan 11, 2:30 PM"
     if (timestamp.year == now.year) {
-      final month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][timestamp.month - 1];
-      final hour = timestamp.hour > 12 ? timestamp.hour - 12 : (timestamp.hour == 0 ? 12 : timestamp.hour);
+      final month = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec'
+      ][timestamp.month - 1];
+      final hour = timestamp.hour > 12
+          ? timestamp.hour - 12
+          : (timestamp.hour == 0 ? 12 : timestamp.hour);
       final period = timestamp.hour >= 12 ? 'PM' : 'AM';
       return '$month ${timestamp.day}, $hour:${timestamp.minute.toString().padLeft(2, '0')} $period';
     }
 
     // Older: Show "Jan 11, 2024"
-    final month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][timestamp.month - 1];
+    final month = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ][timestamp.month - 1];
     return '$month ${timestamp.day}, ${timestamp.year}';
   }
 
@@ -1816,7 +1638,8 @@ class _HistoryScreenState extends State<HistoryScreen>
 
       // Save to file and share using share_plus
       final directory = await getApplicationDocumentsDirectory();
-      final file = File('${directory.path}/contact_${DateTime.now().millisecondsSinceEpoch}.vcf');
+      final file = File(
+          '${directory.path}/contact_${DateTime.now().millisecondsSinceEpoch}.vcf');
       await file.writeAsString(vCard);
 
       // Share the VCard file
@@ -1834,7 +1657,8 @@ class _HistoryScreenState extends State<HistoryScreen>
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                   decoration: BoxDecoration(
                     color: AppColors.success.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(12),
@@ -1845,9 +1669,12 @@ class _HistoryScreenState extends State<HistoryScreen>
                   ),
                   child: Row(
                     children: [
-                      Icon(CupertinoIcons.checkmark_circle, color: AppColors.success),
+                      Icon(CupertinoIcons.checkmark_circle,
+                          color: AppColors.success),
                       SizedBox(width: 12),
-                      Expanded(child: Text('Opening contact card for ${profile.name}')),
+                      Expanded(
+                          child:
+                              Text('Opening contact card for ${profile.name}')),
                     ],
                   ),
                 ),
@@ -1869,7 +1696,8 @@ class _HistoryScreenState extends State<HistoryScreen>
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                   decoration: BoxDecoration(
                     color: AppColors.error.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(12),
@@ -1880,7 +1708,8 @@ class _HistoryScreenState extends State<HistoryScreen>
                   ),
                   child: Row(
                     children: [
-                      Icon(CupertinoIcons.exclamationmark_circle, color: AppColors.error),
+                      Icon(CupertinoIcons.exclamationmark_circle,
+                          color: AppColors.error),
                       SizedBox(width: 12),
                       Expanded(child: Text('Failed to save contact: $e')),
                     ],
@@ -1992,9 +1821,8 @@ class _HistoryScreenState extends State<HistoryScreen>
   /// Get native app URI for social platform
   /// Returns null if platform doesn't support app schemes
   Uri? _getSocialAppUri(String platform, String username) {
-    final cleanUsername = username.startsWith('@')
-      ? username.substring(1)
-      : username;
+    final cleanUsername =
+        username.startsWith('@') ? username.substring(1) : username;
 
     // Skip if already a full URL
     if (username.startsWith('http')) return null;
@@ -2034,7 +1862,8 @@ class _HistoryScreenState extends State<HistoryScreen>
 
   String _getSocialUrl(String platform, String username) {
     // Remove @ symbol if present
-    final cleanUsername = username.startsWith('@') ? username.substring(1) : username;
+    final cleanUsername =
+        username.startsWith('@') ? username.substring(1) : username;
 
     switch (platform.toLowerCase()) {
       case 'linkedin':
@@ -2079,7 +1908,8 @@ class _HistoryScreenState extends State<HistoryScreen>
                 ),
                 child: Row(
                   children: [
-                    Icon(CupertinoIcons.exclamationmark_circle, color: AppColors.error),
+                    Icon(CupertinoIcons.exclamationmark_circle,
+                        color: AppColors.error),
                     SizedBox(width: 12),
                     Expanded(child: Text(message)),
                   ],
@@ -2119,4 +1949,4 @@ class _HistoryScreenState extends State<HistoryScreen>
         return CupertinoIcons.star;
     }
   }
-}
+    }

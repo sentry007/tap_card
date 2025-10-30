@@ -3,7 +3,6 @@
 /// Displays a colored chip showing the sharing method (NFC/QR/Link/Tag)
 library;
 
-import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import '../../theme/theme.dart';
 import '../../models/history_models.dart';
@@ -14,11 +13,11 @@ class MethodChip extends StatelessWidget {
   final double iconSize;
 
   const MethodChip({
-    Key? key,
+    super.key,
     required this.method,
     this.fontSize = 10,
     this.iconSize = 12,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
