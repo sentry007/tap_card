@@ -1,6 +1,6 @@
 /// Profile Data Models
 ///
-/// Core data models for the Tap Card application including:
+/// Core data models for the Atlas Linq application including:
 /// - **ProfileData**: Main user profile with contact information
 /// - **CardAesthetics**: Visual styling for profile cards
 /// - **ProfileSettings**: App-wide profile configuration
@@ -140,6 +140,48 @@ class CardAesthetics {
   }
 }
 
+/// Custom link model for user-defined links
+///
+/// Users can add up to 3 custom links with custom titles
+/// These are displayed in the app and on the web profile
+/// Not included in NFC/vCard payloads
+class CustomLink {
+  final String title;
+  final String url;
+
+  const CustomLink({
+    required this.title,
+    required this.url,
+  });
+
+  CustomLink copyWith({
+    String? title,
+    String? url,
+  }) {
+    return CustomLink(
+      title: title ?? this.title,
+      url: url ?? this.url,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'title': title,
+      'url': url,
+    };
+  }
+
+  factory CustomLink.fromJson(Map<String, dynamic> json) {
+    return CustomLink(
+      title: json['title'] ?? '',
+      url: json['url'] ?? '',
+    );
+  }
+
+  /// Validate that both title and url are non-empty
+  bool get isValid => title.trim().isNotEmpty && url.trim().isNotEmpty;
+}
+
 enum ProfileType {
   personal('Personal', 'For friends, family & casual connections'),
   professional('Professional', 'For work, business & networking'),
@@ -181,6 +223,7 @@ class ProfileData {
   final String? email;
   final String? website;
   final Map<String, String> socialMedia;
+  final List<CustomLink> customLinks; // Up to 3 custom links (app/web only, not in NFC)
   final String? profileImagePath; // Local path → Future: Firebase URL
   final CardAesthetics cardAesthetics; // Color-based aesthetics
   final DateTime lastUpdated;
@@ -201,6 +244,7 @@ class ProfileData {
     this.email,
     this.website,
     this.socialMedia = const {},
+    this.customLinks = const [],
     this.profileImagePath,
     CardAesthetics? cardAesthetics,
     required this.lastUpdated,
@@ -226,6 +270,7 @@ class ProfileData {
     String? email,
     String? website,
     Map<String, String>? socialMedia,
+    List<CustomLink>? customLinks,
     String? profileImagePath,
     CardAesthetics? cardAesthetics,
     DateTime? lastUpdated,
@@ -246,14 +291,15 @@ class ProfileData {
       email: email ?? this.email,
       website: website ?? this.website,
       socialMedia: socialMedia ?? this.socialMedia,
+      customLinks: customLinks ?? this.customLinks,
       profileImagePath: profileImagePath ?? this.profileImagePath,
       cardAesthetics: cardAesthetics ?? this.cardAesthetics,
       lastUpdated: lastUpdated ?? this.lastUpdated,
       isActive: isActive ?? this.isActive,
-      cachedNfcPayload: cachedNfcPayload ?? this._cachedNfcPayload,
-      cachedVCard: cachedVCard ?? this._cachedVCard,
-      cachedCardUrl: cachedCardUrl ?? this._cachedCardUrl,
-      dualPayloadCacheTime: dualPayloadCacheTime ?? this._dualPayloadCacheTime,
+      cachedNfcPayload: cachedNfcPayload ?? _cachedNfcPayload,
+      cachedVCard: cachedVCard ?? _cachedVCard,
+      cachedCardUrl: cachedCardUrl ?? _cachedCardUrl,
+      dualPayloadCacheTime: dualPayloadCacheTime ?? _dualPayloadCacheTime,
     );
   }
 
@@ -269,6 +315,7 @@ class ProfileData {
       'email': email,
       'website': website,
       'socialMedia': socialMedia,
+      'customLinks': customLinks.map((link) => link.toJson()).toList(),
       'profileImagePath': profileImagePath,
       'cardAesthetics': cardAesthetics.toJson(),
       'lastUpdated': lastUpdated.toIso8601String(),
@@ -282,6 +329,15 @@ class ProfileData {
 
   factory ProfileData.fromJson(Map<String, dynamic> json) {
     final type = ProfileType.values.firstWhere((e) => e.name == json['type']);
+
+    // Parse custom links with backward compatibility
+    List<CustomLink> customLinks = [];
+    if (json['customLinks'] != null) {
+      customLinks = (json['customLinks'] as List)
+          .map((linkJson) => CustomLink.fromJson(linkJson))
+          .toList();
+    }
+
     return ProfileData(
       id: json['id'],
       uid: json['uid'],
@@ -293,6 +349,7 @@ class ProfileData {
       email: json['email'],
       website: json['website'],
       socialMedia: Map<String, String>.from(json['socialMedia'] ?? {}),
+      customLinks: customLinks,
       profileImagePath: json['profileImagePath'],
       cardAesthetics: json['cardAesthetics'] != null
         ? CardAesthetics.fromJson(json['cardAesthetics'])
@@ -455,7 +512,7 @@ class ProfileData {
   String _generateNfcPayload() {
     // Ultra-compact payload for NTAG213 (144 bytes)
     final payload = {
-      'a': 'tc',  // Shortened app identifier
+      'a': 'al',  // Shortened app identifier (Atlas Linq)
       'v': '1',   // Shortened version
       'd': getEssentialFields(),
       't': (DateTime.now().millisecondsSinceEpoch / 1000).round(), // Seconds instead of ms
@@ -547,45 +604,46 @@ class ProfileData {
     }
 
     // Website - User's personal website as primary URL (if provided)
-    // Otherwise use TapCard URL as primary
+    // Otherwise use Atlas Linq URL as primary
     if (website != null && website!.isNotEmpty) {
       buffer.write('URL:$website\n');
-      // Add TapCard URL in NOTE field for full card access
-      buffer.write('NOTE:View full digital card: ${_generateCardUrl()}\\nShared via TapCard\n');
+      // Add Atlas Linq URL in NOTE field for full card access
+      buffer.write('NOTE:View full digital card: ${_generateCardUrl()}\\nShared via Atlas Linq\n');
     } else {
-      // No personal website - use TapCard URL as primary
+      // No personal website - use Atlas Linq URL as primary
       buffer.write('URL:${_generateCardUrl()}\n');
-      buffer.write('NOTE:Shared via TapCard\n');
+      buffer.write('NOTE:Shared via Atlas Linq\n');
     }
 
     // Add optimized metadata if sharing context provided (~40 bytes overhead)
     if (shareContext != null) {
-      // X-TC-M: Method code (N/Q/L/T) - ~13 bytes
-      buffer.write('X-TC-M:${shareContext.methodCode}\n');
+      // X-AL-M: Method code (N/Q/L/T) - ~13 bytes
+      buffer.write('X-AL-M:${shareContext.methodCode}\n');
 
-      // X-TC-T: Unix timestamp - ~20 bytes
-      buffer.write('X-TC-T:${shareContext.unixTimestamp}\n');
+      // X-AL-T: Unix timestamp - ~20 bytes
+      buffer.write('X-AL-T:${shareContext.unixTimestamp}\n');
 
-      // X-TC-P: Profile type code (1/2/3) - ~9 bytes
-      buffer.write('X-TC-P:${type.code}\n');
+      // X-AL-P: Profile type code (1/2/3) - ~9 bytes
+      buffer.write('X-AL-P:${type.code}\n');
     }
 
     buffer.write('END:VCARD');
     return buffer.toString();
   }
 
-  /// Generate custom URL for full digital profile using unique UUID
-  /// URL pattern: https://tap-card-site.vercel.app/share/[uuid]
+  /// Generate custom URL for full digital profile using UUID + type format
+  /// URL pattern: https://atlaslinq.com/share/[uuid]_[type]
   ///
   /// Benefits:
   /// - Globally unique (no collisions for same names)
-  /// - Backend-ready (UUID = Firebase document ID)
+  /// - Backend-ready (UUID_type = Firebase document ID)
   /// - Enables proper contact-to-profile linking
+  /// - Profile type embedded in URL for easy identification
   /// - Ready for web profile viewer and analytics
   ///
   /// URL is clickable in saved contact → opens full card with all info, analytics
   String _generateCardUrl() {
-    return 'https://tap-card-site.vercel.app/share/$id';
+    return 'https://atlaslinq.com/share/${id}_${type.name}';
   }
 
   /// Check if dual payload cache is stale (>5 minutes old or missing)

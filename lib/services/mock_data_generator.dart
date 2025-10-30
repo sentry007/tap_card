@@ -72,9 +72,19 @@ class MockDataGenerator {
       email: '$username@${_domains[_random.nextInt(_domains.length)]}',
       socialMedia: {
         'instagram': '@${username}_${_socialHandles['instagram']![_random.nextInt(5)]}',
-        'snapchat': '${username}.snaps',
+        'snapchat': '$username.snaps',
         'tiktok': '@$username',
       },
+      customLinks: [
+        CustomLink(
+          title: 'My Portfolio',
+          url: 'https://$username.portfolio.com',
+        ),
+        CustomLink(
+          title: 'Personal Blog',
+          url: 'https://$username.blog.com',
+        ),
+      ],
       cardAesthetics: CardAesthetics.defaultForType(ProfileType.personal),
       lastUpdated: DateTime.now(),
       isActive: false,
@@ -114,6 +124,16 @@ class MockDataGenerator {
         'linkedin': '/in/$username-${_socialHandles['linkedin']![_random.nextInt(5)]}',
         'twitter': '@$username',
       },
+      customLinks: [
+        CustomLink(
+          title: 'Schedule Meeting',
+          url: 'https://calendly.com/$username',
+        ),
+        CustomLink(
+          title: 'Company Website',
+          url: 'https://${company.toLowerCase().replaceAll(' ', '')}.com',
+        ),
+      ],
       cardAesthetics: CardAesthetics.defaultForType(ProfileType.professional),
       lastUpdated: DateTime.now(),
       isActive: false,
@@ -151,6 +171,16 @@ class MockDataGenerator {
         'instagram': '@$username',
         'twitter': '@$username',
       },
+      customLinks: [
+        CustomLink(
+          title: 'YouTube Channel',
+          url: 'https://youtube.com/@$username',
+        ),
+        CustomLink(
+          title: 'Merch Store',
+          url: 'https://shop.$username.co',
+        ),
+      ],
       cardAesthetics: CardAesthetics.defaultForType(ProfileType.custom),
       lastUpdated: DateTime.now(),
       isActive: false,
@@ -227,7 +257,7 @@ class MockDataGenerator {
       developer.log(
         '✅ Test profile synced successfully\n'
         '   • Profile ID: ${profile.id}\n'
-        '   • View at: https://tap-card-site.vercel.app/share/${profile.id}',
+        '   • View at: https://atlaslinq.com/share/${profile.id}',
         name: 'MockData.Sync',
       );
       return profile;
@@ -291,6 +321,6 @@ class MockDataGenerator {
 
   /// Get website URL for a profile
   static String getWebsiteUrl(String profileId) {
-    return 'https://tap-card-site.vercel.app/share/$profileId';
+    return 'https://atlaslinq.com/share/$profileId';
   }
 }

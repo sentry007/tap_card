@@ -15,6 +15,7 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 import '../models/profile_models.dart';
 import '../constants/app_constants.dart';
 import '../../services/firestore_sync_service.dart';
@@ -281,10 +282,18 @@ class ProfileService extends ChangeNotifier {
   Future<void> _createDefaultProfile() async {
     // Create exactly 3 profiles - one for each type with realistic mock data
     final now = DateTime.now();
-    final baseTime = now.millisecondsSinceEpoch;
+
+    // Generate ONE UUID for this user - all profiles share the same UUID
+    final userUuid = const Uuid().v4();
+
+    developer.log(
+      '🆔 Generated user UUID: $userUuid\n'
+      '   All profiles will use this same ID',
+      name: 'ProfileService.CreateDefault',
+    );
 
     final personalProfile = ProfileData(
-      id: 'personal_$baseTime',
+      id: userUuid,  // Same UUID for all profiles
       type: ProfileType.personal,
       name: 'Alex Rivera',
       phone: '+1 (555) 123-4567',
@@ -299,7 +308,7 @@ class ProfileService extends ChangeNotifier {
     );
 
     final professionalProfile = ProfileData(
-      id: 'professional_${baseTime + 1}',
+      id: userUuid,  // Same UUID for all profiles
       type: ProfileType.professional,
       name: 'Alex Rivera',
       phone: '+1 (555) 987-6543',
@@ -315,7 +324,7 @@ class ProfileService extends ChangeNotifier {
     );
 
     final customProfile = ProfileData(
-      id: 'custom_${baseTime + 2}',
+      id: userUuid,  // Same UUID for all profiles
       type: ProfileType.custom,
       name: 'Alex Rivera',
       phone: '+1 (555) 456-7890',
@@ -335,7 +344,6 @@ class ProfileService extends ChangeNotifier {
       activeProfileId: personalProfile.id,
       profileOrder: [personalProfile.id, professionalProfile.id, customProfile.id],
     );
-
 
     await _saveProfiles();
     await _saveSettings();

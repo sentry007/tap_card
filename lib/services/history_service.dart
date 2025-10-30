@@ -140,6 +140,7 @@ class HistoryService {
   /// Add a tag write entry to history
   static Future<void> addTagEntry({
     required String profileName,
+    required ProfileType profileType,
     required String tagId,
     required String tagType,
     required ShareMethod method,
@@ -154,6 +155,7 @@ class HistoryService {
         method: method,
         timestamp: DateTime.now(),
         writtenProfileName: profileName,
+        writtenProfileType: profileType,
         tagId: tagId,
         tagType: tagType,
         tagCapacity: tagCapacity,
@@ -167,7 +169,7 @@ class HistoryService {
       _notifyListeners();
 
       final payloadInfo = payloadType != null ? ' [${payloadType == "dual" ? "Full" : "Mini"}]' : '';
-      developer.log('🏷️ Added tag entry: $profileName → $tagId ($tagType)$payloadInfo', name: 'History.Service');
+      developer.log('🏷️ Added tag entry: $profileName (${profileType.label}) → $tagId ($tagType)$payloadInfo', name: 'History.Service');
     } catch (e) {
       developer.log('❌ Failed to add tag entry: $e', name: 'History.Service', error: e);
     }
@@ -175,11 +177,11 @@ class HistoryService {
 
   /// Create received entry from contact scan with Firestore fetch
   ///
-  /// This method fetches the full profile data from Firestore when a TapCard
+  /// This method fetches the full profile data from Firestore when an Atlas Linq
   /// contact is found in device contacts. Falls back to minimal placeholder
   /// if Firestore fetch fails.
   ///
-  /// Used to dynamically show contacts with TapCard URLs in history
+  /// Used to dynamically show contacts with Atlas Linq URLs in history
   static Future<HistoryEntry> createReceivedEntryFromContact({
     required TapCardContact contact,
   }) async {
@@ -260,7 +262,7 @@ class HistoryService {
       company: null,
       phone: null,
       email: null,
-      website: 'https://tap-card-site.vercel.app/share/$profileId',
+      website: 'https://atlaslinq.com/share/$profileId',
       socialMedia: {},
       profileImagePath: null,
       lastUpdated: DateTime.now(),
@@ -529,6 +531,7 @@ class HistoryService {
         method: ShareMethod.tag,
         timestamp: now.subtract(const Duration(minutes: 30)),
         writtenProfileName: 'Alex Johnson',
+        writtenProfileType: ProfileType.professional,
         tagId: 'NTAG_00B4C7F2',
         tagType: 'NTAG215',
         tagCapacity: 504,
@@ -553,9 +556,26 @@ class HistoryService {
             'linkedin': 'john-williams',
             'twitter': '@johnwilliams',
           },
+          customLinks: [
+            const CustomLink(
+              title: 'Book a Meeting',
+              url: 'https://calendly.com/johnwilliams',
+            ),
+            const CustomLink(
+              title: 'My Portfolio',
+              url: 'https://johnwilliams-pm.com',
+            ),
+          ],
           lastUpdated: now,
         ),
         location: 'Tech Conference - Hall B',
+        metadata: {
+          'source': 'nfc_scan',
+          'has_metadata': true,
+          'metadata_method': 'NFC',
+          'metadata_timestamp': now.subtract(const Duration(hours: 1)).toIso8601String(),
+          'metadata_profile_type': 'Professional',
+        },
       ),
 
       // Tag write - yesterday
@@ -564,6 +584,7 @@ class HistoryService {
         method: ShareMethod.tag,
         timestamp: now.subtract(const Duration(days: 1)),
         writtenProfileName: 'Sarah Chen',
+        writtenProfileType: ProfileType.personal,
         tagId: 'NTAG_004D2A1B',
         tagType: 'NTAG213',
         tagCapacity: 144,
@@ -585,9 +606,26 @@ class HistoryService {
             'instagram': 'emily.johnson',
             'twitter': '@emilyj',
           },
+          customLinks: [
+            const CustomLink(
+              title: 'My Art Portfolio',
+              url: 'https://behance.net/emilyj',
+            ),
+            const CustomLink(
+              title: 'Support My Work',
+              url: 'https://ko-fi.com/emilyj',
+            ),
+          ],
           lastUpdated: now,
         ),
         location: 'Art Gallery',
+        metadata: {
+          'source': 'qr_scan',
+          'has_metadata': true,
+          'metadata_method': 'QR Code',
+          'metadata_timestamp': now.subtract(const Duration(days: 2)).toIso8601String(),
+          'metadata_profile_type': 'Personal',
+        },
       ),
 
       // Received via NFC - 3 days ago
@@ -608,9 +646,30 @@ class HistoryService {
             'behance': 'annamartinez',
             'linkedin': 'anna-martinez',
           },
+          customLinks: [
+            const CustomLink(
+              title: 'View My Work',
+              url: 'https://dribbble.com/annamartinez',
+            ),
+            const CustomLink(
+              title: 'Book a Consultation',
+              url: 'https://calendly.com/annamartinez',
+            ),
+            const CustomLink(
+              title: 'Design Resources',
+              url: 'https://annamartinez.design/resources',
+            ),
+          ],
           lastUpdated: now,
         ),
         location: 'Design Workshop',
+        metadata: {
+          'source': 'nfc_scan',
+          'has_metadata': true,
+          'metadata_method': 'NFC',
+          'metadata_timestamp': now.subtract(const Duration(days: 3)).toIso8601String(),
+          'metadata_profile_type': 'Professional',
+        },
       ),
 
       // Tag write - 4 days ago
@@ -619,6 +678,7 @@ class HistoryService {
         method: ShareMethod.tag,
         timestamp: now.subtract(const Duration(days: 4)),
         writtenProfileName: 'Michael Roberts',
+        writtenProfileType: ProfileType.custom,
         tagId: 'NTAG_00A1B2C3',
         tagType: 'NTAG215',
         tagCapacity: 504,
@@ -641,9 +701,26 @@ class HistoryService {
           socialMedia: {
             'linkedin': 'dr-lisa-brown',
           },
+          customLinks: [
+            const CustomLink(
+              title: 'Schedule Appointment',
+              url: 'https://healthcareplus.com/drbrown',
+            ),
+            const CustomLink(
+              title: 'Patient Portal',
+              url: 'https://portal.healthcareplus.com',
+            ),
+          ],
           lastUpdated: now,
         ),
         location: 'Medical Conference',
+        metadata: {
+          'source': 'nfc_scan',
+          'has_metadata': true,
+          'metadata_method': 'NFC',
+          'metadata_timestamp': now.subtract(const Duration(days: 5)).toIso8601String(),
+          'metadata_profile_type': 'Professional',
+        },
       ),
 
       // Tag write - 6 days ago
@@ -652,6 +729,7 @@ class HistoryService {
         method: ShareMethod.tag,
         timestamp: now.subtract(const Duration(days: 6)),
         writtenProfileName: 'Emily Taylor',
+        writtenProfileType: ProfileType.professional,
         tagId: 'NTAG_008F3E21',
         tagType: 'NTAG216',
         tagCapacity: 888,
@@ -674,9 +752,30 @@ class HistoryService {
             'github': 'carlosgarcia',
             'twitter': '@carlosg',
           },
+          customLinks: [
+            const CustomLink(
+              title: 'My Newsletter',
+              url: 'https://carlosgarcia.substack.com',
+            ),
+            const CustomLink(
+              title: 'Open Source Projects',
+              url: 'https://github.com/carlosgarcia?tab=repositories',
+            ),
+            const CustomLink(
+              title: 'Tech Blog',
+              url: 'https://carlosgarcia.dev/blog',
+            ),
+          ],
           lastUpdated: now,
         ),
         location: 'Developer Meetup',
+        metadata: {
+          'source': 'qr_scan',
+          'has_metadata': true,
+          'metadata_method': 'QR Code',
+          'metadata_timestamp': now.subtract(const Duration(days: 8)).toIso8601String(),
+          'metadata_profile_type': 'Custom',
+        },
       ),
 
       // Tag write - 10 days ago
@@ -685,6 +784,7 @@ class HistoryService {
         method: ShareMethod.tag,
         timestamp: now.subtract(const Duration(days: 10)),
         writtenProfileName: 'David Park',
+        writtenProfileType: ProfileType.personal,
         tagId: 'NTAG_00FFFFFF',
         tagType: 'NTAG213',
         tagCapacity: 144,
@@ -709,9 +809,26 @@ class HistoryService {
             'github': 'ryancooper',
             'linkedin': 'ryan-cooper',
           },
+          customLinks: [
+            const CustomLink(
+              title: 'Company Website',
+              url: 'https://cloudtech.com',
+            ),
+            const CustomLink(
+              title: 'Download Resume',
+              url: 'https://ryancooper.io/resume.pdf',
+            ),
+          ],
           lastUpdated: now,
         ),
         location: 'Tech Summit',
+        metadata: {
+          'source': 'nfc_scan',
+          'has_metadata': true,
+          'metadata_method': 'NFC',
+          'metadata_timestamp': now.subtract(const Duration(days: 15)).toIso8601String(),
+          'metadata_profile_type': 'Professional',
+        },
       ),
 
       // Tag write - 3 weeks ago
@@ -720,6 +837,7 @@ class HistoryService {
         method: ShareMethod.tag,
         timestamp: now.subtract(const Duration(days: 21)),
         writtenProfileName: 'Jennifer Martinez',
+        writtenProfileType: ProfileType.custom,
         tagId: 'NTAG_00D7E9A4',
         tagType: 'NTAG216',
         tagCapacity: 888,
@@ -744,6 +862,16 @@ class HistoryService {
             'linkedin': 'jennifer-wilson-marketing',
             'twitter': '@jwilson_mktg',
           },
+          customLinks: [
+            const CustomLink(
+              title: 'Marketing Case Studies',
+              url: 'https://jenniferw.com/case-studies',
+            ),
+            const CustomLink(
+              title: 'Free Resources',
+              url: 'https://jenniferw.com/resources',
+            ),
+          ],
           lastUpdated: now,
         ),
         location: 'Website Download',
@@ -752,6 +880,7 @@ class HistoryService {
           'has_metadata': true,
           'metadata_method': 'Web',
           'metadata_timestamp': now.subtract(const Duration(days: 9)).toIso8601String(),
+          'metadata_profile_type': 'Professional',
         },
       ),
     ];

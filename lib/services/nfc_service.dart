@@ -453,7 +453,7 @@ class NFCService {
 
         if (success == true) {
           developer.log(
-            '✅ Successfully wrote ${payloadSizeBytes} bytes via native Android NDEF (native: ${nativeTime}ms, total: ${totalTime}ms)',
+            '✅ Successfully wrote $payloadSizeBytes bytes via native Android NDEF (native: ${nativeTime}ms, total: ${totalTime}ms)',
             name: 'NFC.Write'
           );
           return NFCResult.success(totalTime, payloadSizeBytes);
@@ -476,7 +476,7 @@ class NFCService {
 
         if (success == true) {
           developer.log(
-            '✅ Successfully wrote ${payloadSizeBytes} bytes via native Android text (native: ${nativeTime}ms, total: ${totalTime}ms)',
+            '✅ Successfully wrote $payloadSizeBytes bytes via native Android text (native: ${nativeTime}ms, total: ${totalTime}ms)',
             name: 'NFC.Write'
           );
           return NFCResult.success(totalTime, payloadSizeBytes);
@@ -500,7 +500,7 @@ class NFCService {
 
         if (success == true) {
           developer.log(
-            '✅ Successfully wrote ${payloadSizeBytes} bytes via native Android URL (native: ${nativeTime}ms, total: ${totalTime}ms)',
+            '✅ Successfully wrote $payloadSizeBytes bytes via native Android URL (native: ${nativeTime}ms, total: ${totalTime}ms)',
             name: 'NFC.Write'
           );
           return NFCResult.success(totalTime, payloadSizeBytes);
@@ -782,7 +782,7 @@ class NFCResult {
   @override
   String toString() {
     if (isSuccess) {
-      return 'NFCResult.success(${durationMs}ms, ${dataSizeBytes} bytes, type: $payloadType)';
+      return 'NFCResult.success(${durationMs}ms, $dataSizeBytes bytes, type: $payloadType)';
     } else {
       return 'NFCResult.error("$error", ${durationMs}ms)';
     }

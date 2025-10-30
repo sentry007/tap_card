@@ -50,6 +50,7 @@ class HistoryEntry {
   final int? tagCapacity; // bytes
   final String? payloadType; // "dual" or "url"
   final String? writtenProfileName; // Name of profile written to tag
+  final ProfileType? writtenProfileType; // Type of profile written to tag
 
   // Common metadata
   final Map<String, dynamic>? metadata;
@@ -71,6 +72,7 @@ class HistoryEntry {
     this.tagCapacity,
     this.payloadType,
     this.writtenProfileName,
+    this.writtenProfileType,
     this.metadata,
     this.isSoftDeleted = false,
   });
@@ -125,6 +127,7 @@ class HistoryEntry {
     required String tagId,
     required String tagType,
     required String writtenProfileName,
+    required ProfileType writtenProfileType,
     int? tagCapacity,
     String? payloadType,
     String? location,
@@ -140,6 +143,7 @@ class HistoryEntry {
       tagCapacity: tagCapacity,
       payloadType: payloadType,
       writtenProfileName: writtenProfileName,
+      writtenProfileType: writtenProfileType,
       location: location,
       metadata: metadata,
     );
@@ -160,6 +164,7 @@ class HistoryEntry {
     int? tagCapacity,
     String? payloadType,
     String? writtenProfileName,
+    ProfileType? writtenProfileType,
     Map<String, dynamic>? metadata,
     bool? isSoftDeleted,
   }) {
@@ -177,6 +182,7 @@ class HistoryEntry {
       tagCapacity: tagCapacity ?? this.tagCapacity,
       payloadType: payloadType ?? this.payloadType,
       writtenProfileName: writtenProfileName ?? this.writtenProfileName,
+      writtenProfileType: writtenProfileType ?? this.writtenProfileType,
       metadata: metadata ?? this.metadata,
       isSoftDeleted: isSoftDeleted ?? this.isSoftDeleted,
     );
@@ -198,6 +204,7 @@ class HistoryEntry {
       if (tagCapacity != null) 'tagCapacity': tagCapacity,
       if (payloadType != null) 'payloadType': payloadType,
       if (writtenProfileName != null) 'writtenProfileName': writtenProfileName,
+      if (writtenProfileType != null) 'writtenProfileType': writtenProfileType!.name,
       if (metadata != null) 'metadata': metadata,
       'isSoftDeleted': isSoftDeleted,
     };
@@ -221,6 +228,9 @@ class HistoryEntry {
       tagCapacity: json['tagCapacity'],
       payloadType: json['payloadType'],
       writtenProfileName: json['writtenProfileName'],
+      writtenProfileType: json['writtenProfileType'] != null
+          ? ProfileType.values.firstWhere((e) => e.name == json['writtenProfileType'])
+          : null,
       metadata: json['metadata'] != null
           ? Map<String, dynamic>.from(json['metadata'])
           : null,
@@ -236,7 +246,10 @@ class HistoryEntry {
       case HistoryEntryType.received:
         return senderProfile?.name ?? 'Unknown';
       case HistoryEntryType.tag:
-        return writtenProfileName ?? 'Unknown Profile';
+        if (writtenProfileType != null) {
+          return 'Your ${writtenProfileType!.label} Profile';
+        }
+        return 'Your Profile';
     }
   }
 
@@ -248,7 +261,13 @@ class HistoryEntry {
       case HistoryEntryType.received:
         return senderProfile?.company ?? senderProfile?.title ?? 'Received';
       case HistoryEntryType.tag:
-        return 'Written to $tagType';
+        // Show tag type and capacity if available
+        if (tagType != null && tagCapacity != null) {
+          return '$tagType ($tagCapacity bytes)';
+        } else if (tagType != null) {
+          return tagType!;
+        }
+        return 'NFC Tag';
     }
   }
 

@@ -149,15 +149,19 @@ class FirestoreSyncService {
       // Remove null values from top-level to save space
       data.removeWhere((key, value) => value == null);
 
-      // Upload to Firestore
+      // Upload to Firestore using {uuid}_{type} format for document ID
+      final firestoreDocId = '${profile.id}_${profile.type.name}';
+
       developer.log(
-        '📤 Writing to Firestore collection: profiles/${profile.id}',
+        '📤 Writing to Firestore collection: profiles/$firestoreDocId\n'
+        '   • Profile UUID: ${profile.id}\n'
+        '   • Profile Type: ${profile.type.name}',
         name: 'FirestoreSync.Write',
       );
 
       await _firestore
           .collection('profiles')
-          .doc(profile.id)
+          .doc(firestoreDocId)
           .set(data, SetOptions(merge: true));
 
       final syncDuration = DateTime.now().difference(syncStartTime).inMilliseconds;

@@ -4,6 +4,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 
 import '../models/unified_models.dart';
+import 'history_service.dart';
 
 /// Result of contact save operation
 class ContactSaveResult {
@@ -60,14 +61,14 @@ class ContactService {
     }
   }
 
-  /// Scan device contacts and find those with TapCard URLs
+  /// Scan device contacts and find those with Atlas Linq URLs
   /// Returns list of TapCardContact objects with extracted profile IDs
   ///
   /// Uses flutter_contacts package which has proper support for website/URL fields.
   /// Supports both new UUID-based URLs and legacy name-based URLs for backward compatibility.
   ///
-  /// New format: https://tapcard.app/share/[uuid]
-  /// Legacy format: https://tapcard.app/share/[name]
+  /// New format: https://atlaslinq.com/share/[uuid]
+  /// Legacy format: https://atlaslinq.com/share/[name]
   static Future<List<TapCardContact>> scanForTapCardContactsWithIds() async {
     try {
       // Check/request permission using flutter_contacts
@@ -92,7 +93,7 @@ class ContactService {
         print('✅ Permission is actually GRANTED (flutter_contacts bug bypassed)');
       }
 
-      print('📇 Scanning contacts for TapCard URLs...');
+      print('📇 Scanning contacts for Atlas Linq URLs...');
 
       // Get all contacts with website data
       final contacts = await FlutterContacts.getContacts(
@@ -104,7 +105,7 @@ class ContactService {
 
       final tapCardContacts = <TapCardContact>[];
 
-      // Check each contact for TapCard URL pattern
+      // Check each contact for Atlas Linq URL pattern
       for (final contact in contacts) {
         String? tapCardUrl;
 
@@ -122,9 +123,9 @@ class ContactService {
         // Check websites field (proper URL storage)
         if (contact.websites.isNotEmpty) {
           for (final website in contact.websites) {
-            if (website.url.contains('tap-card-site.vercel.app/share/')) {
+            if (website.url.contains('atlaslinq.com/share/')) {
               tapCardUrl = website.url;
-              print('    ✅ FOUND TapCard URL: $tapCardUrl');
+              print('    ✅ FOUND Atlas Linq URL: $tapCardUrl');
               break;
             }
           }
@@ -133,20 +134,20 @@ class ContactService {
         // Check notes field (fallback, some apps store URLs here)
         if (tapCardUrl == null && contact.notes.isNotEmpty) {
           for (final note in contact.notes) {
-            if (note.note.contains('tap-card-site.vercel.app/share/')) {
+            if (note.note.contains('atlaslinq.com/share/')) {
               // Extract URL from note text
-              final urlMatch = RegExp(r'https://tap-card-site\.vercel\.app/share/[^\s]+')
+              final urlMatch = RegExp(r'https://atlaslinq\.com/share/[^\s]+')
                   .firstMatch(note.note);
               if (urlMatch != null) {
                 tapCardUrl = urlMatch.group(0);
-                print('    ✅ FOUND TapCard URL in notes: $tapCardUrl');
+                print('    ✅ FOUND Atlas Linq URL in notes: $tapCardUrl');
                 break;
               }
             }
           }
         }
 
-        // If we found a TapCard URL, extract the profile ID and metadata
+        // If we found a Atlas Linq URL, extract the profile ID and metadata
         if (tapCardUrl != null) {
           final displayName = contact.displayName.isNotEmpty
               ? contact.displayName
@@ -155,14 +156,14 @@ class ContactService {
                   : 'Unknown';
 
           // Extract the ID part after "share/"
-          final idPart = tapCardUrl.split('tap-card-site.vercel.app/share/').last;
+          final idPart = tapCardUrl.split('atlaslinq.com/share/').last;
           print('    🔍 Extracted ID: $idPart');
 
           // Check if it's a UUID format (new) or name format (legacy)
           final isUuidFormat = _isValidUuid(idPart);
           print('    🔍 UUID validation: ${isUuidFormat ? "✅ VALID" : "❌ LEGACY FORMAT"}');
 
-          // Extract metadata from vCard X-TC fields in notes
+          // Extract metadata from vCard X-AL fields in notes
           ShareMethod? extractedMethod;
           DateTime? extractedTimestamp;
           ProfileType? extractedType;
@@ -170,10 +171,10 @@ class ContactService {
           for (final note in contact.notes) {
             final noteText = note.note;
 
-            // X-TC-M: Method code (N/Q/L/T)
-            if (noteText.contains('X-TC-M:')) {
+            // X-AL-M: Method code (N/Q/L/T)
+            if (noteText.contains('X-AL-M:')) {
               final methodCode = noteText
-                  .split('X-TC-M:')[1]
+                  .split('X-AL-M:')[1]
                   .split('\n')[0]
                   .trim();
               try {
@@ -184,10 +185,10 @@ class ContactService {
               }
             }
 
-            // X-TC-T: Unix timestamp
-            if (noteText.contains('X-TC-T:')) {
+            // X-AL-T: Unix timestamp
+            if (noteText.contains('X-AL-T:')) {
               final timestampStr = noteText
-                  .split('X-TC-T:')[1]
+                  .split('X-AL-T:')[1]
                   .split('\n')[0]
                   .trim();
               final unixTimestamp = int.tryParse(timestampStr);
@@ -197,10 +198,10 @@ class ContactService {
               }
             }
 
-            // X-TC-P: Profile type code (1/2/3)
-            if (noteText.contains('X-TC-P:')) {
+            // X-AL-P: Profile type code (1/2/3)
+            if (noteText.contains('X-AL-P:')) {
               final typeCode = noteText
-                  .split('X-TC-P:')[1]
+                  .split('X-AL-P:')[1]
                   .split('\n')[0]
                   .trim();
               final code = int.tryParse(typeCode);
@@ -221,14 +222,14 @@ class ContactService {
           );
 
           tapCardContacts.add(tapCardContact);
-          print('    ✅ Added to TapCard contacts list: $displayName '
+          print('    ✅ Added to Atlas Linq contacts list: $displayName '
                 '(${isUuidFormat ? 'UUID' : 'legacy'}: $idPart, '
                 'has metadata: ${extractedMethod != null})');
         }
       }
 
       print('📇 ========================================');
-      print('📇 SCAN COMPLETE: Found ${tapCardContacts.length} TapCard contacts');
+      print('📇 SCAN COMPLETE: Found ${tapCardContacts.length} Atlas Linq contacts');
       if (tapCardContacts.isNotEmpty) {
         print('📇 Contact names: ${tapCardContacts.map((c) => c.displayName).join(", ")}');
       }
@@ -367,16 +368,33 @@ class ContactService {
     }
   }
 
-  /// Get all saved contacts
+  /// Get all saved contacts (delegates to HistoryService)
+  /// Returns received contacts from history as Map format for backward compatibility
   static Future<List<Map<String, dynamic>>> getSavedContacts() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final savedContacts = prefs.getStringList('saved_contacts') ?? [];
+      // Get all received entries from HistoryService
+      final receivedEntries = await HistoryService.getHistory(
+        type: HistoryEntryType.received,
+        limit: 100,
+      );
 
-      return savedContacts
-          .map((contact) => jsonDecode(contact) as Map<String, dynamic>)
-          .toList()
-        ..sort((a, b) => b['saved_at'].compareTo(a['saved_at'])); // Most recent first
+      // Convert HistoryEntry to Map format for backward compatibility
+      return receivedEntries.map((entry) {
+        final profile = entry.senderProfile;
+        return {
+          'id': entry.id,
+          'given_name': profile?.name ?? 'Unknown',
+          'job_title': profile?.title,
+          'company': profile?.company,
+          'phones': profile?.phone != null ? [profile!.phone!] : [],
+          'emails': profile?.email != null ? [profile!.email!] : [],
+          'urls': profile?.website != null ? [profile!.website!] : [],
+          'social_handles': profile?.socialMedia ?? {},
+          'notes': null,
+          'saved_at': entry.timestamp.toIso8601String(),
+          'source': 'history_service',
+        };
+      }).toList();
 
     } catch (e) {
       print('❌ Error getting saved contacts: $e');
@@ -401,31 +419,25 @@ class ContactService {
     }
   }
 
-  /// Get contact save statistics
+  /// Get contact save statistics (delegates to HistoryService)
   static Future<Map<String, dynamic>> getContactStats() async {
     try {
-      final savedContacts = await getSavedContacts();
+      final receivedCount = await HistoryService.getReceivedCount();
       final now = DateTime.now();
       final thirtyDaysAgo = now.subtract(const Duration(days: 30));
 
-      final totalSaved = savedContacts.length;
-      final recentSaves = savedContacts.where((contact) {
-        final savedAt = DateTime.parse(contact['saved_at']);
-        return savedAt.isAfter(thirtyDaysAgo);
-      }).length;
-
-      final sourceBreakdown = <String, int>{};
-      for (final contact in savedContacts) {
-        final source = contact['source'] ?? 'unknown';
-        sourceBreakdown[source] = (sourceBreakdown[source] ?? 0) + 1;
-      }
+      final recentEntries = await HistoryService.getHistory(
+        type: HistoryEntryType.received,
+        since: thirtyDaysAgo,
+        limit: 100,
+      );
 
       return {
-        'total_saved': totalSaved,
-        'recent_saves': recentSaves,
-        'source_breakdown': sourceBreakdown,
-        'last_saved': savedContacts.isNotEmpty
-            ? savedContacts.first['saved_at']
+        'total_saved': receivedCount,
+        'recent_saves': recentEntries.length,
+        'source_breakdown': {'history_service': receivedCount},
+        'last_saved': recentEntries.isNotEmpty
+            ? recentEntries.first.timestamp.toIso8601String()
             : null,
       };
 
@@ -440,33 +452,26 @@ class ContactService {
     }
   }
 
-  /// Delete saved contact
+  /// Delete saved contact (delegates to HistoryService)
   static Future<bool> deleteSavedContact(String contactId) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final savedContacts = prefs.getStringList('saved_contacts') ?? [];
-
-      final updatedContacts = savedContacts.where((contact) {
-        final contactData = jsonDecode(contact) as Map<String, dynamic>;
-        return contactData['id'] != contactId;
-      }).toList();
-
-      await prefs.setStringList('saved_contacts', updatedContacts);
-
-      print('🗑️ Contact deleted: $contactId');
-      return true;
-
+      return await HistoryService.deleteEntry(contactId);
     } catch (e) {
       print('❌ Error deleting contact: $e');
       return false;
     }
   }
 
-  /// Clear all saved contacts
+  /// Clear all saved contacts (delegates to HistoryService)
   static Future<void> clearAllSavedContacts() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('saved_contacts');
+      // Clear only received entries from history
+      final allHistory = await HistoryService.getAllHistory();
+      for (final entry in allHistory) {
+        if (entry.type == HistoryEntryType.received) {
+          await HistoryService.deleteEntry(entry.id);
+        }
+      }
       print('🗑️ All saved contacts cleared');
     } catch (e) {
       print('❌ Error clearing saved contacts: $e');
