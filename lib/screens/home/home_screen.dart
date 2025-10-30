@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:app_settings/app_settings.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'dart:ui';
 import 'dart:async';
 import 'dart:developer' as developer;
@@ -12,37 +13,28 @@ import '../../theme/theme.dart';
 import '../../widgets/widgets.dart';
 import '../../core/services/notification_service.dart';
 import '../../core/services/profile_service.dart';
-import '../../services/token_manager_service.dart';
 import '../../services/nfc_service.dart';
 import '../../services/nfc_discovery_service.dart';
 import '../../services/nfc_settings_service.dart';
 import '../../core/constants/routes.dart';
-import '../../core/constants/app_constants.dart';
 import '../../models/unified_models.dart';
-import '../../models/history_models.dart';
 import '../../services/history_service.dart';
+import '../../services/contact_service.dart';
 import '../../widgets/history/method_chip.dart';
+import '../../widgets/home/nfc_fab_widget.dart';
+import '../../widgets/home/recent_connections_widget.dart';
+import '../../widgets/home/nfc_helpers.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 
-// Five-state NFC FAB system for comprehensive user feedback
-enum NfcFabState {
-  inactive,  // Dull white icon, no animations
-  active,    // Glowing white, breathing + ripple
-  writing,   // Loading spinner during NFC write
-  success,   // Green checkmark after successful write
-  error      // Red X after failed write
-}
-
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen>
-    with TickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late AnimationController _fabController;
   late AnimationController _pulseController;
   late AnimationController _contactsController;
@@ -56,10 +48,11 @@ class _HomeScreenState extends State<HomeScreen>
   late Animation<double> _rippleWave;
   late Animation<double> _successScale;
 
-  bool _isNfcLoading = false;
+  final bool _isNfcLoading = false;
   bool _isContactsLoading = false;
   bool _isPreviewMode = false; // Toggle between share mode and preview mode
-  final GlobalKey<RefreshIndicatorState> _refreshKey = GlobalKey<RefreshIndicatorState>();
+  final GlobalKey<RefreshIndicatorState> _refreshKey =
+      GlobalKey<RefreshIndicatorState>();
 
   bool _nfcAvailable = false;
   bool _nfcDeviceDetected = false;
@@ -69,18 +62,23 @@ class _HomeScreenState extends State<HomeScreen>
   NfcMode _nfcMode = NfcMode.tagWrite; // Default to tag write mode
   late NotificationService _notificationService;
   late ProfileService _profileService;
-  late TokenManagerService _tokenManager;
 
   // NFC Performance Optimization: Pre-cached data for instant sharing
-  ProfileData? _cachedActiveProfile;       // Pre-cached active profile
-  Map<String, String>? _cachedDualPayload; // Pre-cached dual-payload (vCard + URL)
-  bool _isPayloadReady = false;            // True when payload is cached and ready
+  ProfileData? _cachedActiveProfile; // Pre-cached active profile
+  Map<String, String>?
+      _cachedDualPayload; // Pre-cached dual-payload (vCard + URL)
+  bool _isPayloadReady = false; // True when payload is cached and ready
 
   // State reset timer for success/error states
   Timer? _stateResetTimer;
 
   // Mock recent contacts data
   List<Contact> _recentContacts = [];
+
+  // Device contacts sync state
+  bool _isSyncingContacts = false;
+  DateTime? _lastSyncTime;
+  int _syncedContactsCount = 0;
 
   @override
   void initState() {
@@ -96,14 +94,14 @@ class _HomeScreenState extends State<HomeScreen>
     super.didChangeDependencies();
     // Refresh cache when returning to screen or when profile data changes
     // This ensures payload stays fresh without requiring app restart
-    developer.log('🔄 Refreshing NFC cache (screen resumed or data changed)', name: 'Home.NFC');
+    developer.log('🔄 Refreshing NFC cache (screen resumed or data changed)',
+        name: 'Home.NFC');
     _preCacheNfcPayload();
   }
 
   void _initServices() {
     _notificationService = NotificationService();
     _profileService = ProfileService();
-    _tokenManager = TokenManagerService();
 
     // Initialize services
     _initializeNFC();
@@ -114,9 +112,6 @@ class _HomeScreenState extends State<HomeScreen>
     _notificationService.setCardReceivedCallback(_handleCardReceived);
 
     // NFC state changes handled in simplified service
-
-    // Clean up expired tokens on app start
-    _tokenManager.cleanupExpiredTokens();
   }
 
   /// Load NFC settings including default mode
@@ -128,10 +123,8 @@ class _HomeScreenState extends State<HomeScreen>
       setState(() {
         _nfcMode = defaultMode;
       });
-      developer.log(
-        '⚙️ Loaded default NFC mode: ${defaultMode.name}',
-        name: 'Home.Settings'
-      );
+      developer.log('⚙️ Loaded default NFC mode: ${defaultMode.name}',
+          name: 'Home.Settings');
     }
   }
 
@@ -142,7 +135,9 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _initializeNFC() async {
     _nfcAvailable = await NFCService.initialize();
     if (!_nfcAvailable) {
-      _showNfcSetupDialog();
+      NfcHelpers.showNfcSetupDialog(context, () {
+        setState(() => _nfcAvailable = true);
+      });
     }
 
     // Initialize NFC discovery for FAB animations
@@ -195,7 +190,8 @@ class _HomeScreenState extends State<HomeScreen>
     );
 
     _pulseController = AnimationController(
-      duration: const Duration(milliseconds: 1200), // Faster and synchronized with ripple
+      duration: const Duration(
+          milliseconds: 1200), // Faster and synchronized with ripple
       vsync: this,
     );
 
@@ -205,7 +201,8 @@ class _HomeScreenState extends State<HomeScreen>
     );
 
     _rippleController = AnimationController(
-      duration: const Duration(milliseconds: 1500), // Synchronized with pulse for organic feel
+      duration: const Duration(
+          milliseconds: 1500), // Synchronized with pulse for organic feel
       vsync: this,
     );
 
@@ -285,23 +282,147 @@ class _HomeScreenState extends State<HomeScreen>
 
   List<Contact> _generateMockContacts() {
     return [
-      Contact(name: 'John Doe', avatar: '👨‍💼', lastShared: '2 min ago'),
-      Contact(name: 'Sarah Smith', avatar: '👩‍💻', lastShared: '1 hour ago'),
-      Contact(name: 'Mike Johnson', avatar: '👨‍🎨', lastShared: '3 hours ago'),
-      Contact(name: 'Emily Brown', avatar: '👩‍🔬', lastShared: 'Yesterday'),
-      Contact(name: 'Alex Wilson', avatar: '👨‍🚀', lastShared: '2 days ago'),
+      Contact(
+          name: 'Christopher Alexander Montgomery-Wellington III',
+          avatar: '👨‍💼',
+          lastShared: '2 min ago'),
+      Contact(name: '李明', avatar: '🧑', lastShared: '5 min ago'),
+      Contact(
+          name: 'José María García-Pérez',
+          avatar: '👨‍🎨',
+          lastShared: '15 min ago'),
+      Contact(
+          name: 'Alex 🚀 Johnson', avatar: '👨‍🚀', lastShared: '1 hour ago'),
+      Contact(name: 'SARAH SMITH', avatar: '👩‍💻', lastShared: '2 hours ago'),
+      Contact(name: 'محمد أحمد', avatar: '👳', lastShared: '3 hours ago'),
+      Contact(
+          name: 'Александр Иванов', avatar: '🧔', lastShared: '5 hours ago'),
+      Contact(name: 'John Doe 42', avatar: '👨‍🔬', lastShared: '8 hours ago'),
+      Contact(
+          name: 'TechCorp Solutions Inc.',
+          avatar: '🏢',
+          lastShared: 'Yesterday'),
+      Contact(name: 'M', avatar: '🎭', lastShared: 'Yesterday'),
+      Contact(
+          name: 'Anne-Marie Smith-Jones',
+          avatar: '👩‍⚕️',
+          lastShared: '2 days ago'),
+      Contact(
+          name: 'Dr. Emily Brown, PhD',
+          avatar: '👩‍🔬',
+          lastShared: '3 days ago'),
+      Contact(
+          name: 'François Müller ✓', avatar: '👨‍💼', lastShared: '5 days ago'),
+      Contact(name: 'a', avatar: '🤷', lastShared: '1 week ago'),
+      Contact(
+          name: 'Very Old Entry Name', avatar: '⏰', lastShared: '3 months ago'),
     ];
   }
-
 
   Future<void> _onRefresh() async {
     HapticFeedback.lightImpact();
     await _loadContacts();
   }
 
+  /// Sync device contacts to find TapCard URLs
+  Future<void> _syncDeviceContacts() async {
+    if (_isSyncingContacts) return;
+
+    developer.log('📱 Starting device contacts sync', name: 'Home.ContactSync');
+
+    setState(() => _isSyncingContacts = true);
+    HapticFeedback.lightImpact();
+
+    try {
+      // Check permissions first
+      final hasPermission = await ContactService.hasContactsPermission();
+
+      if (!hasPermission) {
+        // Request permission
+        final status = await ContactService.requestContactsPermission();
+        if (!status.isGranted) {
+          developer.log('❌ Contacts permission denied',
+              name: 'Home.ContactSync');
+          if (mounted) {
+            setState(() => _isSyncingContacts = false);
+            _showPermissionDeniedSnackbar();
+          }
+          return;
+        }
+      }
+
+      // Scan device contacts for TapCard URLs
+      final tapCardContacts =
+          await ContactService.scanForTapCardContactsWithIds();
+
+      developer.log(
+        '✅ Found ${tapCardContacts.length} TapCard contacts in device',
+        name: 'Home.ContactSync',
+      );
+
+      if (mounted) {
+        setState(() {
+          _syncedContactsCount = tapCardContacts.length;
+          _lastSyncTime = DateTime.now();
+          _isSyncingContacts = false;
+        });
+
+        // Show success feedback
+        HapticFeedback.mediumImpact();
+        _showSyncSuccessSnackbar(tapCardContacts.length);
+      }
+    } catch (e) {
+      developer.log('❌ Contact sync failed: $e', name: 'Home.ContactSync');
+      if (mounted) {
+        setState(() => _isSyncingContacts = false);
+        _showSyncErrorSnackbar();
+      }
+    }
+  }
+
+  void _showPermissionDeniedSnackbar() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Contacts permission required to sync'),
+        backgroundColor: AppColors.error,
+        action: SnackBarAction(
+          label: 'Settings',
+          textColor: AppColors.textPrimary,
+          onPressed: () => AppSettings.openAppSettings(),
+        ),
+      ),
+    );
+  }
+
+  void _showSyncSuccessSnackbar(int count) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          count > 0
+              ? 'Found $count Atlas Linq contact${count == 1 ? '' : 's'}'
+              : 'No Atlas Linq contacts found in device',
+        ),
+        backgroundColor: count > 0 ? AppColors.success : AppColors.info,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  void _showSyncErrorSnackbar() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Failed to sync contacts. Please try again.'),
+        backgroundColor: AppColors.error,
+      ),
+    );
+  }
+
   void _onNfcTap() async {
-    developer.log('🔥 FAB button tapped - _onNfcTap() called', name: 'Home.NFC');
-    developer.log('   Current mode: ${_nfcMode == NfcMode.tagWrite ? "Tag Write" : "P2P Share"}', name: 'Home.NFC');
+    developer.log('🔥 FAB button tapped - _onNfcTap() called',
+        name: 'Home.NFC');
+    developer.log(
+        '   Current mode: ${_nfcMode == NfcMode.tagWrite ? "Tag Write" : "P2P Share"}',
+        name: 'Home.NFC');
     HapticFeedback.mediumImpact();
 
     // Route based on current NFC mode
@@ -360,7 +481,7 @@ class _HomeScreenState extends State<HomeScreen>
                 padding: const EdgeInsets.all(4),
                 child: Column(
                   children: [
-                    _buildModeToggleOption(
+                    _buildModeOption(
                       icon: CupertinoIcons.tag_fill,
                       title: 'Tag Write',
                       subtitle: 'Write to physical NFC tags',
@@ -372,7 +493,7 @@ class _HomeScreenState extends State<HomeScreen>
                       },
                     ),
                     const SizedBox(height: 4),
-                    _buildModeToggleOption(
+                    _buildModeOption(
                       icon: CupertinoIcons.radiowaves_right,
                       title: 'P2P Share',
                       subtitle: 'Phone-to-phone sharing',
@@ -384,7 +505,8 @@ class _HomeScreenState extends State<HomeScreen>
                         if (NFCService.isHceSupported) {
                           _switchToMode(NfcMode.p2pShare);
                         } else {
-                          _showErrorMessage('Phone-to-Phone mode not supported on this device');
+                          NfcHelpers.showErrorMessage(
+                              context, 'Phone-to-Phone mode not supported on this device');
                         }
                       },
                     ),
@@ -399,7 +521,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildModeToggleOption({
+  Widget _buildModeOption({
     required IconData icon,
     required String title,
     required String subtitle,
@@ -467,7 +589,7 @@ class _HomeScreenState extends State<HomeScreen>
               ),
             ),
             if (isSelected)
-              Icon(
+              const Icon(
                 CupertinoIcons.check_mark_circled_solid,
                 color: Colors.white,
                 size: 20,
@@ -489,8 +611,9 @@ class _HomeScreenState extends State<HomeScreen>
     NFCService.switchMode(newMode);
     HapticFeedback.lightImpact();
 
-    final modeName = newMode == NfcMode.tagWrite ? 'Tag Write' : 'Phone-to-Phone';
-    _showInfoMessage('Switched to $modeName mode');
+    final modeName =
+        newMode == NfcMode.tagWrite ? 'Tag Write' : 'Phone-to-Phone';
+    NfcHelpers.showInfoMessage(context, 'Switched to $modeName mode');
   }
 
   /// Activate NFC write mode - FAB goes to "active" state
@@ -498,18 +621,26 @@ class _HomeScreenState extends State<HomeScreen>
     developer.log('🔥 Activating NFC write mode', name: 'Home.NFC');
     _fabController.forward().then((_) => _fabController.reverse());
 
-    developer.log('🔍 Checking NFC availability - _nfcAvailable: $_nfcAvailable', name: 'Home.NFC');
+    developer.log(
+        '🔍 Checking NFC availability - _nfcAvailable: $_nfcAvailable',
+        name: 'Home.NFC');
     if (!_nfcAvailable) {
-      developer.log('❌ NFC not available, showing setup dialog', name: 'Home.NFC');
-      _showNfcSetupDialog();
+      developer.log('❌ NFC not available, showing setup dialog',
+          name: 'Home.NFC');
+      NfcHelpers.showNfcSetupDialog(context, () {
+        setState(() => _nfcAvailable = true);
+      });
       return;
     }
 
     // ⚡ PERFORMANCE: Check if dual-payload is cached and ready (INSTANT check)
-    developer.log('🔍 Checking cached dual-payload - _isPayloadReady: $_isPayloadReady', name: 'Home.NFC');
+    developer.log(
+        '🔍 Checking cached dual-payload - _isPayloadReady: $_isPayloadReady',
+        name: 'Home.NFC');
     if (!_isPayloadReady || _cachedDualPayload == null) {
-      developer.log('⚠️ Dual-payload not ready, attempting to cache now...', name: 'Home.NFC');
-      _showErrorMessage('Profile not ready. Please wait a moment...');
+      developer.log('⚠️ Dual-payload not ready, attempting to cache now...',
+          name: 'Home.NFC');
+      NfcHelpers.showErrorMessage(context,'Profile not ready. Please wait a moment...');
       await _preCacheNfcPayload(); // Try to cache now
       if (!_isPayloadReady || _cachedDualPayload == null) {
         return;
@@ -517,14 +648,14 @@ class _HomeScreenState extends State<HomeScreen>
     }
 
     developer.log(
-      '✅ Using cached DUAL-PAYLOAD (INSTANT - 0ms lag!)\n'
-      '   • vCard: ${_cachedDualPayload!['vcard']!.length} bytes\n'
-      '   • URL: ${_cachedDualPayload!['url']!.length} bytes',
-      name: 'Home.NFC'
-    );
+        '✅ Using cached DUAL-PAYLOAD (INSTANT - 0ms lag!)\n'
+        '   • vCard: ${_cachedDualPayload!['vcard']!.length} bytes\n'
+        '   • URL: ${_cachedDualPayload!['url']!.length} bytes',
+        name: 'Home.NFC');
 
     // CRITICAL: Pause NFC discovery service to prevent session conflicts
-    developer.log('⏸️ Pausing NFC discovery service before write...', name: 'Home.NFC');
+    developer.log('⏸️ Pausing NFC discovery service before write...',
+        name: 'Home.NFC');
     NFCDiscoveryService.pauseDiscovery();
 
     // Change FAB state to ACTIVE (waiting for tag)
@@ -541,7 +672,8 @@ class _HomeScreenState extends State<HomeScreen>
       // Show visual feedback on FAB instead
 
       // ⚡ Generate payload WITH METADATA (share context includes timestamp & method)
-      developer.log('🚀 Generating payload with share context...', name: 'Home.NFC');
+      developer.log('🚀 Generating payload with share context...',
+          name: 'Home.NFC');
       final startTime = DateTime.now();
 
       // Create share context with current timestamp
@@ -551,15 +683,18 @@ class _HomeScreenState extends State<HomeScreen>
       );
 
       // Generate fresh payload WITH metadata (adds ~40 bytes)
-      final payload = _cachedActiveProfile!.getDualPayloadWithContext(shareContext);
+      final payload =
+          _cachedActiveProfile!.getDualPayloadWithContext(shareContext);
 
       // Stay in ACTIVE state (breathing + ripples) until write completes
       // Writes are instant once tag is detected, so no loading state needed
       final result = await NFCService.writeData(payload);
 
       final duration = DateTime.now().difference(startTime).inMilliseconds;
-      developer.log('⏱️ NFC operation completed in ${duration}ms', name: 'Home.NFC');
-      developer.log('📊 NFCService returned: ${result.toString()}', name: 'Home.NFC');
+      developer.log('⏱️ NFC operation completed in ${duration}ms',
+          name: 'Home.NFC');
+      developer.log('📊 NFCService returned: ${result.toString()}',
+          name: 'Home.NFC');
 
       // Stop animations before transitioning to success/error
       _pulseController.stop();
@@ -577,7 +712,7 @@ class _HomeScreenState extends State<HomeScreen>
           final String message = result.payloadType == 'dual'
               ? 'Contact card written (with URL fallback)! 📇'
               : 'Web card written! 🌐';
-          _showSuccessMessage(message);
+          NfcHelpers.showSuccessMessage(context,message);
           _scheduleStateReset(duration: const Duration(seconds: 2));
 
           // Add to history with actual tag metadata from hardware
@@ -588,39 +723,44 @@ class _HomeScreenState extends State<HomeScreen>
             _nfcFabState = NfcFabState.error;
           });
           if (result.error == 'Timeout') {
-            _showErrorMessage('No NFC tag detected. Bring tag within 4cm and try again.');
+            NfcHelpers.showErrorMessage(context,
+                'No NFC tag detected. Bring tag within 4cm and try again.');
           } else {
-            _showErrorMessage('NFC write failed: ${result.error}');
+            NfcHelpers.showErrorMessage(context,'NFC write failed: ${result.error}');
           }
           _scheduleStateReset(duration: const Duration(seconds: 3));
         }
       }
     } catch (e) {
-      developer.log('❌ Exception in _activateNfcWriteMode(): $e', name: 'Home.NFC', error: e);
+      developer.log('❌ Exception in _activateNfcWriteMode(): $e',
+          name: 'Home.NFC', error: e);
       if (mounted) {
         setState(() {
           _nfcFabState = NfcFabState.error;
         });
-        _showErrorMessage('Failed to activate NFC: $e');
+        NfcHelpers.showErrorMessage(context,'Failed to activate NFC: $e');
         _scheduleStateReset(duration: const Duration(seconds: 3));
       }
     } finally {
       // CRITICAL: Always resume discovery service, even on errors
-      developer.log('▶️ Resuming NFC discovery service after write...', name: 'Home.NFC');
+      developer.log('▶️ Resuming NFC discovery service after write...',
+          name: 'Home.NFC');
       NFCDiscoveryService.resumeDiscovery();
     }
   }
 
   /// Deactivate NFC write mode - Cancel operation
   Future<void> _deactivateNfcWriteMode() async {
-    developer.log('🔥 Deactivating NFC write mode (user cancelled)', name: 'Home.NFC');
+    developer.log('🔥 Deactivating NFC write mode (user cancelled)',
+        name: 'Home.NFC');
     HapticFeedback.lightImpact();
 
     // Call native to cancel write mode
     try {
       await NFCService.cancelSession();
     } catch (e) {
-      developer.log('⚠️ Failed to cancel NFC session: $e', name: 'Home.NFC', error: e);
+      developer.log('⚠️ Failed to cancel NFC session: $e',
+          name: 'Home.NFC', error: e);
     }
 
     if (mounted) {
@@ -631,11 +771,12 @@ class _HomeScreenState extends State<HomeScreen>
       _rippleController.stop();
       _pulseController.reset();
       _rippleController.reset();
-      _showInfoMessage('NFC write cancelled');
+      NfcHelpers.showInfoMessage(context,'NFC write cancelled');
     }
 
     // Resume NFC discovery service after cancellation
-    developer.log('▶️ Resuming NFC discovery service after cancellation...', name: 'Home.NFC');
+    developer.log('▶️ Resuming NFC discovery service after cancellation...',
+        name: 'Home.NFC');
     NFCDiscoveryService.resumeDiscovery();
   }
 
@@ -644,18 +785,23 @@ class _HomeScreenState extends State<HomeScreen>
     developer.log('🔥 Activating P2P Share mode (HCE)', name: 'Home.P2P');
     _fabController.forward().then((_) => _fabController.reverse());
 
-    developer.log('🔍 Checking HCE availability - isHceSupported: ${NFCService.isHceSupported}', name: 'Home.P2P');
+    developer.log(
+        '🔍 Checking HCE availability - isHceSupported: ${NFCService.isHceSupported}',
+        name: 'Home.P2P');
     if (!NFCService.isHceSupported) {
       developer.log('❌ HCE not supported on this device', name: 'Home.P2P');
-      _showErrorMessage('Phone-to-Phone mode not supported on this device');
+      NfcHelpers.showErrorMessage(context,'Phone-to-Phone mode not supported on this device');
       return;
     }
 
     // Check if dual-payload is ready
-    developer.log('🔍 Checking cached dual-payload - _isPayloadReady: $_isPayloadReady', name: 'Home.P2P');
+    developer.log(
+        '🔍 Checking cached dual-payload - _isPayloadReady: $_isPayloadReady',
+        name: 'Home.P2P');
     if (!_isPayloadReady || _cachedDualPayload == null) {
-      developer.log('⚠️ Dual-payload not ready, attempting to cache now...', name: 'Home.P2P');
-      _showErrorMessage('Profile not ready. Please wait a moment...');
+      developer.log('⚠️ Dual-payload not ready, attempting to cache now...',
+          name: 'Home.P2P');
+      NfcHelpers.showErrorMessage(context,'Profile not ready. Please wait a moment...');
       await _preCacheNfcPayload();
       if (!_isPayloadReady || _cachedDualPayload == null) {
         return;
@@ -663,14 +809,14 @@ class _HomeScreenState extends State<HomeScreen>
     }
 
     developer.log(
-      '✅ Using cached DUAL-PAYLOAD for P2P (INSTANT - 0ms lag!)\n'
-      '   • vCard: ${_cachedDualPayload!['vcard']!.length} bytes\n'
-      '   • URL: ${_cachedDualPayload!['url']!.length} bytes',
-      name: 'Home.P2P'
-    );
+        '✅ Using cached DUAL-PAYLOAD for P2P (INSTANT - 0ms lag!)\n'
+        '   • vCard: ${_cachedDualPayload!['vcard']!.length} bytes\n'
+        '   • URL: ${_cachedDualPayload!['url']!.length} bytes',
+        name: 'Home.P2P');
 
     // CRITICAL: Pause NFC discovery service to prevent conflicts
-    developer.log('⏸️ Pausing NFC discovery service before HCE...', name: 'Home.P2P');
+    developer.log('⏸️ Pausing NFC discovery service before HCE...',
+        name: 'Home.P2P');
     NFCDiscoveryService.pauseDiscovery();
 
     // Change FAB state to ACTIVE
@@ -684,11 +830,10 @@ class _HomeScreenState extends State<HomeScreen>
 
     try {
       developer.log(
-        '🚀 Starting P2P Card Emulation with vCard (Universal Compatibility)\n'
-        '   📇 Payload: vCard 3.0 format\n'
-        '   🌐 Any phone can now save contact - no app needed!',
-        name: 'Home.P2P'
-      );
+          '🚀 Starting P2P Card Emulation with vCard (Universal Compatibility)\n'
+          '   📇 Payload: vCard 3.0 format\n'
+          '   🌐 Any phone can now save contact - no app needed!',
+          name: 'Home.P2P');
       final startTime = DateTime.now();
 
       // For P2P/HCE, use dual-payload for universal compatibility
@@ -697,31 +842,32 @@ class _HomeScreenState extends State<HomeScreen>
       final urlPayload = _cachedDualPayload!['url']!;
 
       developer.log(
-        '📦 P2P dual-payload ready\n'
-        '   • vCard: ${vCardPayload.length} bytes\n'
-        '   • URL: $urlPayload\n'
-        '   • Android → Saves vCard | iPhone → Opens URL',
-        name: 'Home.P2P'
-      );
+          '📦 P2P dual-payload ready\n'
+          '   • vCard: ${vCardPayload.length} bytes\n'
+          '   • URL: $urlPayload\n'
+          '   • Android → Saves vCard | iPhone → Opens URL',
+          name: 'Home.P2P');
 
-      final result = await NFCService.startCardEmulation(vCardPayload, urlPayload);
+      final result =
+          await NFCService.startCardEmulation(vCardPayload, urlPayload);
 
       final duration = DateTime.now().difference(startTime).inMilliseconds;
-      developer.log('⏱️ P2P operation completed in ${duration}ms', name: 'Home.P2P');
-      developer.log('📊 NFCService returned: ${result.toString()}', name: 'Home.P2P');
+      developer.log('⏱️ P2P operation completed in ${duration}ms',
+          name: 'Home.P2P');
+      developer.log('📊 NFCService returned: ${result.toString()}',
+          name: 'Home.P2P');
 
       if (mounted) {
         if (result.isSuccess) {
           // Keep in ACTIVE state - HCE is now running and waiting for tap
           developer.log(
-            '✅ P2P mode activated successfully\n'
-            '   📲 Your phone is now acting as an NFC tag\n'
-            '   👉 Other phones can tap to receive your card\n'
-            '   🔹 Status: ACTIVE and waiting\n'
-            '   🔹 Tap FAB again to stop sharing',
-            name: 'Home.P2P'
-          );
-          _showSuccessMessage('Ready! Hold phones together to share');
+              '✅ P2P mode activated successfully\n'
+              '   📲 Your phone is now acting as an NFC tag\n'
+              '   👉 Other phones can tap to receive your card\n'
+              '   🔹 Status: ACTIVE and waiting\n'
+              '   🔹 Tap FAB again to stop sharing',
+              name: 'Home.P2P');
+          NfcHelpers.showSuccessMessage(context,'Ready! Hold phones together to share');
 
           // Add P2P share to history
           _addP2pShareToHistory();
@@ -732,41 +878,42 @@ class _HomeScreenState extends State<HomeScreen>
           setState(() {
             _nfcFabState = NfcFabState.error;
           });
-          developer.log('❌ Failed to start P2P mode: ${result.error}', name: 'Home.P2P');
-          _showErrorMessage('Failed to start P2P mode: ${result.error}');
+          developer.log('❌ Failed to start P2P mode: ${result.error}',
+              name: 'Home.P2P');
+          NfcHelpers.showErrorMessage(context,'Failed to start P2P mode: ${result.error}');
           _scheduleStateReset(duration: const Duration(seconds: 3));
         }
       }
     } catch (e, stackTrace) {
-      developer.log(
-        '❌ Exception in _activateP2pMode(): $e',
-        name: 'Home.P2P',
-        error: e,
-        stackTrace: stackTrace
-      );
+      developer.log('❌ Exception in _activateP2pMode(): $e',
+          name: 'Home.P2P', error: e, stackTrace: stackTrace);
       if (mounted) {
         _pulseController.stop();
         _rippleController.stop();
         setState(() {
           _nfcFabState = NfcFabState.error;
         });
-        _showErrorMessage('Failed to activate P2P: $e');
+        NfcHelpers.showErrorMessage(context,'Failed to activate P2P: $e');
         _scheduleStateReset(duration: const Duration(seconds: 3));
       }
     } finally {
       // Note: DON'T resume discovery service here - keep it paused while HCE is active
-      developer.log('ℹ️ Discovery service remains paused while P2P mode is active', name: 'Home.P2P');
+      developer.log(
+          'ℹ️ Discovery service remains paused while P2P mode is active',
+          name: 'Home.P2P');
     }
   }
 
   /// Deactivate P2P mode - Stop HCE
   Future<void> _deactivateP2pMode() async {
-    developer.log('🔥 Deactivating P2P mode (user cancelled or completed)', name: 'Home.P2P');
+    developer.log('🔥 Deactivating P2P mode (user cancelled or completed)',
+        name: 'Home.P2P');
     HapticFeedback.lightImpact();
 
     // Stop HCE card emulation
     try {
-      developer.log('🛑 Calling NFCService.stopCardEmulation()...', name: 'Home.P2P');
+      developer.log('🛑 Calling NFCService.stopCardEmulation()...',
+          name: 'Home.P2P');
       await NFCService.stopCardEmulation();
       developer.log('✅ HCE stopped successfully', name: 'Home.P2P');
     } catch (e) {
@@ -781,11 +928,12 @@ class _HomeScreenState extends State<HomeScreen>
       _rippleController.stop();
       _pulseController.reset();
       _rippleController.reset();
-      _showInfoMessage('P2P sharing stopped');
+      NfcHelpers.showInfoMessage(context,'P2P sharing stopped');
     }
 
     // Resume NFC discovery service after deactivation
-    developer.log('▶️ Resuming NFC discovery service after P2P deactivation...', name: 'Home.P2P');
+    developer.log('▶️ Resuming NFC discovery service after P2P deactivation...',
+        name: 'Home.P2P');
     NFCDiscoveryService.resumeDiscovery();
   }
 
@@ -805,7 +953,7 @@ class _HomeScreenState extends State<HomeScreen>
   void _showShareModal() {
     // ✅ Ensure profile is ready before showing modal
     if (_cachedActiveProfile == null) {
-      _showErrorMessage('Profile not ready. Please wait...');
+      NfcHelpers.showErrorMessage(context,'Profile not ready. Please wait...');
       _preCacheNfcPayload();
       return;
     }
@@ -815,368 +963,12 @@ class _HomeScreenState extends State<HomeScreen>
       userName: _cachedActiveProfile!.name,
       userEmail: _cachedActiveProfile!.email ?? '',
       profileImageUrl: _cachedActiveProfile!.profileImagePath,
-      profile: _cachedActiveProfile!,  // Pass full profile for metadata generation
+      profile:
+          _cachedActiveProfile!, // Pass full profile for metadata generation
       onNFCShare: _onNfcTap,
     );
   }
 
-  void _showNfcSetupDialog() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) => Container(
-        margin: const EdgeInsets.all(16),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(AppRadius.card),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceLight.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(AppRadius.card),
-                border: Border.all(
-                  color: AppColors.primaryAction.withOpacity(0.3),
-                  width: 1,
-                ),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        CupertinoIcons.antenna_radiowaves_left_right,
-                        color: AppColors.primaryAction,
-                        size: 24,
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      Expanded(
-                        child: Text(
-                          'Enable NFC',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    'NFC is required to share your contact card. Please enable NFC in your device settings to continue.',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.7),
-                      fontSize: 14,
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  SizedBox(
-                    width: double.infinity,
-                    child: CupertinoButton(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      color: AppColors.primaryAction,
-                      borderRadius: BorderRadius.circular(AppRadius.button),
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        _openNfcSettings();
-                      },
-                      child: const Text(
-                        'Open Settings',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: MediaQuery.of(context).padding.bottom),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showNfcScanningDialog() {
-    GlassmorphicDialog.show(
-      context: context,
-      icon: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppColors.primaryAction.withOpacity(0.2),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Icon(
-          CupertinoIcons.antenna_radiowaves_left_right,
-          color: AppColors.primaryAction,
-          size: 32,
-        ),
-      ),
-      title: 'NFC Scanning...',
-      content: 'Bring your phone close to:\n• Another NFC-enabled phone or device\n• An NFC tag to write your profile\n\nKeep devices within 4cm of each other.',
-      actions: [
-        DialogAction.secondary(
-          text: 'Cancel',
-          onPressed: () async {
-            Navigator.of(context, rootNavigator: true).pop();
-            await NFCService.cancelSession('User cancelled');
-            if (mounted) {
-              setState(() => _isNfcLoading = false);
-            }
-          },
-        ),
-      ],
-    );
-  }
-
-  void _openNfcSettings() async {
-    try {
-      // Try to open NFC settings using app_settings
-      await _tryOpenNfcSettings();
-
-      // Add a delay to give user time to toggle NFC
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      // After user returns from settings, refresh NFC status
-      if (mounted) {
-        _nfcAvailable = await NFCService.initialize();
-
-        // Show result based on NFC state
-        if (_nfcAvailable) {
-          _showSuccessMessage('NFC is now enabled! You can share your card.');
-        } else {
-          _showInfoMessage('Please enable NFC in settings to use tap-to-share features.');
-        }
-      }
-    } catch (e) {
-      debugPrint('Error opening NFC settings: $e');
-      if (mounted) {
-        _showErrorMessage('Could not open settings. Please enable NFC manually.');
-      }
-    }
-  }
-
-  Future<void> _tryOpenNfcSettings() async {
-    // Open app settings or NFC-specific settings
-    // Note: On Android, AppSettings.openAppSettings() opens the app settings page
-    // Users can then navigate to NFC settings from there
-    // iOS doesn't support NFC settings programmatically
-    await AppSettings.openAppSettings();
-  }
-
-  void _showNfcInstructionsDialog() {
-    if (!mounted) return;
-
-    final dialogContext = context;
-
-    GlassmorphicDialog.show(
-      context: context,
-      icon: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppColors.primaryAction.withOpacity(0.2),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Icon(
-          CupertinoIcons.settings,
-          color: AppColors.primaryAction,
-          size: 32,
-        ),
-      ),
-      title: 'Enable NFC Manually',
-      content: 'To enable NFC:\n\n1. Go to Settings\n2. Find "Connections" or "Wireless & Networks"\n3. Look for "NFC" and turn it on\n4. Come back and check again',
-      actions: [
-        DialogAction.secondary(
-          text: 'Cancel',
-          onPressed: () {
-            Navigator.of(dialogContext, rootNavigator: true).pop();
-          },
-        ),
-        DialogAction.primary(
-          text: 'Check Again',
-          onPressed: () => _checkNfcStatusAgain(),
-        ),
-      ],
-    );
-  }
-
-  void _checkNfcStatusAgain() async {
-    try {
-      // Close the current dialog
-      Navigator.of(context, rootNavigator: true).pop();
-
-      // Show loading message
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryAction.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: AppColors.primaryAction.withOpacity(0.3),
-                      width: 1,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text('Checking NFC status...'),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-
-        // Refresh NFC status
-        _nfcAvailable = await NFCService.initialize();
-
-        // Show result
-        if (_nfcAvailable) {
-          _showSuccessMessage('Great! NFC is now enabled. You can share your card.');
-        } else {
-          _showErrorMessage('NFC is still disabled. Please enable it in your device settings.');
-        }
-      }
-    } catch (e) {
-      debugPrint('Error checking NFC status: $e');
-      if (mounted) {
-        _showErrorMessage('Failed to check NFC status. Please try again.');
-      }
-    }
-  }
-
-  void _showSuccessMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.success.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppColors.success.withOpacity(0.3),
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(CupertinoIcons.check_mark_circled_solid, color: AppColors.success),
-                  const SizedBox(width: 12),
-                  Expanded(child: Text(message)),
-                ],
-              ),
-            ),
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 3),
-      ),
-    );
-  }
-
-  void _showErrorMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.error.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppColors.error.withOpacity(0.3),
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(CupertinoIcons.exclamationmark_circle_fill, color: AppColors.error),
-                  const SizedBox(width: 12),
-                  Expanded(child: Text(message)),
-                ],
-              ),
-            ),
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 4),
-      ),
-    );
-  }
-
-  void _showInfoMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.blueAccent.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: Colors.blueAccent.withOpacity(0.3),
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(CupertinoIcons.info_circle_fill, color: Colors.blueAccent),
-                  const SizedBox(width: 12),
-                  Expanded(child: Text(message)),
-                ],
-              ),
-            ),
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 3),
-      ),
-    );
-  }
 
   void _onSettingsTap() {
     HapticFeedback.lightImpact();
@@ -1215,14 +1007,16 @@ class _HomeScreenState extends State<HomeScreen>
   /// ensuring the NFC tap handler has everything ready immediately.
   Future<void> _preCacheNfcPayload() async {
     try {
-      developer.log('⚡ Pre-caching DUAL-PAYLOAD for instant NFC sharing...', name: 'Home.NFC');
+      developer.log('⚡ Pre-caching DUAL-PAYLOAD for instant NFC sharing...',
+          name: 'Home.NFC');
       final startTime = DateTime.now();
 
       // Get active profile (synchronous from service)
       final profile = await _getActiveProfileForSharing();
 
       if (profile == null) {
-        developer.log('⚠️ No active profile found for caching', name: 'Home.NFC');
+        developer.log('⚠️ No active profile found for caching',
+            name: 'Home.NFC');
         if (mounted) {
           setState(() {
             _cachedActiveProfile = null;
@@ -1238,13 +1032,12 @@ class _HomeScreenState extends State<HomeScreen>
 
       final duration = DateTime.now().difference(startTime).inMilliseconds;
       developer.log(
-        '✅ Dual-payload cached in ${duration}ms (INSTANT!)\n'
-        '   • vCard: ${dualPayload['vcard']!.length} bytes\n'
-        '   • URL: ${dualPayload['url']!.length} bytes\n'
-        '   • Total: ${dualPayload['vcard']!.length + dualPayload['url']!.length} bytes\n'
-        '   • Profile: ${profile.name}',
-        name: 'Home.NFC'
-      );
+          '✅ Dual-payload cached in ${duration}ms (INSTANT!)\n'
+          '   • vCard: ${dualPayload['vcard']!.length} bytes\n'
+          '   • URL: ${dualPayload['url']!.length} bytes\n'
+          '   • Total: ${dualPayload['vcard']!.length + dualPayload['url']!.length} bytes\n'
+          '   • Profile: ${profile.name}',
+          name: 'Home.NFC');
 
       if (mounted) {
         setState(() {
@@ -1254,7 +1047,8 @@ class _HomeScreenState extends State<HomeScreen>
         });
       }
     } catch (e) {
-      developer.log('❌ Error pre-caching dual-payload: $e', name: 'Home.NFC', error: e);
+      developer.log('❌ Error pre-caching dual-payload: $e',
+          name: 'Home.NFC', error: e);
       if (mounted) {
         setState(() {
           _cachedActiveProfile = null;
@@ -1265,19 +1059,6 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  /// Store token for profile before sharing
-  Future<void> _storeTokenForProfile(ProfileData profile, String userId) async {
-    try {
-      final token = ShareToken.generateLocal(userId);
-      await _tokenManager.storeToken(
-        token: token,
-        profileData: profile,
-      );
-      debugPrint('Token stored for sharing: ${token.token}');
-    } catch (e) {
-      debugPrint('Error storing token: $e');
-    }
-  }
 
   /// Get current location if tracking is enabled
   Future<String?> _getCurrentLocation() async {
@@ -1299,7 +1080,8 @@ class _HomeScreenState extends State<HomeScreen>
       }
 
       if (permission == LocationPermission.deniedForever) {
-        developer.log('Location permission denied forever', name: 'Home.Location');
+        developer.log('Location permission denied forever',
+            name: 'Home.Location');
         return null;
       }
 
@@ -1320,7 +1102,7 @@ class _HomeScreenState extends State<HomeScreen>
           final place = placemarks.first;
           // Format: "City, State" or "City, Country"
           final locationParts = [
-            place.locality,          // City
+            place.locality, // City
             place.administrativeArea // State/Province
           ].where((e) => e != null && e.isNotEmpty).toList();
 
@@ -1331,18 +1113,22 @@ class _HomeScreenState extends State<HomeScreen>
           }
         }
 
-        developer.log('⚠️ Reverse geocoding returned no placemarks', name: 'Home.Location');
+        developer.log('⚠️ Reverse geocoding returned no placemarks',
+            name: 'Home.Location');
       } catch (geocodeError) {
         developer.log('⚠️ Reverse geocoding failed, using coordinates',
-          name: 'Home.Location', error: geocodeError);
+            name: 'Home.Location', error: geocodeError);
       }
 
       // Fallback to coordinates if reverse geocoding fails
-      final location = '${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}';
-      developer.log('📍 Location (coordinates): $location', name: 'Home.Location');
+      final location =
+          '${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}';
+      developer.log('📍 Location (coordinates): $location',
+          name: 'Home.Location');
       return location;
     } catch (e) {
-      developer.log('Failed to get location: $e', name: 'Home.Location', error: e);
+      developer.log('Failed to get location: $e',
+          name: 'Home.Location', error: e);
       return null;
     }
   }
@@ -1353,13 +1139,15 @@ class _HomeScreenState extends State<HomeScreen>
       final location = await _getCurrentLocation();
 
       // Use actual tag data from NFCResult, with fallbacks
-      final tagId = result.tagId ?? 'TAG_${DateTime.now().millisecondsSinceEpoch}';
+      final tagId =
+          result.tagId ?? 'TAG_${DateTime.now().millisecondsSinceEpoch}';
       final tagCapacity = result.tagCapacity;
       final tagType = _inferTagTypeFromCapacity(tagCapacity);
-      final payloadType = result.payloadType;  // "dual" or "url"
+      final payloadType = result.payloadType; // "dual" or "url"
 
       await HistoryService.addTagEntry(
         profileName: _profileService.activeProfile?.name ?? 'Unknown Profile',
+        profileType: _profileService.activeProfile?.type ?? ProfileType.personal,
         tagId: tagId,
         tagType: tagType,
         method: ShareMethod.tag,
@@ -1370,13 +1158,15 @@ class _HomeScreenState extends State<HomeScreen>
 
       final locationStr = location != null ? ' at $location' : '';
       final capacityStr = tagCapacity != null ? ' ($tagCapacity bytes)' : '';
-      final payloadStr = payloadType != null ? ' [${payloadType == "dual" ? "Full card" : "Mini card"}]' : '';
+      final payloadStr = payloadType != null
+          ? ' [${payloadType == "dual" ? "Full card" : "Mini card"}]'
+          : '';
       developer.log(
-        '✅ NFC write added to history: $tagId ($tagType$capacityStr)$payloadStr$locationStr',
-        name: 'Home.History'
-      );
+          '✅ NFC write added to history: $tagId ($tagType$capacityStr)$payloadStr$locationStr',
+          name: 'Home.History');
     } catch (e) {
-      developer.log('❌ Error adding NFC write to history: $e', name: 'Home.History', error: e);
+      developer.log('❌ Error adding NFC write to history: $e',
+          name: 'Home.History', error: e);
     }
   }
 
@@ -1396,12 +1186,11 @@ class _HomeScreenState extends State<HomeScreen>
       );
 
       final locationStr = location != null ? ' at $location' : '';
-      developer.log(
-        '✅ P2P share added to history$locationStr',
-        name: 'Home.History'
-      );
+      developer.log('✅ P2P share added to history$locationStr',
+          name: 'Home.History');
     } catch (e) {
-      developer.log('❌ Error adding P2P share to history: $e', name: 'Home.History', error: e);
+      developer.log('❌ Error adding P2P share to history: $e',
+          name: 'Home.History', error: e);
     }
   }
 
@@ -1487,9 +1276,8 @@ class _HomeScreenState extends State<HomeScreen>
   /// Get native app URI for social platform
   /// Returns null if platform doesn't support app schemes
   Uri? _getSocialAppUri(String platform, String username) {
-    final cleanUsername = username.startsWith('@')
-      ? username.substring(1)
-      : username;
+    final cleanUsername =
+        username.startsWith('@') ? username.substring(1) : username;
 
     // Skip if already a full URL
     if (username.startsWith('http')) return null;
@@ -1527,7 +1315,8 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   String _getSocialUrl(String platform, String username) {
-    final cleanUsername = username.startsWith('@') ? username.substring(1) : username;
+    final cleanUsername =
+        username.startsWith('@') ? username.substring(1) : username;
     switch (platform.toLowerCase()) {
       case 'linkedin':
         return 'https://linkedin.com/in/$cleanUsername';
@@ -1558,7 +1347,8 @@ class _HomeScreenState extends State<HomeScreen>
 
     // Stop P2P emulation if active
     if (_nfcMode == NfcMode.p2pShare && _nfcFabState == NfcFabState.active) {
-      developer.log('🛑 Stopping P2P emulation (leaving page)', name: 'Home.P2P');
+      developer.log('🛑 Stopping P2P emulation (leaving page)',
+          name: 'Home.P2P');
       NFCService.stopCardEmulation();
     }
 
@@ -1611,13 +1401,20 @@ class _HomeScreenState extends State<HomeScreen>
               child: Column(
                 key: const Key('home-layout'),
                 children: [
-                  SizedBox(height: statusBarHeight + 80 + 40), // App bar space + original spacing
+                  SizedBox(
+                      height: statusBarHeight +
+                          80 +
+                          40), // App bar space + original spacing
                   _isPreviewMode ? _buildCardPreview() : _buildHeroNfcFab(),
                   const SizedBox(height: 16),
                   _isPreviewMode ? _buildPreviewText() : _buildTapToShareText(),
-                  const SizedBox(height: 60),
-                  _buildRecentContactsStrip(),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 45),
+                  const RecentConnectionsWidget(),
+                  const SizedBox(height: 24),
+                  _buildFrequentContactsSection(),
+                  const SizedBox(height: 24),
+                  _buildInsightsSection(),
+                  const SizedBox(height: 24),
                   _buildRecentHistoryStrip(),
                   const SizedBox(height: 80), // Space for bottom nav
                 ],
@@ -1672,41 +1469,42 @@ class _HomeScreenState extends State<HomeScreen>
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
-                key: const Key('appbar-content'),
-                children: [
-                  _buildModeToggle(),
-                  const Spacer(),
-                  // Logo section
-                  Row(
-                    key: const Key('appbar-logo'),
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 24,
-                        height: 24,
-                        decoration: BoxDecoration(
-                          gradient: AppColors.primaryGradient,
-                          borderRadius: BorderRadius.circular(8),
+                  key: const Key('appbar-content'),
+                  children: [
+                    _buildModeToggle(),
+                    const Spacer(),
+                    // Logo section
+                    Row(
+                      key: const Key('appbar-logo'),
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 24,
+                          height: 24,
+                          decoration: BoxDecoration(
+                            gradient: AppColors.primaryGradient,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            CupertinoIcons.antenna_radiowaves_left_right,
+                            color: AppColors.textPrimary,
+                            size: 16,
+                          ),
                         ),
-                        child: const Icon(
-                          CupertinoIcons.antenna_radiowaves_left_right,
-                          color: AppColors.textPrimary,
-                          size: 16,
+                        const SizedBox(width: 8),
+                        Text(
+                          'Atlas Linq',
+                          style: AppTextStyles.h3.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Tap Card',
-                        style: AppTextStyles.h3.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Spacer(),
-                  _buildAppBarIcon(CupertinoIcons.settings, _onSettingsTap, 'settings'),
-                ],
-              ),
+                      ],
+                    ),
+                    const Spacer(),
+                    _buildAppBarIcon(
+                        CupertinoIcons.settings, _onSettingsTap, 'settings'),
+                  ],
+                ),
               ),
             ),
           ),
@@ -1760,11 +1558,13 @@ class _HomeScreenState extends State<HomeScreen>
             borderRadius: BorderRadius.circular(12),
           ),
           child: Icon(
-            _isPreviewMode ? CupertinoIcons.antenna_radiowaves_left_right : CupertinoIcons.eye,
+            _isPreviewMode
+                ? CupertinoIcons.antenna_radiowaves_left_right
+                : CupertinoIcons.eye,
             key: const Key('home_mode_toggle_icon'),
             color: _isPreviewMode
-              ? AppColors.primaryAction
-              : AppColors.textSecondary,
+                ? AppColors.primaryAction
+                : AppColors.textSecondary,
             size: 20,
           ),
         ),
@@ -1775,381 +1575,50 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _buildHeroNfcFab() {
     return AnimatedBuilder(
       key: const Key('nfc-fab'),
-      animation: Listenable.merge([_fabController, _pulseController, _rippleController]),
+      animation: Listenable.merge(
+          [_fabController, _pulseController, _rippleController, _successController]),
       builder: (context, child) {
-        // Get NFC state colors for dynamic theming
-        final nfcColors = _getNfcStateColors();
-        final hasDevice = _nfcDeviceDetected;
-
-        return Transform.scale(
-          scale: _fabScale.value * _pulseScale.value * (hasDevice ? 1.05 : 1.0),
-          child: Container(
-            key: const Key('nfc-fab-container'),
-            width: 120,
-            height: 120,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                // Animated outer glow effect
-                Container(
-                  key: const Key('nfc-fab-glow'),
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        color: nfcColors['primary']!.withOpacity(
-                          (hasDevice ? _fabGlow.value * 1.5 : _fabGlow.value).clamp(0.0, 1.0),
-                        ),
-                        blurRadius: hasDevice ? 50 : 40,
-                        spreadRadius: hasDevice ? 8 : 4,
-                      ),
-                      BoxShadow(
-                        color: nfcColors['secondary']!.withOpacity(
-                          (hasDevice ? _fabGlow.value : _fabGlow.value * 0.7).clamp(0.0, 1.0),
-                        ),
-                        blurRadius: hasDevice ? 45 : 35,
-                        spreadRadius: hasDevice ? 6 : 2,
-                      ),
-                    ],
-                  ),
-                ),
-                // Ripple wave animation matching FAB shape - show when in active state
-                if (_nfcFabState == NfcFabState.active) ...List.generate(3, (index) {
-                  final delay = index * 0.3; // Quicker succession
-                  final progress = (_rippleWave.value - delay).clamp(0.0, 1.0);
-
-                  // Smooth easing function for more natural animation
-                  final easedProgress = Curves.easeOut.transform(progress);
-                  final rippleSize = 110.0 + (easedProgress * 120.0); // Start closer to FAB size
-                  final borderRadius = 20.0 + (easedProgress * 10.0); // Match FAB shape with slight growth
-
-                  // More subtle fade out
-                  final opacity = (1.0 - easedProgress) * 0.6;
-
-                  if (opacity <= 0.0) return const SizedBox.shrink();
-
-                  return Container(
-                    key: Key('home_nfc_fab_ripple_$index'),
-                    width: rippleSize,
-                    height: rippleSize,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(borderRadius),
-                      border: Border.all(
-                        color: nfcColors['primary']!.withOpacity(opacity),
-                        width: 1.5,
-                      ),
-                    ),
-                  );
-                }),
-                // Main FAB
-                Container(
-                  key: const Key('home_nfc_fab_main'),
-                  width: 96, // 8px * 12
-                  height: 96,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [nfcColors['primary']!, nfcColors['secondary']!],
-                    ),
-                    borderRadius: BorderRadius.circular(20), // Smooth square corners
-                    boxShadow: [
-                      BoxShadow(
-                        color: nfcColors['primary']!.withOpacity(0.4),
-                        blurRadius: 24,
-                        offset: const Offset(0, 8),
-                      ),
-                      BoxShadow(
-                        color: nfcColors['secondary']!.withOpacity(0.3),
-                        blurRadius: 20,
-                        offset: const Offset(0, 6),
-                      ),
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
-                        blurRadius: 16,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Material(
-                    key: const Key('home_nfc_fab_material'),
-                    color: Colors.transparent,
-                    child: InkWell(
-                      key: const Key('home_nfc_fab_inkwell'),
-                      onTap: _isNfcLoading ? () {
-                        developer.log('FAB tapped but _isNfcLoading is true, ignoring tap', name: 'Home.NFC');
-                      } : () {
-                        developer.log('FAB tapped, calling _onNfcTap()', name: 'Home.NFC');
-                        _onNfcTap();
-                      },
-                      onLongPress: _isNfcLoading ? null : () {
-                        developer.log('FAB long-pressed, showing mode picker', name: 'Home.NFC');
-                        HapticFeedback.mediumImpact();
-                        _showModePicker();
-                      },
-                      borderRadius: BorderRadius.circular(20), // Match container radius
-                      child: Center(
-                        key: const Key('home_nfc_fab_center'),
-                        child: _buildFabContent(),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+        return NfcFabWidget(
+          state: _nfcFabState,
+          mode: _nfcMode,
+          nfcAvailable: _nfcAvailable,
+          nfcDeviceDetected: _nfcDeviceDetected,
+          isLoading: _isNfcLoading,
+          onTap: () {
+            developer.log('FAB tapped, calling _onNfcTap()',
+                name: 'Home.NFC');
+            _onNfcTap();
+          },
+          onLongPress: () {
+            developer.log('FAB long-pressed, showing mode picker',
+                name: 'Home.NFC');
+            HapticFeedback.mediumImpact();
+            _showModePicker();
+          },
+          fabScale: _fabScale,
+          fabGlow: _fabGlow,
+          pulseScale: _pulseScale,
+          rippleWave: _rippleWave,
+          successScale: _successScale,
         );
       },
     );
   }
 
-  Widget _buildFabContent() {
-    // Mode-specific icons
-    final IconData modeIcon = _nfcMode == NfcMode.tagWrite
-        ? CupertinoIcons.arrow_up_arrow_down_square
-        : CupertinoIcons.radiowaves_right;
-
-    // Special case: NFC disabled
-    if (!_nfcAvailable) {
-      return Icon(
-        modeIcon,
-        key: const Key('home_nfc_fab_disabled'),
-        color: AppColors.textSecondary,  // Gray
-        size: 56,
-      );
-    }
-
-    // FIVE-STATE FAB SYSTEM
-    switch (_nfcFabState) {
-      case NfcFabState.inactive:
-        // Dull white icon, no animations
-        return Icon(
-          modeIcon,
-          key: const Key('home_nfc_fab_inactive'),
-          color: Colors.white.withOpacity(0.5),  // Dull white
-          size: 56,
-        );
-
-      case NfcFabState.active:
-        // Glowing white icon with breathing animation, NO TEXT
-        return ScaleTransition(
-          key: const Key('home_nfc_fab_active'),
-          scale: _pulseScale,
-          child: Icon(
-            modeIcon,
-            color: Colors.white,  // Glowing white
-            size: 56,
-          ),
-        );
-
-      case NfcFabState.writing:
-        // Loading spinner during NFC write
-        return SizedBox(
-          key: const Key('home_nfc_fab_writing'),
-          width: 32,
-          height: 32,
-          child: CupertinoActivityIndicator(
-            color: Colors.white,
-            radius: 16,
-          ),
-        );
-
-      case NfcFabState.success:
-        // Green checkmark with pop animation
-        return ScaleTransition(
-          key: const Key('home_nfc_fab_success'),
-          scale: _successScale,
-          child: Icon(
-            CupertinoIcons.check_mark_circled_solid,
-            color: Colors.greenAccent,
-            size: 56,
-          ),
-        );
-
-      case NfcFabState.error:
-        // Red X icon
-        return Icon(
-          CupertinoIcons.exclamationmark_circle_fill,
-          key: const Key('home_nfc_fab_error'),
-          color: Colors.redAccent,
-          size: 56,
-        );
-    }
-  }
-
-  Map<String, Color> _getNfcStateColors() {
-    // Gray gradient ONLY for NFC disabled
-    if (!_nfcAvailable) {
-      return {
-        'primary': Colors.grey.shade400,
-        'secondary': Colors.grey.shade600,
-      };
-    }
-
-    // State-based colors when NFC is available
-    switch (_nfcFabState) {
-      case NfcFabState.inactive:
-      case NfcFabState.active:
-      case NfcFabState.writing:
-        // Mode-specific gradients
-        if (_nfcMode == NfcMode.p2pShare) {
-          // Purple gradient for P2P mode
-          return {
-            'primary': const Color(0xFF9C27B0),  // Material Purple 500
-            'secondary': const Color(0xFF673AB7), // Material Deep Purple 500
-          };
-        } else {
-          // Orange gradient for Tag Write mode (default)
-          return {
-            'primary': AppColors.primaryAction,
-            'secondary': AppColors.secondaryAction,
-          };
-        }
-
-      case NfcFabState.success:
-        return {
-          'primary': Colors.green.shade400,
-          'secondary': Colors.green.shade600,
-        };
-
-      case NfcFabState.error:
-        return {
-          'primary': Colors.red.shade400,
-          'secondary': Colors.red.shade600,
-        };
-    }
-  }
-
   Widget _buildTapToShareText() {
-    // Determine text and color based on state AND mode
-    String text;
-    Color textColor;
-
-    if (!_nfcAvailable) {
-      text = 'NFC not available';
-      textColor = AppColors.textSecondary;
-    } else {
-      // Mode-specific text
-      final isTagWrite = _nfcMode == NfcMode.tagWrite;
-
-      switch (_nfcFabState) {
-        case NfcFabState.inactive:
-          text = isTagWrite
-              ? 'Bring device close to share'
-              : 'Hold & tap to switch modes';
-          textColor = Colors.white.withOpacity(0.6);  // Dull white
-          break;
-
-        case NfcFabState.active:
-          text = isTagWrite
-              ? 'Tap to Share'
-              : 'Ready for Tap';
-          textColor = AppColors.primaryAction;  // Orange
-          break;
-
-        case NfcFabState.writing:
-          // Writing state kept for compatibility but shows same as active
-          text = isTagWrite
-              ? 'Tap to Share'
-              : 'Ready for Tap';
-          textColor = AppColors.primaryAction;  // Orange
-          break;
-
-        case NfcFabState.success:
-          text = isTagWrite
-              ? 'Written successfully!'
-              : 'Shared successfully!';
-          textColor = Colors.greenAccent;
-          break;
-
-        case NfcFabState.error:
-          text = isTagWrite
-              ? 'Write failed'
-              : 'Share failed';
-          textColor = Colors.redAccent;
-          break;
-      }
-    }
-
     return AnimatedBuilder(
       animation: _rippleController,
       builder: (context, child) {
         return Column(
           key: const Key('home_tap_share_column'),
           children: [
-            AnimatedDefaultTextStyle(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
-              style: AppTextStyles.h3.copyWith(
-                color: textColor,
-                fontWeight: FontWeight.w500,
-              ),
-              child: Text(
-                text,
-                key: const Key('home_tap_share_title'),
-              ),
+            NfcFabStatusText(
+              state: _nfcFabState,
+              mode: _nfcMode,
+              nfcAvailable: _nfcAvailable,
             ),
-        const SizedBox(key: Key('home_tap_share_spacing'), height: 24),
-        Material(
-          key: const Key('home_share_options_material'),
-          color: Colors.transparent,
-          child: InkWell(
-            key: const Key('home_share_options_inkwell'),
-            onTap: _showShareModal,
-            borderRadius: BorderRadius.circular(20),
-            child: ClipRRect(
-              key: const Key('home_share_options_clip'),
-              borderRadius: BorderRadius.circular(20),
-              child: BackdropFilter(
-                key: const Key('home_share_options_backdrop'),
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: Container(
-                  key: const Key('home_share_options_container'),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 14,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.2),
-                      width: 1,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 20,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    key: const Key('home_share_options_row'),
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        CupertinoIcons.share,
-                        key: const Key('home_share_options_icon'),
-                        size: 20,
-                        color: AppColors.primaryAction,
-                      ),
-                      const SizedBox(key: Key('home_share_options_text_spacing'), width: 10),
-                      Text(
-                        'More sharing options',
-                        key: const Key('home_share_options_text'),
-                        style: AppTextStyles.body.copyWith(
-                          color: AppColors.primaryAction,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
+            const SizedBox(key: Key('home_tap_share_spacing'), height: 24),
+            ShareOptionsButton(onTap: _showShareModal),
           ],
         );
       },
@@ -2183,10 +1652,17 @@ class _HomeScreenState extends State<HomeScreen>
         width: 300,
         height: 180,
         borderRadius: 20,
-        onEmailTap: activeProfile.email != null ? () => _launchEmail(activeProfile.email!) : null,
-        onPhoneTap: activeProfile.phone != null ? () => _launchPhone(activeProfile.phone!) : null,
-        onWebsiteTap: activeProfile.website != null ? () => _launchUrl(activeProfile.website!) : null,
+        onEmailTap: activeProfile.email != null
+            ? () => _launchEmail(activeProfile.email!)
+            : null,
+        onPhoneTap: activeProfile.phone != null
+            ? () => _launchPhone(activeProfile.phone!)
+            : null,
+        onWebsiteTap: activeProfile.website != null
+            ? () => _launchUrl(activeProfile.website!)
+            : null,
         onSocialTap: (platform, url) => _launchSocialMedia(platform, url),
+        onCustomLinkTap: (title, url) => _launchUrl(url),
       ),
     );
   }
@@ -2203,7 +1679,8 @@ class _HomeScreenState extends State<HomeScreen>
             fontWeight: FontWeight.w500,
           ),
         ),
-        const SizedBox(key: const Key('home_preview_subtitle_spacing'), height: 8),
+        const SizedBox(
+            key: Key('home_preview_subtitle_spacing'), height: 8),
         Text(
           'This is how your card will appear to others',
           key: const Key('home_preview_subtitle'),
@@ -2217,116 +1694,331 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildRecentContactsStrip() {
-    return Column(
-      key: const Key('contacts-section'),
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Text(
-            'Recent Contacts',
-            style: AppTextStyles.h3.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+  Widget _buildInitialsCircle(String initials, Color color) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color, width: 2),
+      ),
+      child: Center(
+        child: Text(
+          initials,
+          style: AppTextStyles.body.copyWith(
+            color: color,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
           ),
         ),
-        const SizedBox(height: 16),
-        SizedBox(
-          key: const Key('contacts-list'),
-          height: 88,
-          child: _isContactsLoading
-              ? _buildContactsLoading()
-              : _recentContacts.isEmpty
-                  ? _buildContactsEmpty()
-                  : _buildContactsList(),
-        ),
-      ],
+      ),
     );
   }
 
-  Widget _buildContactsLoading() {
-    return ListView.builder(
-      key: const Key('home_contacts_loading_list'),
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16), // 8px * 2
-      itemCount: 5,
-      itemBuilder: (context, index) {
-        return Container(
-          key: Key('home_contacts_loading_item_$index'),
-          width: 72, // 8px * 9
-          margin: const EdgeInsets.only(right: 12),
-          child: ClipRRect(
-            key: Key('home_contacts_loading_clip_$index'),
-            borderRadius: BorderRadius.circular(16),
-            child: BackdropFilter(
-              key: Key('home_contacts_loading_backdrop_$index'),
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Container(
-                key: Key('home_contacts_loading_container_$index'),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.1),
-                    width: 1,
+  String _getInitials(String name) {
+    final parts = name.trim().split(' ');
+    if (parts.isEmpty) return '?';
+    if (parts.length == 1) {
+      return parts[0].substring(0, 1).toUpperCase();
+    }
+    return '${parts[0].substring(0, 1)}${parts[parts.length - 1].substring(0, 1)}'
+        .toUpperCase();
+  }
+
+  Widget _buildFrequentContactsSection() {
+    return StreamBuilder<List<HistoryEntry>>(
+      stream: HistoryService.historyStream(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        final allHistory = snapshot.data!;
+
+        // Count frequency of each contact based on received entries
+        final frequencyMap = <String, FrequentContactData>{};
+
+        for (final entry in allHistory) {
+          if (entry.type == HistoryEntryType.received &&
+              entry.senderProfile != null) {
+            final name = entry.senderProfile!.name;
+            if (frequencyMap.containsKey(name)) {
+              frequencyMap[name]!.count++;
+              // Keep the most recent entry
+              if (entry.timestamp
+                  .isAfter(frequencyMap[name]!.lastEntry.timestamp)) {
+                frequencyMap[name]!.lastEntry = entry;
+              }
+            } else {
+              frequencyMap[name] = FrequentContactData(
+                lastEntry: entry,
+                count: 1,
+              );
+            }
+          }
+        }
+
+        // Filter contacts with at least 2 interactions and sort by frequency
+        final frequentContacts = frequencyMap.values
+            .where((data) => data.count >= 2)
+            .toList()
+          ..sort((a, b) => b.count.compareTo(a.count));
+
+        // Show nothing if no frequent contacts
+        if (frequentContacts.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        // Take top 5
+        final topContacts = frequentContacts.take(5).toList();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        'Frequent Contacts',
+                        style: AppTextStyles.h3.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.secondaryAction.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '${topContacts.length}',
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.secondaryAction,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                child: Column(
-                  key: Key('home_contacts_loading_column_$index'),
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      key: Key('home_contacts_loading_avatar_$index'),
-                      width: 32, // 8px * 4
-                      height: 32,
+                  // Sync device contacts button
+                  GestureDetector(
+                    onTap: _isSyncingContacts ? null : _syncDeviceContacts,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
-                        color: AppColors.textTertiary.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(16),
+                        gradient: LinearGradient(
+                          colors: [
+                            AppColors.info.withOpacity(0.2),
+                            AppColors.info.withOpacity(0.1),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.info.withOpacity(0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_isSyncingContacts)
+                            const SizedBox(
+                              width: 12,
+                              height: 12,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                    AppColors.info),
+                              ),
+                            )
+                          else
+                            const Icon(
+                              Icons.sync,
+                              size: 14,
+                              color: AppColors.info,
+                            ),
+                          const SizedBox(width: 4),
+                          Text(
+                            _isSyncingContacts ? 'Syncing...' : 'Sync',
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.info,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(key: Key('home_contacts_loading_spacing'), height: 8),
-                    Container(
-                      key: Key('home_contacts_loading_name_$index'),
-                      width: 40, // 8px * 5
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: AppColors.textTertiary.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-          ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Text(
+                'People you interact with most',
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.textTertiary,
+                ),
+                textAlign: TextAlign.start,
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 88,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: topContacts.length,
+                itemBuilder: (context, index) {
+                  final data = topContacts[index];
+                  return _buildFrequentContactCard(data, index);
+                },
+              ),
+            ),
+          ],
         );
       },
     );
   }
 
-  Widget _buildContactsEmpty() {
-    return Center(
-      key: const Key('home_contacts_empty_center'),
-      child: Column(
-        key: const Key('home_contacts_empty_column'),
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            CupertinoIcons.person_2,
-            key: const Key('home_contacts_empty_icon'),
-            color: AppColors.textTertiary,
-            size: 24, // 8px * 3
-          ),
-          const SizedBox(key: Key('home_contacts_empty_spacing'), height: 8),
-          Text(
-            'No recent contacts',
-            key: const Key('home_contacts_empty_text'),
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.textTertiary,
+  Widget _buildFrequentContactCard(FrequentContactData data, int index) {
+    final entry = data.lastEntry;
+    final profile = entry.senderProfile!;
+    final hasImage = profile.profileImagePath != null &&
+        profile.profileImagePath!.isNotEmpty;
+    final initials = _getInitials(profile.name);
+
+    return Container(
+      key: Key('frequent_contact_card_$index'),
+      width: 72,
+      margin: const EdgeInsets.only(right: 12),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppColors.secondaryAction.withOpacity(0.15),
+                  AppColors.secondaryAction.withOpacity(0.05),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: AppColors.secondaryAction.withOpacity(0.3),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  context.go('${AppRoutes.history}?entryId=${entry.id}');
+                },
+                borderRadius: BorderRadius.circular(16),
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Profile picture or initials with count badge
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          hasImage
+                              ? Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: AppColors.secondaryAction,
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(18),
+                                    child: Image.network(
+                                      profile.profileImagePath!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (context, error, stackTrace) {
+                                        return _buildInitialsCircle(
+                                          initials,
+                                          AppColors.secondaryAction,
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                )
+                              : _buildInitialsCircle(
+                                  initials, AppColors.secondaryAction),
+                          // Frequency badge
+                          Positioned(
+                            right: -4,
+                            top: -4,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: AppColors.secondaryAction,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: AppColors.primaryBackground,
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Text(
+                                '${data.count}',
+                                style: AppTextStyles.caption.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 9,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      // Name (first name only)
+                      Text(
+                        profile.name.split(' ').first,
+                        style: AppTextStyles.caption.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -2408,7 +2100,8 @@ class _HomeScreenState extends State<HomeScreen>
                         key: Key('home_contact_avatar_$index'),
                         style: const TextStyle(fontSize: 24), // 8px * 3
                       ),
-                      const SizedBox(key: Key('home_contact_avatar_spacing'), height: 4),
+                      const SizedBox(
+                          key: Key('home_contact_avatar_spacing'), height: 4),
                       Text(
                         contact.name.split(' ').first,
                         key: Key('home_contact_name_$index'),
@@ -2466,7 +2159,8 @@ class _HomeScreenState extends State<HomeScreen>
                   },
                   borderRadius: BorderRadius.circular(8),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     child: Text(
                       'View All',
                       style: AppTextStyles.caption.copyWith(
@@ -2480,9 +2174,10 @@ class _HomeScreenState extends State<HomeScreen>
             ],
           ),
         ),
+        const SizedBox(height: 12),
         Container(
           key: const Key('home_history_list_container'),
-          height: 200,
+          height: 140,
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: StreamBuilder<List<HistoryEntry>>(
             stream: HistoryService.historyStream(),
@@ -2550,9 +2245,9 @@ class _HomeScreenState extends State<HomeScreen>
         key: const Key('home_history_empty_column'),
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
+          const Icon(
             CupertinoIcons.clock,
-            key: const Key('home_history_empty_icon'),
+            key: Key('home_history_empty_icon'),
             color: AppColors.textTertiary,
             size: 24,
           ),
@@ -2584,14 +2279,19 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _buildHistoryCard(HistoryEntry entry, int index) {
     final colors = _getHistoryColors(entry.type);
     final icon = _getHistoryIcon(entry.type);
+    final isNew = DateTime.now().difference(entry.timestamp).inHours < 24;
+    final isReceived = entry.type == HistoryEntryType.received;
+    final hasProfileImage = isReceived &&
+        entry.senderProfile?.profileImagePath != null &&
+        entry.senderProfile!.profileImagePath!.isNotEmpty;
 
     return Container(
       key: Key('home_history_card_$index'),
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 8),
       child: ClipRRect(
         key: Key('home_history_clip_$index'),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         child: BackdropFilter(
           key: Key('home_history_backdrop_$index'),
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
@@ -2599,7 +2299,7 @@ class _HomeScreenState extends State<HomeScreen>
             key: Key('home_history_container_$index'),
             decoration: BoxDecoration(
               color: colors['background'],
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: colors['border']!,
                 width: 1,
@@ -2619,55 +2319,104 @@ class _HomeScreenState extends State<HomeScreen>
                 key: Key('home_history_inkwell_$index'),
                 onTap: () {
                   HapticFeedback.lightImpact();
-                  context.go(AppRoutes.history);
+                  context.go('${AppRoutes.history}?entryId=${entry.id}');
                 },
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(12),
                 child: Padding(
                   key: Key('home_history_padding_$index'),
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(10),
                   child: Row(
                     key: Key('home_history_row_$index'),
                     children: [
-                      Container(
-                        key: Key('home_history_icon_container_$index'),
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: colors['iconBg'],
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          icon,
-                          key: Key('home_history_icon_$index'),
-                          color: colors['icon'],
-                          size: 16,
-                        ),
-                      ),
-                      const SizedBox(key: Key('home_history_content_spacing'), width: 12),
+                      // Profile Image or Icon
+                      hasProfileImage
+                          ? Container(
+                              key: Key('home_history_avatar_$index'),
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(
+                                  color: colors['icon']!,
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(16.5),
+                                child: Image.network(
+                                  entry.senderProfile!.profileImagePath!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return _buildInitialsAvatar(
+                                      entry.displayName,
+                                      colors['icon']!,
+                                    );
+                                  },
+                                ),
+                              ),
+                            )
+                          : Container(
+                              key: Key('home_history_icon_container_$index'),
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: colors['iconBg'],
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                              child: Icon(
+                                icon,
+                                key: Key('home_history_icon_$index'),
+                                color: colors['icon'],
+                                size: 18,
+                              ),
+                            ),
+                      const SizedBox(
+                          key: Key('home_history_content_spacing'), width: 10),
                       Expanded(
                         key: Key('home_history_content_$index'),
                         child: Column(
                           key: Key('home_history_content_column_$index'),
                           crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                              _getHistoryTitle(entry.type),
-                              key: Key('home_history_title_$index'),
-                              style: AppTextStyles.caption.copyWith(
-                                color: AppColors.textTertiary,
-                                fontSize: 10,
-                              ),
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    entry.displayName,
+                                    key: Key('home_history_name_$index'),
+                                    style: AppTextStyles.body.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
+                                  ),
+                                ),
+                                if (isNew) ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 5,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primaryAction,
+                                      borderRadius: BorderRadius.circular(3),
+                                    ),
+                                    child: Text(
+                                      'NEW',
+                                      style: AppTextStyles.overline.copyWith(
+                                        color: AppColors.textPrimary,
+                                        fontSize: 7,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
-                            Text(
-                              entry.displayName,
-                              key: Key('home_history_name_$index'),
-                              style: AppTextStyles.body.copyWith(
-                                fontWeight: FontWeight.w500,
-                                fontSize: 14,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1,
-                            ),
+                            const SizedBox(height: 2),
                             Text(
                               _formatHistoryTime(entry.timestamp),
                               key: Key('home_history_time_$index'),
@@ -2679,11 +2428,11 @@ class _HomeScreenState extends State<HomeScreen>
                           ],
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       MethodChip(
                         method: entry.method,
-                        fontSize: 9,
-                        iconSize: 10,
+                        fontSize: 8,
+                        iconSize: 9,
                       ),
                     ],
                   ),
@@ -2693,6 +2442,396 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildInitialsAvatar(String name, Color color) {
+    final initials = name.isNotEmpty
+        ? name.split(' ').take(2).map((n) => n[0].toUpperCase()).join()
+        : '?';
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            color.withOpacity(0.7),
+            color,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Center(
+        child: Text(
+          initials,
+          style: AppTextStyles.body.copyWith(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHistoryActions(HistoryEntry entry, int index) {
+    final actions = <Widget>[];
+
+    switch (entry.type) {
+      case HistoryEntryType.received:
+        actions.addAll([
+          _buildActionButton(
+            'View in History',
+            CupertinoIcons.list_bullet,
+            () {
+              HapticFeedback.lightImpact();
+              context.go(AppRoutes.history);
+            },
+            AppColors.info,
+          ),
+          const SizedBox(width: 8),
+          _buildActionButton(
+            'Save',
+            CupertinoIcons.square_arrow_down,
+            () async {
+              HapticFeedback.lightImpact();
+              if (entry.senderProfile != null) {
+                // Save to device contacts
+                final contact = ContactData(
+                  name: entry.senderProfile!.name,
+                  title: entry.senderProfile!.title,
+                  company: entry.senderProfile!.company,
+                  phone: entry.senderProfile!.phone,
+                  email: entry.senderProfile!.email,
+                  website: entry.senderProfile!.website,
+                  socialMedia: entry.senderProfile!.socialMedia,
+                );
+
+                final result = await ContactService.saveReceivedContact(
+                  ReceivedContact(
+                    id: ReceivedContact.generateId(),
+                    contact: contact,
+                    receivedAt: entry.timestamp,
+                    notes: null,
+                  ),
+                );
+
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(result.message),
+                      backgroundColor:
+                          result.success ? AppColors.success : AppColors.error,
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                }
+              }
+            },
+            AppColors.success,
+          ),
+        ]);
+        break;
+
+      case HistoryEntryType.tag:
+        actions.add(
+          _buildActionButton(
+            'View Details',
+            CupertinoIcons.info_circle,
+            () {
+              HapticFeedback.lightImpact();
+              context.go(AppRoutes.history);
+            },
+            AppColors.secondaryAction,
+          ),
+        );
+        break;
+
+      case HistoryEntryType.sent:
+        actions.add(
+          _buildActionButton(
+            'Details',
+            CupertinoIcons.ellipsis_circle,
+            () {
+              HapticFeedback.lightImpact();
+              context.go(AppRoutes.history);
+            },
+            AppColors.primaryAction,
+          ),
+        );
+        break;
+    }
+
+    if (actions.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      child: Row(
+        children: actions,
+      ),
+    );
+  }
+
+  Widget _buildActionButton(
+    String label,
+    IconData icon,
+    VoidCallback onTap,
+    Color color,
+  ) {
+    return Expanded(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: color.withOpacity(0.3),
+                width: 1,
+              ),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: 14,
+                  color: color,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: AppTextStyles.caption.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String? _getProfileSubtitle(ProfileData? profile) {
+    if (profile == null) return null;
+    if (profile.company != null && profile.company!.isNotEmpty) {
+      if (profile.title != null && profile.title!.isNotEmpty) {
+        return '${profile.title} at ${profile.company}';
+      }
+      return profile.company;
+    }
+    return profile.title;
+  }
+
+  Widget _buildInsightsSection() {
+    return StreamBuilder<List<HistoryEntry>>(
+      stream: HistoryService.historyStream(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const SizedBox.shrink();
+        }
+        return _buildActivityInsights(snapshot.data!);
+      },
+    );
+  }
+
+  Widget _buildActivityInsights(List<HistoryEntry> history) {
+    // Calculate insights from last 7 days
+    final now = DateTime.now();
+    final sevenDaysAgo = now.subtract(const Duration(days: 7));
+    final recentHistory =
+        history.where((e) => e.timestamp.isAfter(sevenDaysAgo)).toList();
+
+    final receivedCount =
+        recentHistory.where((e) => e.type == HistoryEntryType.received).length;
+    final sentCount =
+        recentHistory.where((e) => e.type == HistoryEntryType.sent).length;
+    final newContacts = recentHistory
+        .where((e) =>
+            e.type == HistoryEntryType.received &&
+            now.difference(e.timestamp).inHours < 24)
+        .length;
+
+    // Show empty state if no recent activity
+    final hasRecentActivity = recentHistory.isNotEmpty;
+
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        context.push(AppRoutes.insights);
+      },
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppColors.primaryAction.withOpacity(0.08),
+              AppColors.secondaryAction.withOpacity(0.08),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppColors.primaryAction.withOpacity(0.2),
+            width: 1,
+          ),
+        ),
+        child: hasRecentActivity
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Stats Row
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildInsightStat(
+                          sentCount.toString(),
+                          'Sent',
+                          CupertinoIcons.arrow_up_circle_fill,
+                          AppColors.primaryAction,
+                        ),
+                      ),
+                      Container(
+                        width: 1,
+                        height: 40,
+                        color: Colors.white.withOpacity(0.1),
+                      ),
+                      Expanded(
+                        child: _buildInsightStat(
+                          receivedCount.toString(),
+                          'Received',
+                          CupertinoIcons.arrow_down_circle_fill,
+                          AppColors.success,
+                        ),
+                      ),
+                      Container(
+                        width: 1,
+                        height: 40,
+                        color: Colors.white.withOpacity(0.1),
+                      ),
+                      Expanded(
+                        child: _buildInsightStat(
+                          newContacts.toString(),
+                          'New',
+                          CupertinoIcons.sparkles,
+                          AppColors.info,
+                        ),
+                      ),
+                      Container(
+                        width: 1,
+                        height: 40,
+                        color: Colors.white.withOpacity(0.1),
+                      ),
+                      Expanded(
+                        child: _buildInsightStat(
+                          '---',
+                          'Views',
+                          CupertinoIcons.eye_fill,
+                          AppColors.highlight,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  // Hint Text
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        CupertinoIcons.chart_bar_alt_fill,
+                        size: 12,
+                        color: AppColors.textTertiary,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Tap for detailed analytics',
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.textTertiary,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              )
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 8),
+                  Icon(
+                    CupertinoIcons.chart_bar,
+                    size: 40,
+                    color: AppColors.textTertiary.withOpacity(0.6),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Start sharing with Atlas Linq to see insights!',
+                    style: AppTextStyles.body.copyWith(
+                      color: AppColors.textSecondary,
+                      fontSize: 14,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        CupertinoIcons.arrow_right_circle,
+                        size: 12,
+                        color: AppColors.textTertiary,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Tap to explore',
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.textTertiary,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ),
+      ),
+    );
+  }
+
+  Widget _buildInsightStat(
+      String value, String label, IconData icon, Color color) {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 6),
+            Text(
+              value,
+              style: AppTextStyles.h3.copyWith(
+                color: color,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: AppTextStyles.caption.copyWith(
+            color: Colors.white.withOpacity(0.6),
+            fontSize: 11,
+          ),
+        ),
+      ],
     );
   }
 
@@ -2771,5 +2910,16 @@ class Contact {
     required this.name,
     required this.avatar,
     required this.lastShared,
+  });
+}
+
+// Helper class for tracking frequent contacts
+class FrequentContactData {
+  HistoryEntry lastEntry;
+  int count;
+
+  FrequentContactData({
+    required this.lastEntry,
+    required this.count,
   });
 }
