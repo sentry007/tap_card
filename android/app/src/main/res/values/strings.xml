@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="servicedesc">TapCard NFC Card Emulation Service</string>
-    <string name="aiddescription">TapCard Contact Sharing</string>
+    <string name="servicedesc">Atlas Linq NFC Card Emulation Service</string>
+    <string name="aiddescription">Atlas Linq Contact Sharing</string>
 </resources>

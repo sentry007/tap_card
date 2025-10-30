@@ -1,4 +1,4 @@
-# 📱 TapCard - NFC Digital Business Card
+# 📱 Atlas Linq - NFC Digital Business Card
 
 <div align="center">
 
@@ -35,7 +35,7 @@
 - **Cross-Platform**: Works with Android and iPhone NFC readers
 - **Dual-Payload HCE**: Same vCard + URL strategy as physical tags
 - **Context-Aware Protocol**: Intelligent file selection (Capability Container vs NDEF)
-- **No App Required**: Recipients don't need TapCard installed
+- **No App Required**: Recipients don't need Atlas Linq installed
 - **Auto-Save Contacts**: vCard format triggers native contact save on any phone
 
 ### 👤 **Multiple Profile Types**
@@ -55,7 +55,7 @@
 
 ### 📊 **Smart History & Analytics**
 - **Three Entry Types**: Sent, Received, and Tag Writes
-- **Contact Scanning**: Auto-detects TapCard contacts in device contacts
+- **Contact Scanning**: Auto-detects Atlas Linq contacts in device contacts
 - **Firestore Integration**: Fetches full profile data for received contacts
 - **Profile View Tracking**: Track how many times your profiles are viewed
 - **Location Tracking**: GPS coordinates with reverse geocoding for addresses
@@ -514,7 +514,7 @@ TapCard uses a **dual-payload strategy** for maximum compatibility:
 │  - Universal compatibility          │
 ├─────────────────────────────────────┤
 │ Record 2: URL                       │
-│  - https://tap-card-site.../[uuid]  │
+│  - https://atlaslinq.com/share/[id] │
 │  - Full digital profile link        │
 │  - Analytics & tracking             │
 └─────────────────────────────────────┘
@@ -536,7 +536,7 @@ TapCard uses a **dual-payload strategy** for maximum compatibility:
 
 #### Payload Optimization
 
-TapCard pre-generates and caches payloads for **0ms sharing lag**:
+Atlas Linq pre-generates and caches payloads for **0ms sharing lag**:
 
 ```dart
 // Cached in ProfileData
@@ -632,7 +632,7 @@ Use Case: Flexible use cases, special events
 
 ### NFC Type 4 Tag Emulation Architecture
 
-TapCard implements a custom NFC Forum Type 4 Tag emulator for cross-platform P2P sharing:
+Atlas Linq implements a custom NFC Forum Type 4 Tag emulator for cross-platform P2P sharing:
 
 #### File System Structure
 
@@ -690,7 +690,7 @@ This context-aware approach ensures:
 - Proper handling of offset-based reads
 - iPhone iOS compatibility (strict APDU conformance)
 
-###History System
+### History System
 
 **Three entry types:**
 
@@ -728,7 +728,7 @@ This context-aware approach ensures:
    ```
 
 **Contact Scanning:**
-- Automatically detects TapCard contacts in device
+- Automatically detects Atlas Linq contacts in device
 - Extracts profile IDs from URLs
 - Shows in history as "received" entries
 - Requires contacts permission
@@ -834,9 +834,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/tap_card/issues)
-- **Email**: support@tapcard.app
-- **Documentation**: [Wiki](https://github.com/yourusername/tap_card/wiki)
+- **Issues**: [GitHub Issues](https://github.com/yourusername/atlas_linq/issues)
+- **Email**: support@atlaslinq.com
+- **Documentation**: [Wiki](https://github.com/yourusername/atlas_linq/wiki)
 
 ---
 
@@ -853,6 +853,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Built with ❤️ using Flutter**
 
-[⬆ Back to Top](#-tapcard---nfc-digital-business-card)
+[⬆ Back to Top](#-atlas-linq---nfc-digital-business-card)
 
 </div>

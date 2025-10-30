@@ -1,4 +1,4 @@
-/// Core application constants for Tap Card
+/// Core application constants for Atlas Linq
 ///
 /// This file contains all magic numbers, dimensions, durations, and configuration
 /// values used throughout the application. Centralizing these values makes the
@@ -107,8 +107,8 @@ class NFCConstants {
   static const double maxDistanceCm = 4.0;          // Maximum NFC distance (4cm)
 
   // App identifier
-  static const String appId = 'tc';                 // Shortened app ID for compact payload
-  static const String appIdFull = 'tap_card';       // Full app identifier
+  static const String appId = 'al';                 // Shortened app ID for compact payload
+  static const String appIdFull = 'atlas_linq';     // Full app identifier
   static const String payloadVersion = '1';         // Payload format version
 
   // Tag capacity warnings (in bytes)

@@ -1,5 +1,5 @@
 name: tap_card
-description: "A modern NFC-enabled tap card Flutter application with glassmorphism UI"
+description: "Atlas Linq - A modern NFC-enabled digital business card Flutter application with glassmorphism UI"
 publish_to: 'none'
 
 version: 1.0.0+1
@@ -72,6 +72,7 @@ dependencies:
   cloud_firestore: ^5.4.4
   firebase_storage: ^12.3.4
   firebase_analytics: ^11.3.3
+  cloud_functions: ^5.2.1
 
 dev_dependencies:
   flutter_test:

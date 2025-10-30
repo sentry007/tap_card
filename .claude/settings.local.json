@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(mkdir:*)",
-      "Bash(flutter:*)"
+      "Bash(flutter:*)",
+      "Read(//c/Users/palwa/OneDrive/Desktop/TapCard_sol/**)",
+      "Bash(npm install:*)"
     ],
     "deny": [],
     "ask": []

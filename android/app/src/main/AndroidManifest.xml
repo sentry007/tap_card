@@ -19,7 +19,7 @@
         android:required="false" />
 
     <application
-        android:label="tap_card"
+        android:label="Atlas Linq"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
@@ -54,7 +54,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https"
-                      android:host="tapcard.app" />
+                      android:host="atlaslinq.com" />
             </intent-filter>
         </activity>
 
