@@ -394,43 +394,109 @@ class FirestoreSyncService {
 
     try {
       developer.log(
-        '📥 Starting Firestore profile fetch\n'
-        '   • Profile ID: $profileId\n'
+        '📥 Starting SMART Firestore profile fetch\n'
+        '   • Original Profile ID: $profileId\n'
         '   • Collection: profiles\n'
-        '   • Timestamp: ${fetchStartTime.toIso8601String()}',
+        '   • Timestamp: ${fetchStartTime.toIso8601String()}\n'
+        '   • Attempting multiple fetch strategies...',
         name: 'FirestoreSync.GetProfile',
       );
 
-      // Attempt to fetch document
-      final doc = await _firestore
-          .collection('profiles')
-          .doc(profileId)
-          .get();
+      DocumentSnapshot? doc;
+      String? successfulId;
+
+      // STRATEGY 1: Try exact ID match (most common case)
+      developer.log('   🔍 Strategy 1: Trying exact ID match...', name: 'FirestoreSync.GetProfile');
+      doc = await _firestore.collection('profiles').doc(profileId).get();
+
+      if (doc.exists) {
+        successfulId = profileId;
+        developer.log('   ✅ Strategy 1 SUCCESS!', name: 'FirestoreSync.GetProfile');
+      } else {
+        developer.log('   ❌ Strategy 1 failed - document not found', name: 'FirestoreSync.GetProfile');
+
+        // STRATEGY 2: Try stripping type suffix
+        final uuidMatch = RegExp(r'^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{10,12})', caseSensitive: false).firstMatch(profileId);
+        if (uuidMatch != null) {
+          final uuidOnly = uuidMatch.group(1)!;
+          developer.log('   🔍 Strategy 2: Trying UUID only ($uuidOnly)...', name: 'FirestoreSync.GetProfile');
+
+          doc = await _firestore.collection('profiles').doc(uuidOnly).get();
+
+          if (doc.exists) {
+            successfulId = uuidOnly;
+            developer.log('   ✅ Strategy 2 SUCCESS!', name: 'FirestoreSync.GetProfile');
+          } else {
+            developer.log('   ❌ Strategy 2 failed', name: 'FirestoreSync.GetProfile');
+
+            // STRATEGY 3: Try all type suffixes
+            developer.log('   🔍 Strategy 3: Trying all type suffixes...', name: 'FirestoreSync.GetProfile');
+            for (final type in ['personal', 'professional', 'custom']) {
+              final idWithType = '${uuidOnly}_$type';
+              developer.log('      • Trying: $idWithType', name: 'FirestoreSync.GetProfile');
+
+              doc = await _firestore.collection('profiles').doc(idWithType).get();
+
+              if (doc.exists) {
+                successfulId = idWithType;
+                developer.log('   ✅ Strategy 3 SUCCESS with $type type!', name: 'FirestoreSync.GetProfile');
+                break;
+              }
+            }
+
+            if (doc == null || !doc.exists) {
+              developer.log('   ❌ Strategy 3 failed - tried all type suffixes', name: 'FirestoreSync.GetProfile');
+
+              // STRATEGY 4: Query by 'id' field
+              developer.log('   🔍 Strategy 4: Querying by id field...', name: 'FirestoreSync.GetProfile');
+              try {
+                final querySnapshot = await _firestore
+                  .collection('profiles')
+                  .where('id', isEqualTo: uuidOnly)
+                  .limit(1)
+                  .get();
+
+                if (querySnapshot.docs.isNotEmpty) {
+                  doc = querySnapshot.docs.first;
+                  successfulId = doc.id;
+                  developer.log('   ✅ Strategy 4 SUCCESS! Found via query with doc ID: $successfulId', name: 'FirestoreSync.GetProfile');
+                } else {
+                  developer.log('   ❌ Strategy 4 failed - no documents match id field', name: 'FirestoreSync.GetProfile');
+                }
+              } catch (e) {
+                developer.log('   ❌ Strategy 4 exception: $e', name: 'FirestoreSync.GetProfile');
+              }
+            }
+          }
+        }
+      }
 
       final fetchDuration = DateTime.now().difference(fetchStartTime).inMilliseconds;
 
-      // Check if document exists
-      if (!doc.exists) {
+      // Check if we found anything
+      if (doc == null || !doc.exists) {
         developer.log(
-          '⚠️ Profile not found in Firestore\n'
-          '   • Profile ID: $profileId\n'
+          '⚠️ Profile not found in Firestore after trying ALL strategies\n'
+          '   • Original ID: $profileId\n'
           '   • Fetch Duration: ${fetchDuration}ms\n'
-          '   • Possible reasons: Profile not synced, deleted, or invalid ID',
+          '   • This profile has NOT been synced to Firestore\n'
+          '   • Falling back to vCard data...',
           name: 'FirestoreSync.GetProfile',
         );
         return null;
       }
 
       developer.log(
-        '✅ Document found in Firestore\n'
-        '   • Profile ID: $profileId\n'
+        '✅ Document found in Firestore!\n'
+        '   • Original ID: $profileId\n'
+        '   • Successful ID: $successfulId\n'
         '   • Fetch Duration: ${fetchDuration}ms\n'
         '   • Document Size: ${doc.data().toString().length} bytes\n'
         '   • Starting deserialization...',
         name: 'FirestoreSync.GetProfile',
       );
 
-      final data = doc.data()!;
+      final data = doc.data()! as Map<String, dynamic>;
 
       // Log field presence for debugging
       developer.log(
