@@ -108,7 +108,7 @@ class NFCConstants {
 
   // App identifier
   static const String appId = 'al';                 // Shortened app ID for compact payload
-  static const String appIdFull = 'atlas_linq';     // Full app identifier
+  static const String appIdFull = 'atlaslinq';      // Full app identifier
   static const String payloadVersion = '1';         // Payload format version
 
   // Tag capacity warnings (in bytes)

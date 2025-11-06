@@ -1,4 +1,4 @@
-# 📱 Atlas Linq - NFC Digital Business Card
+# 📱 AtlasLinq - NFC Digital Business Card
 
 <div align="center">
 
@@ -35,7 +35,7 @@
 - **Cross-Platform**: Works with Android and iPhone NFC readers
 - **Dual-Payload HCE**: Same vCard + URL strategy as physical tags
 - **Context-Aware Protocol**: Intelligent file selection (Capability Container vs NDEF)
-- **No App Required**: Recipients don't need Atlas Linq installed
+- **No App Required**: Recipients don't need AtlasLinq installed
 - **Auto-Save Contacts**: vCard format triggers native contact save on any phone
 
 ### 👤 **Multiple Profile Types**
@@ -55,7 +55,7 @@
 
 ### 📊 **Smart History & Analytics**
 - **Three Entry Types**: Sent, Received, and Tag Writes
-- **Contact Scanning**: Auto-detects Atlas Linq contacts in device contacts
+- **Contact Scanning**: Auto-detects AtlasLinq contacts in device contacts
 - **Firestore Integration**: Fetches full profile data for received contacts
 - **Profile View Tracking**: Track how many times your profiles are viewed
 - **Location Tracking**: GPS coordinates with reverse geocoding for addresses
@@ -65,6 +65,23 @@
   - Share context (timestamp, method, location)
   - Device information
 - **Firebase Analytics**: User event tracking for insights
+
+### 📈 **Insights & Analytics Dashboard**
+- **Activity Overview Widget**: Real-time stats on home screen
+  - Cards sent (last 7 days)
+  - Cards received (last 7 days)
+  - New contacts (last 24 hours)
+  - Profile views tracking (placeholder)
+- **Comprehensive Analytics Screen**:
+  - Total shares, connections, monthly activity overview
+  - Favorite sharing method analysis
+  - 7-day activity chart (sent vs received with stacked bars)
+  - Share methods breakdown with visual progress bars
+  - Top 5 connections leaderboard with interaction counts
+  - Milestones system (First Connection, 10 Connections, Networking Pro, Share Master)
+- **Real-time Data**: All analytics calculated client-side from HistoryService stream
+- **Interactive**: Tap insights widget to view full analytics dashboard
+- **Glassmorphism UI**: Consistent with app design language
 
 ### 🔥 **Firebase Backend**
 - **Cloud Firestore**: Real-time profile and history sync
@@ -110,6 +127,7 @@ graph TB
         A[Home Screen] --> B[Profile Screen]
         A --> C[History Screen]
         A --> D[Settings Screen]
+        A --> INS[Insights Screen]
     end
 
     subgraph "Business Logic"
@@ -117,6 +135,7 @@ graph TB
         E --> G[HistoryService]
         E --> H[ContactService]
         F --> I[NFC Discovery]
+        FA[FirebaseAnalyticsService]
     end
 
     subgraph "Data Layer"
@@ -125,6 +144,7 @@ graph TB
         K[Firebase Firestore] -.-> E
         K -.-> G
         L[Device Contacts] --> H
+        M[Firebase Analytics] -.-> FA
     end
 
     A --> E
@@ -132,11 +152,15 @@ graph TB
     C --> G
     C --> H
     A --> F
+    INS --> G
+    FA -.-> K
 
     style A fill:#FF6B35
     style E fill:#4A90E2
     style J fill:#9C27B0
     style K fill:#FFCA28
+    style INS fill:#4CAF50
+    style FA fill:#FFA726
 ```
 
 ### NFC Tag Write Flow
@@ -536,7 +560,7 @@ TapCard uses a **dual-payload strategy** for maximum compatibility:
 
 #### Payload Optimization
 
-Atlas Linq pre-generates and caches payloads for **0ms sharing lag**:
+AtlasLinq pre-generates and caches payloads for **0ms sharing lag**:
 
 ```dart
 // Cached in ProfileData
@@ -632,7 +656,7 @@ Use Case: Flexible use cases, special events
 
 ### NFC Type 4 Tag Emulation Architecture
 
-Atlas Linq implements a custom NFC Forum Type 4 Tag emulator for cross-platform P2P sharing:
+AtlasLinq implements a custom NFC Forum Type 4 Tag emulator for cross-platform P2P sharing:
 
 #### File System Structure
 
@@ -728,7 +752,7 @@ This context-aware approach ensures:
    ```
 
 **Contact Scanning:**
-- Automatically detects Atlas Linq contacts in device
+- Automatically detects AtlasLinq contacts in device
 - Extracts profile IDs from URLs
 - Shows in history as "received" entries
 - Requires contacts permission
@@ -834,9 +858,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/atlas_linq/issues)
+- **Issues**: [GitHub Issues](https://github.com/yourusername/atlaslinq/issues)
 - **Email**: support@atlaslinq.com
-- **Documentation**: [Wiki](https://github.com/yourusername/atlas_linq/wiki)
+- **Documentation**: [Wiki](https://github.com/yourusername/atlaslinq/wiki)
 
 ---
 
@@ -853,6 +877,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Built with ❤️ using Flutter**
 
-[⬆ Back to Top](#-atlas-linq---nfc-digital-business-card)
+[⬆ Back to Top](#-atlaslinq---nfc-digital-business-card)
 
 </div>
