@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:go_router/go_router.dart';
 import '../../theme/theme.dart';
+import '../../widgets/tutorial/tutorial_keys.dart';
 import '../constants/routes.dart';
 
 class GlassBottomNav extends StatefulWidget {
@@ -26,12 +27,14 @@ class _GlassBottomNavState extends State<GlassBottomNav>
       route: AppRoutes.home,
     ),
     NavItem(
+      key: TutorialKeys.bottomNavProfileKey,
       icon: CupertinoIcons.person,
       activeIcon: CupertinoIcons.person_fill,
       label: 'Profile',
       route: AppRoutes.profile,
     ),
     NavItem(
+      key: TutorialKeys.bottomNavHistoryKey,
       icon: CupertinoIcons.clock,
       activeIcon: CupertinoIcons.clock_fill,
       label: 'History',
@@ -147,9 +150,14 @@ class _GlassBottomNavState extends State<GlassBottomNav>
     final item = _navItems[index];
     final isSelected = index == _currentIndex;
 
-    return GestureDetector(
-      onTap: () => _onItemTapped(index),
-      child: AnimatedBuilder(
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: item.label,
+      child: GestureDetector(
+        onTap: () => _onItemTapped(index),
+        child: AnimatedBuilder(
+        key: item.key,
         animation: _scaleAnimation,
         builder: (context, child) {
           final scale = isSelected ? _scaleAnimation.value : 1.0;
@@ -198,18 +206,21 @@ class _GlassBottomNavState extends State<GlassBottomNav>
             ),
           );
         },
+        ),
       ),
     );
   }
 }
 
 class NavItem {
+  final GlobalKey? key;
   final IconData icon;
   final IconData activeIcon;
   final String label;
   final String route;
 
   NavItem({
+    this.key,
     required this.icon,
     required this.activeIcon,
     required this.label,
