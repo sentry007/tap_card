@@ -231,32 +231,20 @@ class _SplashScreenState extends State<SplashScreen>
       mainAxisSize: MainAxisSize.min,
       children: [
         // App logo/icon
-        Container(
+        SizedBox(
           key: const Key('splash_app_icon'),
-          width: (cardSize * 0.15).clamp(40.0, 56.0),
-          height: (cardSize * 0.15).clamp(40.0, 56.0),
-          decoration: BoxDecoration(
-            gradient: AppColors.primaryGradient,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primaryAction.withOpacity(0.3),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Icon(
-            CupertinoIcons.antenna_radiowaves_left_right,
-            color: AppColors.textPrimary,
-            size: (cardSize * 0.08).clamp(20.0, 30.0),
+          width: (cardSize * 0.25).clamp(80.0, 100.0),
+          height: (cardSize * 0.25).clamp(80.0, 100.0),
+          child: Image.asset(
+            'assets/images/atlaslinq_logo.png',
+            fit: BoxFit.contain,
           ),
         ),
         SizedBox(key: const Key('splash_icon_spacing'), height: spacingSmall),
 
         // Main headline
         Text(
-          'Welcome to\nAtlas Linq',
+          'Welcome to\nAtlasLinq',
           key: const Key('splash_headline_text'),
           style: AppTextStyles.h1.copyWith(
             fontSize: titleSize,

@@ -5,3 +5,4 @@ export 'share_modal.dart';
 export 'contact_detail_modal.dart';
 export 'glassmorphic_dialog.dart';
 export 'common/profile_card_preview.dart';
+export 'common/glass_app_bar.dart';

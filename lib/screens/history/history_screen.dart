@@ -13,6 +13,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'dart:ui';
 import 'dart:io';
@@ -110,17 +111,22 @@ class _HistoryScreenState extends State<HistoryScreen>
 
     // If already granted, scan immediately
     if (hasPermission) {
-      print(
-          '📇 [History] Permission already granted, scanning automatically...');
+      if (kDebugMode) {
+        print('📇 [History] Permission already granted, scanning automatically...');
+      }
       await _scanContactsForReceived();
     } else {
-      print('📇 [History] Permission not granted, showing banner...');
+      if (kDebugMode) {
+        print('📇 [History] Permission not granted, showing banner...');
+      }
     }
   }
 
   /// Request contacts permission explicitly (shows dialog)
   Future<void> _requestContactsPermission() async {
-    print('📇 [History] User tapped "Allow Access" button');
+    if (kDebugMode) {
+      print('📇 [History] User tapped "Allow Access" button');
+    }
     HapticFeedback.lightImpact();
 
     // This will show the permission dialog
@@ -211,63 +217,77 @@ class _HistoryScreenState extends State<HistoryScreen>
   /// Scan device contacts for TapCard URLs (indicates received cards)
   Future<void> _scanContactsForReceived() async {
     try {
-      print('🔍 [History] Starting contact scan...');
+      if (kDebugMode) {
+        print('🔍 [History] Starting contact scan...');
+      }
       final contacts = await ContactService.scanForTapCardContactsWithIds();
-
-      print('🔍 [History] Scan returned ${contacts.length} contacts');
+      if (kDebugMode) {
+        print('🔍 [History] Scan returned ${contacts.length} contacts');
+      }
 
       if (contacts.isEmpty) {
         print('📇 [History] No TapCard contacts found in device');
         return;
       }
 
-      print('📇 [History] Found ${contacts.length} TapCard contacts:');
+      if (kDebugMode) {
+        print('📇 [History] Found ${contacts.length} TapCard contacts:');
+      }
       for (final contact in contacts) {
-        print(
-            '  - ${contact.displayName} (ID: ${contact.profileId}, legacy: ${contact.isLegacyFormat})');
+        if (kDebugMode) {
+          print('  - ${contact.displayName} (ID: ${contact.profileId}, legacy: ${contact.isLegacyFormat})');
+        }
       }
 
       // Convert contacts to history entries (async fetch from Firestore)
-      print(
-          '🔄 [History] Converting to HistoryEntry objects with Firestore fetch...');
+      if (kDebugMode) {
+        print('🔄 [History] Converting to HistoryEntry objects with Firestore fetch...');
+      }
       final contactEntries = await Future.wait(
         contacts.map((contact) async {
-          print(
-              '  🔄 Processing: ${contact.displayName} (${contact.profileId})...');
+          if (kDebugMode) {
+            print('  🔄 Processing: ${contact.displayName} (${contact.profileId})...');
+          }
           final entry = await HistoryService.createReceivedEntryFromContact(
             contact: contact, // Pass full contact with metadata
           );
           final source = entry.metadata?['firestore_fetched'] == true
               ? 'Firestore'
               : 'Placeholder';
-          print(
-              '  ✅ Created entry for: ${contact.displayName} (source: $source)');
+          if (kDebugMode) {
+            print('  ✅ Created entry for: ${contact.displayName} (source: $source)');
+          }
           return entry;
         }),
       );
-
-      print(
-          '🔄 [History] Created ${contactEntries.length} history entries with full Firestore data');
+      if (kDebugMode) {
+        print('🔄 [History] Created ${contactEntries.length} history entries with full Firestore data');
+      }
 
       // Update cache
-      print(
-          '🔄 [History] Current _scannedContactEntries length: ${_scannedContactEntries.length}');
-      print('🔄 [History] Mounted: $mounted');
+      if (kDebugMode) {
+        print('🔄 [History] Current _scannedContactEntries length: ${_scannedContactEntries.length}');
+        print('🔄 [History] Mounted: $mounted');
+      }
 
       if (mounted) {
         setState(() {
           _scannedContactEntries = contactEntries;
         });
-        print(
-            '✅ [History] setState completed - _scannedContactEntries.length: ${_scannedContactEntries.length}');
-        print(
-            '✅ [History] Contact names in cache: ${_scannedContactEntries.map((e) => e.senderProfile?.name).join(", ")}');
+        if (kDebugMode) {
+          print('✅ [History] setState completed - _scannedContactEntries.length: ${_scannedContactEntries.length}');
+          print('✅ [History] Contact names in cache: ${_scannedContactEntries.map((e) => e.senderProfile?.name).join(", ")}');
+        }
       } else {
-        print('⚠️ [History] Widget not mounted, cannot update state');
+        if (kDebugMode) {
+          print('⚠️ [History] Widget not mounted, cannot update state');
+        }
       }
     } catch (e, stackTrace) {
-      print('❌ [History] Error scanning contacts: $e');
-      print('❌ [History] Stack trace: $stackTrace');
+      if (kDebugMode) {
+        print('❌ [History] Error scanning contacts: $e');
+        print('❌ [History] Stack trace: $stackTrace');
+      }
     }
   }
 
@@ -275,18 +295,20 @@ class _HistoryScreenState extends State<HistoryScreen>
   /// Returns combined list with contacts showing as "received" entries
   List<HistoryEntry> _mergeWithScannedContacts(
       List<HistoryEntry> historyItems) {
-    print('🔀 [History] Starting merge...');
-    print('  📊 historyItems count: ${historyItems.length}');
-    print(
-        '  📊 _scannedContactEntries count: ${_scannedContactEntries.length}');
+    if (kDebugMode) {
+      print('🔀 [History] Starting merge...');
+      print('  📊 historyItems count: ${historyItems.length}');
+      print('  📊 _scannedContactEntries count: ${_scannedContactEntries.length}');
+    }
 
     if (_scannedContactEntries.isEmpty) {
       print('  ℹ️ No scanned contacts to merge, returning original history');
       return historyItems;
     }
 
-    print(
-        '  📋 Scanned contact names: ${_scannedContactEntries.map((e) => e.senderProfile?.name).join(", ")}');
+    if (kDebugMode) {
+      print('  📋 Scanned contact names: ${_scannedContactEntries.map((e) => e.senderProfile?.name).join(", ")}');
+    }
 
     // Use a Set to track existing profile IDs to avoid duplicates
     final existingProfileIds = historyItems
@@ -296,23 +318,28 @@ class _HistoryScreenState extends State<HistoryScreen>
         .map((item) => item.senderProfile!.id)
         .toSet();
 
-    print('  🔍 Existing profile IDs in history: $existingProfileIds');
+    if (kDebugMode) {
+      print('  🔍 Existing profile IDs in history: $existingProfileIds');
+    }
 
     // Filter out contacts that are already in history
     final uniqueContactEntries = _scannedContactEntries
         .where((entry) => !existingProfileIds.contains(entry.senderProfile?.id))
         .toList();
 
-    print('  ✅ Unique contact entries: ${uniqueContactEntries.length}');
-    print(
-        '  📋 Unique contact names: ${uniqueContactEntries.map((e) => e.senderProfile?.name).join(", ")}');
+    if (kDebugMode) {
+      print('  ✅ Unique contact entries: ${uniqueContactEntries.length}');
+      print('  📋 Unique contact names: ${uniqueContactEntries.map((e) => e.senderProfile?.name).join(", ")}');
+    }
 
     // Merge: history first, then unique contacts
     final merged = [...historyItems, ...uniqueContactEntries];
 
     // Sort by timestamp (newest first)
     merged.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-    print('  ✅ Final merged count: ${merged.length} (sorted by timestamp)');
+    if (kDebugMode) {
+      print('  ✅ Final merged count: ${merged.length} (sorted by timestamp)');
+    }
 
     return merged;
   }
@@ -752,7 +779,7 @@ class _HistoryScreenState extends State<HistoryScreen>
                               filter,
                               style: AppTextStyles.caption.copyWith(
                                 color: isSelected
-                                    ? filterColors['text']!
+                                    ? Colors.white
                                     : AppColors.textPrimary,
                                 fontWeight: isSelected
                                     ? FontWeight.w600
@@ -853,10 +880,10 @@ class _HistoryScreenState extends State<HistoryScreen>
         final allItems = _mergeWithScannedContacts(historyItems);
         final filteredItems = _filterHistoryItems(allItems);
 
-        print(
-            '📊 [History] Build - allItems: ${allItems.length}, filteredItems: ${filteredItems.length}');
-        print(
-            '📊 [History] Filtered item names: ${filteredItems.map((e) => e.displayName).take(10).join(", ")}');
+        if (kDebugMode) {
+          print('📊 [History] Build - allItems: ${allItems.length}, filteredItems: ${filteredItems.length}');
+          print('📊 [History] Filtered item names: ${filteredItems.map((e) => e.displayName).take(10).join(", ")}');
+        }
 
         // Auto-open modal if initialEntryId is provided
         if (widget.initialEntryId != null && !_hasShownInitialModal) {

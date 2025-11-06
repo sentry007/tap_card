@@ -14,6 +14,7 @@ import '../../widgets/profile/profile_basic_fields.dart';
 import '../../widgets/profile/social_links_fields.dart';
 import '../../widgets/profile/custom_links_fields.dart';
 import '../../widgets/profile/card_aesthetics_section.dart';
+import '../../widgets/tutorial/tutorial_keys.dart';
 import '../../core/constants/routes.dart';
 import '../../core/models/profile_models.dart';
 import '../../core/services/profile_service.dart';
@@ -798,98 +799,22 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _buildGlassAppBar() {
-    final statusBarHeight = MediaQuery.of(context).padding.top;
-
-    return Padding(
-      padding: EdgeInsets.only(
-        top: statusBarHeight + 16,
-        left: 16,
-        right: 16,
+    return GlassAppBar(
+      leading: GlassIconButton(
+        icon: CupertinoIcons.delete,
+        onTap: _showClearContentDialog,
+        semanticsLabel: 'Clear all content',
+        color: AppColors.error,
       ),
-      child: SizedBox(
-        key: const Key('profile_appbar_container'),
-        height: 64,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              key: const Key('profile_appbar_content_container'),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.2),
-                  width: 1,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 20,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                key: const Key('profile_appbar_row'),
-                children: [
-                  // Clear All button
-                  Material(
-                    key: const Key('profile_appbar_clear_button_material'),
-                    color: Colors.transparent,
-                    child: InkWell(
-                      key: const Key('profile_appbar_clear_button_inkwell'),
-                      onTap: _showClearContentDialog,
-                      borderRadius: BorderRadius.circular(12),
-                      child: const SizedBox(
-                        key: Key('profile_appbar_clear_button_container'),
-                        width: 48,
-                        height: 48,
-                        child: Icon(
-                          key: Key('profile_appbar_clear_icon'),
-                          CupertinoIcons.delete,
-                          color: AppColors.error,
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    key: const Key('profile_appbar_title_section'),
-                    child: Text(
-                      key: const Key('profile_appbar_title_text'),
-                      'Profile Setup',
-                      style: AppTextStyles.h3.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                  Material(
-                    key: const Key('profile_appbar_settings_button_material'),
-                    color: Colors.transparent,
-                    child: InkWell(
-                      key: const Key('profile_appbar_settings_button_inkwell'),
-                      onTap: _openSettings,
-                      borderRadius: BorderRadius.circular(12),
-                      child: const SizedBox(
-                        key: Key('profile_appbar_settings_button_container'),
-                        width: 48,
-                        height: 48,
-                        child: Icon(
-                          key: Key('profile_appbar_settings_icon'),
-                          CupertinoIcons.settings,
-                          color: AppColors.textPrimary,
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
+      title: const Text(
+        'Profile Setup',
+        key: Key('profile_appbar_title_text'),
+      ),
+      trailing: GlassIconButton(
+        icon: CupertinoIcons.settings,
+        onTap: _openSettings,
+        semanticsLabel: 'Open settings',
+        color: AppColors.textPrimary,
       ),
     );
   }
@@ -1433,6 +1358,7 @@ class _ProfileScreenState extends State<ProfileScreen>
 
     return Center(
       child: ProfileCardPreview(
+        key: TutorialKeys.profilePreviewCardKey,
         profile: previewProfile,
         width: double.infinity,
         height: 200,

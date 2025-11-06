@@ -72,7 +72,7 @@ class _NfcFabWidgetState extends State<NfcFabWidget> {
       scale: widget.fabScale.value * widget.pulseScale.value * (hasDevice ? 1.05 : 1.0),
       child: SizedBox(
         key: const Key('nfc-fab-container'),
-        width: 120,
+        width: 240,
         height: 120,
         child: Stack(
           alignment: Alignment.center,
@@ -80,7 +80,7 @@ class _NfcFabWidgetState extends State<NfcFabWidget> {
             // Animated outer glow effect
             Container(
               key: const Key('nfc-fab-glow'),
-              width: 120,
+              width: 240,
               height: 120,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(24),
@@ -113,8 +113,10 @@ class _NfcFabWidgetState extends State<NfcFabWidget> {
 
                 // Smooth easing function for more natural animation
                 final easedProgress = Curves.easeOut.transform(progress);
-                final rippleSize = 110.0 +
-                    (easedProgress * 120.0); // Start closer to FAB size
+                final rippleWidth = 210.0 +
+                    (easedProgress * 240.0); // Start closer to FAB width, expand more
+                final rippleHeight = 110.0 +
+                    (easedProgress * 120.0); // Start closer to FAB height
                 final borderRadius = 20.0 +
                     (easedProgress *
                         10.0); // Match FAB shape with slight growth
@@ -126,8 +128,8 @@ class _NfcFabWidgetState extends State<NfcFabWidget> {
 
                 return Container(
                   key: Key('home_nfc_fab_ripple_$index'),
-                  width: rippleSize,
-                  height: rippleSize,
+                  width: rippleWidth,
+                  height: rippleHeight,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(borderRadius),
                     border: Border.all(
@@ -140,7 +142,7 @@ class _NfcFabWidgetState extends State<NfcFabWidget> {
             // Main FAB
             Container(
               key: const Key('home_nfc_fab_main'),
-              width: 96, // 8px * 12
+              width: 192, // 8px * 24 (doubled width)
               height: 96,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -336,9 +338,7 @@ class NfcFabStatusText extends StatelessWidget {
 
       switch (state) {
         case NfcFabState.inactive:
-          text = isTagWrite
-              ? 'Bring device close to share'
-              : 'Hold & tap to switch modes';
+          text = 'Tap to activate • Long press to switch modes';
           textColor = Colors.white.withOpacity(0.6); // Dull white
           break;
 

@@ -24,6 +24,7 @@ import '../../widgets/history/method_chip.dart';
 import '../../widgets/home/nfc_fab_widget.dart';
 import '../../widgets/home/recent_connections_widget.dart';
 import '../../widgets/home/nfc_helpers.dart';
+import '../../widgets/tutorial/tutorial_keys.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 
@@ -53,6 +54,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   bool _isPreviewMode = false; // Toggle between share mode and preview mode
   final GlobalKey<RefreshIndicatorState> _refreshKey =
       GlobalKey<RefreshIndicatorState>();
+
 
   bool _nfcAvailable = false;
   bool _nfcDeviceDetected = false;
@@ -1403,18 +1405,22 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 children: [
                   SizedBox(
                       height: statusBarHeight +
-                          80 +
-                          40), // App bar space + original spacing
+                          80  + 20
+                          ), // App bar space + original spacing
+                  // 1) Quick Insights card at the top
+                  _buildInsightsSection(),
+                  const SizedBox(height: 32),
+                  // 2) NFC share area (FAB + status/share options)
                   _isPreviewMode ? _buildCardPreview() : _buildHeroNfcFab(),
                   const SizedBox(height: 16),
                   _isPreviewMode ? _buildPreviewText() : _buildTapToShareText(),
-                  const SizedBox(height: 45),
+                  const SizedBox(height: 24),
+                  // 3) Recent connections (then frequent contacts)
                   const RecentConnectionsWidget(),
                   const SizedBox(height: 24),
                   _buildFrequentContactsSection(),
                   const SizedBox(height: 24),
-                  _buildInsightsSection(),
-                  const SizedBox(height: 24),
+                  // 4) Recent activity strip
                   _buildRecentHistoryStrip(),
                   const SizedBox(height: 80), // Space for bottom nav
                 ],
@@ -1478,22 +1484,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       key: const Key('appbar-logo'),
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Container(
-                          width: 24,
-                          height: 24,
-                          decoration: BoxDecoration(
-                            gradient: AppColors.primaryGradient,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(
-                            CupertinoIcons.antenna_radiowaves_left_right,
-                            color: AppColors.textPrimary,
-                            size: 16,
+                        SizedBox(
+                          width: 28,
+                          height: 28,
+                          child: Image.asset(
+                            'assets/images/atlaslinq_logo.png',
+                            fit: BoxFit.contain,
                           ),
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          'Atlas Linq',
+                          'AtlasLinq',
                           style: AppTextStyles.h3.copyWith(
                             fontWeight: FontWeight.w700,
                           ),
@@ -1574,7 +1575,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _buildHeroNfcFab() {
     return AnimatedBuilder(
-      key: const Key('nfc-fab'),
+      key: TutorialKeys.homeNfcFabKey,
       animation: Listenable.merge(
           [_fabController, _pulseController, _rippleController, _successController]),
       builder: (context, child) {
@@ -1613,12 +1614,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           key: const Key('home_tap_share_column'),
           children: [
             NfcFabStatusText(
+              key: TutorialKeys.homeModeIndicatorKey,
               state: _nfcFabState,
               mode: _nfcMode,
               nfcAvailable: _nfcAvailable,
             ),
             const SizedBox(key: Key('home_tap_share_spacing'), height: 24),
-            ShareOptionsButton(onTap: _showShareModal),
+            ShareOptionsButton(
+              key: TutorialKeys.homeShareOptionsKey,
+              onTap: _showShareModal,
+            ),
           ],
         );
       },
