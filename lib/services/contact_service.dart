@@ -22,10 +22,18 @@ class TapCardContact {
   final String profileId; // UUID extracted from TapCard URL
   final bool isLegacyFormat; // True if old name-based URL format
 
-  // Metadata extracted from vCard X-TC fields
+  // Metadata extracted from vCard X-AL fields
   final ShareMethod? shareMethod;      // How the card was shared (N/Q/L/T)
   final DateTime? shareTimestamp;      // When the card was shared (unix timestamp)
   final ProfileType? profileType;      // Profile type (1/2/3)
+
+  // vCard data fields (extracted from device contact)
+  // These serve as fallback when Firestore fetch fails
+  final String? phone;
+  final String? email;
+  final String? company;
+  final String? title;
+  final String? website; // User's personal website (not Atlas Linq URL)
 
   TapCardContact({
     required this.displayName,
@@ -34,10 +42,15 @@ class TapCardContact {
     this.shareMethod,
     this.shareTimestamp,
     this.profileType,
+    this.phone,
+    this.email,
+    this.company,
+    this.title,
+    this.website,
   });
 
   @override
-  String toString() => 'TapCardContact($displayName, $profileId, legacy: $isLegacyFormat, method: ${shareMethod?.label}, time: $shareTimestamp)';
+  String toString() => 'TapCardContact($displayName, $profileId, legacy: $isLegacyFormat, method: ${shareMethod?.label}, phone: ${phone != null ? "✓" : "✗"}, email: ${email != null ? "✓" : "✗"})';
 }
 
 /// Service for managing device contacts integration
@@ -212,6 +225,52 @@ class ContactService {
             }
           }
 
+          // Extract vCard data fields for fallback when Firestore is unavailable
+          String? vCardPhone;
+          String? vCardEmail;
+          String? vCardCompany;
+          String? vCardTitle;
+          String? vCardWebsite;
+
+          // Extract phone (prefer first mobile, then first number)
+          if (contact.phones.isNotEmpty) {
+            vCardPhone = contact.phones.first.number;
+            print('    📞 Extracted phone: $vCardPhone');
+          }
+
+          // Extract email (prefer first work email, then first email)
+          if (contact.emails.isNotEmpty) {
+            vCardEmail = contact.emails.first.address;
+            print('    📧 Extracted email: $vCardEmail');
+          }
+
+          // Extract company and title from organizations
+          if (contact.organizations.isNotEmpty) {
+            final org = contact.organizations.first;
+            vCardCompany = org.company;
+            vCardTitle = org.title;
+            if (vCardCompany != null) {
+              if (vCardCompany.isNotEmpty) {
+                print('    🏢 Extracted company: $vCardCompany');
+              }
+            }
+            if (vCardTitle != null) {
+              if (vCardTitle.isNotEmpty) {
+                print('    💼 Extracted title: $vCardTitle');
+              }
+            }
+          }
+
+          // Extract personal website (exclude Atlas Linq URLs)
+          for (final website in contact.websites) {
+            if (!website.url.contains('atlaslinq.com') &&
+                website.url.isNotEmpty) {
+              vCardWebsite = website.url;
+              print('    🌐 Extracted website: $vCardWebsite');
+              break;
+            }
+          }
+
           final tapCardContact = TapCardContact(
             displayName: displayName,
             profileId: idPart,
@@ -219,12 +278,18 @@ class ContactService {
             shareMethod: extractedMethod,
             shareTimestamp: extractedTimestamp,
             profileType: extractedType,
+            phone: vCardPhone,
+            email: vCardEmail,
+            company: vCardCompany,
+            title: vCardTitle,
+            website: vCardWebsite,
           );
 
           tapCardContacts.add(tapCardContact);
           print('    ✅ Added to Atlas Linq contacts list: $displayName '
                 '(${isUuidFormat ? 'UUID' : 'legacy'}: $idPart, '
-                'has metadata: ${extractedMethod != null})');
+                'has metadata: ${extractedMethod != null}, '
+                'has vCard data: phone=${vCardPhone != null}, email=${vCardEmail != null})');
         }
       }
 
@@ -250,13 +315,21 @@ class ContactService {
 
   /// Validate if a string is a valid UUID format
   /// Format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (8-4-4-4-10to12)
+  /// Accepts UUID with or without type suffix (_personal, _professional, _custom)
   /// Relaxed validation: accepts 10-12 characters in last segment for compatibility
   static bool _isValidUuid(String value) {
+    // Strip type suffix if present (_personal, _professional, _custom)
+    // This handles the new format: uuid_type (e.g., ce61e357-d346-4311-8299-a79682ed09ab_personal)
+    final cleanValue = value.replaceFirst(RegExp(r'_(personal|professional|custom)$'), '');
+
     final uuidRegex = RegExp(
       r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{10,12}$',
       caseSensitive: false,
     );
-    return uuidRegex.hasMatch(value);
+
+    final isValid = uuidRegex.hasMatch(cleanValue);
+    print('    🔍 UUID validation: $value → cleaned: $cleanValue → isValid: $isValid');
+    return isValid;
   }
 
   /// Save contact data to device contacts
