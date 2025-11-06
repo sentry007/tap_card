@@ -210,7 +210,12 @@ class HistoryService {
       '🔍 Attempting Firestore fetch\n'
       '   • Profile ID: $profileId\n'
       '   • Display Name: $displayName\n'
-      '   • Marked as Legacy: $isLegacyFormat (will fetch anyway)',
+      '   • Marked as Legacy: $isLegacyFormat (will fetch anyway)\n'
+      '   • Expected Firestore path: profiles/$profileId\n'
+      '   • Profile type from metadata: ${contact.profileType?.label ?? "NULL"}\n'
+      '   • Has vCard phone: ${contact.phone != null}\n'
+      '   • Has vCard email: ${contact.email != null}\n'
+      '   • Has vCard company: ${contact.company != null}',
       name: 'History.ContactToEntry',
     );
 
@@ -253,27 +258,57 @@ class HistoryService {
       );
     }
 
-    // Use Firestore profile if available, otherwise create placeholder
+    // Use Firestore profile if available, otherwise create profile from vCard data
     final profile = firestoreProfile ?? ProfileData(
       id: profileId,
       type: contact.profileType ?? ProfileType.personal, // Use extracted type or default to personal
       name: displayName,
-      title: 'Contact from device', // Placeholder
-      company: null,
-      phone: null,
-      email: null,
-      website: 'https://atlaslinq.com/share/$profileId',
-      socialMedia: {},
-      profileImagePath: null,
+      // Smart subtitle fallback: prefer title > company > email prefix
+      // This ensures we always show SOMETHING useful instead of empty subtitle
+      title: contact.title ??
+             (contact.company != null && contact.company!.isNotEmpty
+               ? contact.company
+               : (contact.email != null && contact.email!.isNotEmpty
+                 ? contact.email!.split('@').first
+                 : null)),
+      company: contact.company, // ✅ Use vCard data
+      phone: contact.phone, // ✅ Use vCard data
+      email: contact.email, // ✅ Use vCard data
+      website: contact.website ?? 'https://atlaslinq.com/share/$profileId',
+      socialMedia: {}, // Empty is OK - rarely stored in vCard
+      profileImagePath: null, // Would require Firestore
+      cardAesthetics: CardAesthetics.defaultForType(
+        contact.profileType ?? ProfileType.personal,
+      ), // ✅ Use proper defaults based on profile type
       lastUpdated: DateTime.now(),
     );
 
     developer.log(
       '✅ Received entry created\n'
       '   • Profile ID: $profileId\n'
-      '   • Source: ${firestoreProfile != null ? "Firestore" : "Placeholder"}\n'
-      '   • Has Full Data: ${firestoreProfile != null}\n'
+      '   • Data Source: ${firestoreProfile != null ? "Firestore" : "vCard (fallback)"}\n'
+      '   • Name: ${profile.name}\n'
+      '   • Phone: ${profile.phone ?? "null"}\n'
+      '   • Email: ${profile.email ?? "null"}\n'
+      '   • Company: ${profile.company ?? "null"}\n'
+      '   • Title: ${profile.title ?? "null"}\n'
+      '   • Website: ${profile.website ?? "null"}\n'
+      '   • Profile Type: ${profile.type.label}\n'
+      '   • Has Aesthetics: ${profile.cardAesthetics != null}\n'
       '   • Using Metadata: ${contact.shareMethod != null}',
+      name: 'History.ContactToEntry',
+    );
+
+    // Log card aesthetics details to verify correct gradient application
+    developer.log(
+      '🎨 Card Aesthetics Details\n'
+      '   • Profile Type: ${profile.type.label}\n'
+      '   • Primary Color: #${profile.cardAesthetics.primaryColor.value.toRadixString(16).padLeft(8, '0')}\n'
+      '   • Secondary Color: #${profile.cardAesthetics.secondaryColor.value.toRadixString(16).padLeft(8, '0')}\n'
+      '   • Border Color: #${profile.cardAesthetics.borderColor.value.toRadixString(16).padLeft(8, '0')}\n'
+      '   • Background Color: ${profile.cardAesthetics.backgroundColor != null ? "#${profile.cardAesthetics.backgroundColor!.value.toRadixString(16).padLeft(8, '0')}" : "null (using gradient)"}\n'
+      '   • Has Background Image: ${profile.cardAesthetics.hasBackgroundImage}\n'
+      '   • Blur Level: ${profile.cardAesthetics.blurLevel}',
       name: 'History.ContactToEntry',
     );
 
@@ -288,6 +323,8 @@ class HistoryService {
         'is_legacy_format': isLegacyFormat,
         'scanned': true,
         'firestore_fetched': firestoreProfile != null,
+        'vcard_fallback_used': firestoreProfile == null, // Track if we used vCard fallback
+        'has_vcard_data': contact.phone != null || contact.email != null || contact.company != null,
         'has_metadata': contact.shareMethod != null, // Track if we extracted metadata
         'metadata_method': contact.shareMethod?.label,
         'metadata_timestamp': contact.shareTimestamp?.toIso8601String(),
