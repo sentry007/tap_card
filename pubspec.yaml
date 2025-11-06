@@ -19,6 +19,9 @@ dependencies:
   # Glassmorphism UI
   glassmorphism: ^3.0.0
 
+  # Charts and Data Visualization
+  fl_chart: ^0.69.0
+
   # NFC Functionality
   nfc_manager: ^4.0.2
   nfc_manager_ndef: ^1.0.1
@@ -75,10 +78,17 @@ dependencies:
   cloud_functions: ^5.2.1
 
 dev_dependencies:
+  flutter_launcher_icons: ^0.13.1
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
   build_runner: ^2.4.8
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/app_icon.png"
+  min_sdk_android: 21
 
 flutter:
   uses-material-design: true
