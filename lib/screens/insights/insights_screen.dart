@@ -18,7 +18,12 @@ import 'dart:developer' as developer;
 import '../../theme/theme.dart';
 import '../../models/unified_models.dart';
 import '../../services/history_service.dart';
+import '../../services/profile_views_service.dart';
+import '../../core/services/profile_service.dart';
 import '../../widgets/history/method_chip.dart';
+import '../../widgets/common/glass_app_bar.dart';
+import 'achievements_detail_view.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 class InsightsScreen extends StatefulWidget {
   const InsightsScreen({super.key});
@@ -53,105 +58,17 @@ class _InsightsScreenState extends State<InsightsScreen> {
             final historyEntries = snapshot.data!;
             final analytics = _calculateAnalytics(historyEntries);
 
-            return CustomScrollView(
-              slivers: [
-                // Glass AppBar with back button
-                SliverAppBar(
-                  expandedHeight: 0,
-                  floating: true,
-                  pinned: false,
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  leading: Padding(
-                    padding: const EdgeInsets.only(left: 8),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          context.pop();
-                        },
-                        borderRadius: BorderRadius.circular(12),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: BackdropFilter(
-                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: Colors.white.withOpacity(0.2),
-                                  width: 1,
-                                ),
-                              ),
-                              child: const Icon(
-                                CupertinoIcons.back,
-                                color: AppColors.textPrimary,
-                                size: 20,
-                              ),
-                            ),
-                          ),
-                        ),
+            return Stack(
+              children: [
+                // Main content with scroll
+                CustomScrollView(
+                  slivers: [
+                    // Top padding for app bar
+                    SliverToBoxAdapter(
+                      child: SizedBox(
+                        height: MediaQuery.of(context).padding.top + 96,
                       ),
                     ),
-                  ),
-                ),
-                // Header
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                gradient: AppColors.secondaryGradient,
-                                borderRadius: BorderRadius.circular(12),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: AppColors.info.withOpacity(0.3),
-                                    blurRadius: 12,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: const Icon(
-                                Icons.insights,
-                                color: AppColors.textPrimary,
-                                size: 24,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Insights & Analytics',
-                                    style: AppTextStyles.h1.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Your Atlas Linq activity overview',
-                                    style: AppTextStyles.caption.copyWith(
-                                      color: AppColors.textTertiary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
 
                 // Overview Stats
                 SliverToBoxAdapter(
@@ -168,6 +85,16 @@ class _InsightsScreenState extends State<InsightsScreen> {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: _buildActivityChart(analytics),
+                  ),
+                ),
+
+                const SliverToBoxAdapter(child: SizedBox(height: 32)),
+
+                // Profile Views Section (from Firestore)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: _buildProfileViewsSection(),
                   ),
                 ),
 
@@ -203,12 +130,43 @@ class _InsightsScreenState extends State<InsightsScreen> {
 
                 const SliverToBoxAdapter(child: SizedBox(height: 32)),
               ],
-            );
-          },
-        ),
-      ),
-    );
-  }
+            ),
+                // Glass App Bar overlay
+                GlassAppBar(
+                  leading: GlassIconButton(
+                    icon: CupertinoIcons.back,
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      context.pop();
+                    },
+                    semanticsLabel: 'Back',
+                  ),
+                  title: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 28,
+                        height: 28,
+                        child: Image.asset(
+                          'assets/images/atlaslinq_logo.png',
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Insights',
+                        style: AppTextStyles.h3.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+        );
+      },
+    ),
+  ),
+);
+}
 
   /// Calculate all analytics from history entries
   _Analytics _calculateAnalytics(List<HistoryEntry> entries) {
@@ -230,21 +188,28 @@ class _InsightsScreenState extends State<InsightsScreen> {
     final monthlyReceived = monthlyEntries.where((e) => e.type == HistoryEntryType.received).length;
     final monthlyTotal = monthlySent + monthlyReceived;
 
-    // Share method breakdown
+    // Share method breakdown (received - how people share with you)
     final methodCounts = <ShareMethod, int>{};
     for (final entry in entries) {
-      if (entry.type == HistoryEntryType.sent) {
+      if (entry.type == HistoryEntryType.received) {
         methodCounts[entry.method] = (methodCounts[entry.method] ?? 0) + 1;
       }
     }
 
-    // Favorite method
-    ShareMethod? favoriteMethod;
-    int maxCount = 0;
-    methodCounts.forEach((method, count) {
-      if (count > maxCount) {
-        maxCount = count;
-        favoriteMethod = method;
+    // Top received method (how people share with you)
+    final receivedMethodCounts = <ShareMethod, int>{};
+    for (final entry in entries) {
+      if (entry.type == HistoryEntryType.received) {
+        receivedMethodCounts[entry.method] = (receivedMethodCounts[entry.method] ?? 0) + 1;
+      }
+    }
+
+    ShareMethod? topReceivedMethod;
+    int maxReceivedCount = 0;
+    receivedMethodCounts.forEach((method, count) {
+      if (count > maxReceivedCount) {
+        maxReceivedCount = count;
+        topReceivedMethod = method;
       }
     });
 
@@ -272,39 +237,36 @@ class _InsightsScreenState extends State<InsightsScreen> {
       }
     }
 
-    // Top connections (by frequency)
-    final connectionCounts = <String, _ConnectionData>{};
-    for (final entry in entries) {
-      if (entry.type == HistoryEntryType.received && entry.senderProfile != null) {
-        final name = entry.senderProfile!.name;
-        if (connectionCounts.containsKey(name)) {
-          connectionCounts[name]!.count++;
-          if (entry.timestamp.isAfter(connectionCounts[name]!.lastInteraction)) {
-            connectionCounts[name]!.lastInteraction = entry.timestamp;
-          }
-        } else {
-          connectionCounts[name] = _ConnectionData(
-            name: name,
-            count: 1,
-            lastInteraction: entry.timestamp,
-            profile: entry.senderProfile!,
-          );
-        }
+    // Recent connections (last 3 people who shared with you)
+    final recentConnections = <_ConnectionData>[];
+    final seenNames = <String>{};
+
+    // Iterate through entries in reverse (most recent first)
+    for (final entry in entries.reversed) {
+      if (entry.type == HistoryEntryType.received &&
+          entry.senderProfile != null &&
+          !seenNames.contains(entry.senderProfile!.name)) {
+        seenNames.add(entry.senderProfile!.name);
+        recentConnections.add(_ConnectionData(
+          name: entry.senderProfile!.name,
+          count: 1, // Not tracking count anymore since you only receive once
+          lastInteraction: entry.timestamp,
+          profile: entry.senderProfile!,
+        ));
+
+        if (recentConnections.length >= 3) break;
       }
     }
-
-    final topConnections = connectionCounts.values.toList()
-      ..sort((a, b) => b.count.compareTo(a.count));
 
     return _Analytics(
       totalSent: totalSent,
       totalReceived: totalReceived,
       totalConnections: totalConnections,
       monthlyTotal: monthlyTotal,
-      favoriteMethod: favoriteMethod,
+      topReceivedMethod: topReceivedMethod,
       methodCounts: methodCounts,
       chartData: chartData,
-      topConnections: topConnections.take(5).toList(),
+      recentConnections: recentConnections,
     );
   }
 
@@ -356,8 +318,8 @@ class _InsightsScreenState extends State<InsightsScreen> {
             Expanded(
               child: _buildStatCard(
                 icon: Icons.star,
-                label: 'Favorite',
-                value: analytics.favoriteMethod?.label ?? 'N/A',
+                label: 'Top Method',
+                value: analytics.topReceivedMethod?.label ?? 'N/A',
                 color: AppColors.highlight,
                 isSmallText: true,
               ),
@@ -433,14 +395,13 @@ class _InsightsScreenState extends State<InsightsScreen> {
     );
   }
 
-  /// Activity chart showing 7-day sent vs received
+  /// Activity chart showing 7-day sent vs received with vertical bars
   Widget _buildActivityChart(_Analytics analytics) {
     final sortedDays = analytics.chartData.keys.toList()..sort();
     final maxActivity = analytics.chartData.values
         .map((day) => day.sent + day.received)
-        .reduce((a, b) => a > b ? a : b)
-        .toDouble();
-    final chartHeight = maxActivity == 0 ? 1.0 : maxActivity;
+        .reduce((a, b) => a > b ? a : b);
+    final maxHeight = maxActivity == 0 ? 1 : maxActivity;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -478,7 +439,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
                     ],
                   ),
                   const SizedBox(height: 24),
-                  // Chart bars
+                  // Vertical Bar Chart
                   SizedBox(
                     height: 160,
                     child: Row(
@@ -486,7 +447,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: sortedDays.map((day) {
                         final activity = analytics.chartData[day]!;
-                        return _buildChartBar(day, activity, chartHeight);
+                        return _buildDayBar(day, activity, maxHeight);
                       }).toList(),
                     ),
                   ),
@@ -496,6 +457,112 @@ class _InsightsScreenState extends State<InsightsScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildDayBar(DateTime day, _DayActivity activity, int maxHeight) {
+    final total = activity.sent + activity.received;
+    final sentHeight = maxHeight == 0 ? 0.0 : (activity.sent / maxHeight) * 130;
+    final receivedHeight = maxHeight == 0 ? 0.0 : (activity.received / maxHeight) * 130;
+
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            // Total count above bar
+            if (total > 0)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  '$total',
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+            // Stacked bars
+            Container(
+              width: double.infinity,
+              constraints: const BoxConstraints(maxWidth: 40),
+              height: 130,
+              alignment: Alignment.bottomCenter,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  // Received (green) on top
+                  if (receivedHeight > 0)
+                    Container(
+                      height: receivedHeight,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            AppColors.success,
+                            AppColors.success.withOpacity(0.7),
+                          ],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
+                        borderRadius: sentHeight == 0
+                            ? BorderRadius.circular(8)
+                            : const BorderRadius.vertical(
+                                top: Radius.circular(8),
+                              ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.success.withOpacity(0.3),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                    ),
+                  // Sent (blue) on bottom
+                  if (sentHeight > 0)
+                    Container(
+                      height: sentHeight,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            AppColors.primaryAction,
+                            AppColors.primaryAction.withOpacity(0.7),
+                          ],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
+                        borderRadius: receivedHeight == 0
+                            ? BorderRadius.circular(8)
+                            : const BorderRadius.vertical(
+                                bottom: Radius.circular(8),
+                              ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primaryAction.withOpacity(0.3),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Day label
+            Text(
+              _getDayLabel(day),
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.textTertiary,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -522,68 +589,6 @@ class _InsightsScreenState extends State<InsightsScreen> {
     );
   }
 
-  Widget _buildChartBar(DateTime day, _DayActivity activity, double maxHeight) {
-    final total = activity.sent + activity.received;
-    final sentHeight = maxHeight == 0 ? 0.0 : (activity.sent / maxHeight) * 140;
-    final receivedHeight = maxHeight == 0 ? 0.0 : (activity.received / maxHeight) * 140;
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Bars
-        SizedBox(
-          height: 140,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              if (receivedHeight > 0)
-                Container(
-                  width: 32,
-                  height: receivedHeight,
-                  decoration: const BoxDecoration(
-                    color: AppColors.success,
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(4),
-                    ),
-                  ),
-                ),
-              if (sentHeight > 0)
-                Container(
-                  width: 32,
-                  height: sentHeight,
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryAction,
-                    borderRadius: receivedHeight == 0
-                        ? BorderRadius.circular(4)
-                        : const BorderRadius.vertical(
-                            bottom: Radius.circular(4),
-                          ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        // Day label
-        Text(
-          _getDayLabel(day),
-          style: AppTextStyles.caption.copyWith(
-            color: AppColors.textTertiary,
-            fontSize: 10,
-          ),
-        ),
-        if (total > 0)
-          Text(
-            '$total',
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.textSecondary,
-              fontWeight: FontWeight.bold,
-              fontSize: 10,
-            ),
-          ),
-      ],
-    );
-  }
 
   String _getDayLabel(DateTime day) {
     final now = DateTime.now();
@@ -597,6 +602,153 @@ class _InsightsScreenState extends State<InsightsScreen> {
     return days[day.weekday % 7];
   }
 
+  /// Profile Views Section with Pie Chart
+  Widget _buildProfileViewsSection() {
+    final profileService = ProfileService();
+    final activeProfile = profileService.activeProfile;
+
+    if (activeProfile == null) {
+      return const SizedBox.shrink();
+    }
+
+    return StreamBuilder<Map<String, int>>(
+      stream: ProfileViewsService.viewCountsStream(activeProfile.id),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const SizedBox.shrink();
+        }
+
+        final viewCounts = snapshot.data!;
+        final totalViews = viewCounts['total'] ?? 0;
+        final thisWeek = viewCounts['thisWeek'] ?? 0;
+        final thisMonth = viewCounts['thisMonth'] ?? 0;
+        final allTime = viewCounts['allTime'] ?? 0;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Profile Views',
+              style: AppTextStyles.h2.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: AppColors.glassGradient,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: AppColors.glassBorder,
+                      width: 1,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      // Pie Chart
+                      if (totalViews > 0)
+                        SizedBox(
+                          height: 200,
+                          child: PieChart(
+                            PieChartData(
+                              sections: [
+                                PieChartSectionData(
+                                  value: thisWeek.toDouble(),
+                                  title: '$thisWeek',
+                                  color: AppColors.info,
+                                  radius: 60,
+                                  titleStyle: AppTextStyles.body.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                PieChartSectionData(
+                                  value: (thisMonth - thisWeek).toDouble(),
+                                  title: '${thisMonth - thisWeek}',
+                                  color: AppColors.secondaryAction,
+                                  radius: 60,
+                                  titleStyle: AppTextStyles.body.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                PieChartSectionData(
+                                  value: (allTime - thisMonth).toDouble(),
+                                  title: '${allTime - thisMonth}',
+                                  color: AppColors.highlight,
+                                  radius: 60,
+                                  titleStyle: AppTextStyles.body.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                              sectionsSpace: 2,
+                              centerSpaceRadius: 40,
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 24),
+                      // Legend
+                      Column(
+                        children: [
+                          _buildViewsLegendItem('This Week', thisWeek, AppColors.info),
+                          const SizedBox(height: 12),
+                          _buildViewsLegendItem('This Month', thisMonth - thisWeek, AppColors.secondaryAction),
+                          const SizedBox(height: 12),
+                          _buildViewsLegendItem('All Time', allTime - thisMonth, AppColors.highlight),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildViewsLegendItem(String label, int count, Color color) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: AppTextStyles.body.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+        Text(
+          '$count views',
+          style: AppTextStyles.body.copyWith(
+            color: color,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
   /// Share methods breakdown
   Widget _buildShareMethodsBreakdown(_Analytics analytics) {
     if (analytics.methodCounts.isEmpty) {
@@ -606,7 +758,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
     final sortedMethods = analytics.methodCounts.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
-    final totalShares = analytics.totalSent;
+    final totalShares = analytics.totalReceived;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -655,6 +807,8 @@ class _InsightsScreenState extends State<InsightsScreen> {
   }
 
   Widget _buildMethodRow(ShareMethod method, int count, double percentage) {
+    final color = _getMethodColor(method);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -671,16 +825,39 @@ class _InsightsScreenState extends State<InsightsScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        // Progress bar
+        const SizedBox(height: 10),
+        // Enhanced gradient progress bar
         ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: percentage / 100,
-            minHeight: 6,
-            backgroundColor: AppColors.surfaceDark,
-            valueColor: AlwaysStoppedAnimation<Color>(
-              _getMethodColor(method),
+          borderRadius: BorderRadius.circular(6),
+          child: Container(
+            height: 8,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceDark,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: FractionallySizedBox(
+              alignment: Alignment.centerLeft,
+              widthFactor: percentage / 100,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      color,
+                      color.withOpacity(0.6),
+                    ],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                  ),
+                  borderRadius: BorderRadius.circular(6),
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withOpacity(0.4),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
@@ -701,9 +878,9 @@ class _InsightsScreenState extends State<InsightsScreen> {
     }
   }
 
-  /// Top connections list
+  /// Recent connections list (last 3 people who shared with you)
   Widget _buildTopConnections(_Analytics analytics) {
-    if (analytics.topConnections.isEmpty) {
+    if (analytics.recentConnections.isEmpty) {
       return const SizedBox.shrink();
     }
 
@@ -711,7 +888,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Top Connections',
+          'Recent Connections',
           style: AppTextStyles.h2.copyWith(
             fontWeight: FontWeight.bold,
           ),
@@ -732,14 +909,14 @@ class _InsightsScreenState extends State<InsightsScreen> {
                 ),
               ),
               child: Column(
-                children: analytics.topConnections.asMap().entries.map((entry) {
+                children: analytics.recentConnections.asMap().entries.map((entry) {
                   final index = entry.key;
                   final connection = entry.value;
                   return Padding(
                     padding: EdgeInsets.only(
-                      bottom: index < analytics.topConnections.length - 1 ? 16 : 0,
+                      bottom: index < analytics.recentConnections.length - 1 ? 16 : 0,
                     ),
-                    child: _buildConnectionRow(connection, index + 1),
+                    child: _buildRecentConnectionRow(connection),
                   );
                 }).toList(),
               ),
@@ -750,46 +927,38 @@ class _InsightsScreenState extends State<InsightsScreen> {
     );
   }
 
-  Widget _buildConnectionRow(_ConnectionData connection, int rank) {
+  Widget _buildRecentConnectionRow(_ConnectionData connection) {
     final hasImage = connection.profile.profileImagePath != null &&
         connection.profile.profileImagePath!.isNotEmpty;
 
+    // Calculate time ago
+    final now = DateTime.now();
+    final difference = now.difference(connection.lastInteraction);
+    String timeAgo;
+    if (difference.inMinutes < 1) {
+      timeAgo = 'Just now';
+    } else if (difference.inHours < 1) {
+      timeAgo = '${difference.inMinutes}m ago';
+    } else if (difference.inDays < 1) {
+      timeAgo = '${difference.inHours}h ago';
+    } else if (difference.inDays < 7) {
+      timeAgo = '${difference.inDays}d ago';
+    } else {
+      timeAgo = '${(difference.inDays / 7).floor()}w ago';
+    }
+
     return Row(
       children: [
-        // Rank badge
-        Container(
-          width: 28,
-          height: 28,
-          decoration: BoxDecoration(
-            color: _getRankColor(rank).withOpacity(0.2),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: _getRankColor(rank),
-              width: 2,
-            ),
-          ),
-          child: Center(
-            child: Text(
-              '$rank',
-              style: AppTextStyles.caption.copyWith(
-                color: _getRankColor(rank),
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
         // Profile image or initials
         Container(
-          width: 40,
-          height: 40,
+          width: 44,
+          height: 44,
           decoration: BoxDecoration(
-            color: AppColors.secondaryAction.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(20),
+            color: AppColors.success.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(22),
             border: Border.all(
-              color: AppColors.secondaryAction.withOpacity(0.3),
-              width: 1,
+              color: AppColors.success.withOpacity(0.3),
+              width: 2,
             ),
           ),
           child: hasImage
@@ -802,7 +971,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
                       child: Text(
                         _getInitials(connection.name),
                         style: AppTextStyles.body.copyWith(
-                          color: AppColors.secondaryAction,
+                          color: AppColors.success,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -813,14 +982,14 @@ class _InsightsScreenState extends State<InsightsScreen> {
                   child: Text(
                     _getInitials(connection.name),
                     style: AppTextStyles.body.copyWith(
-                      color: AppColors.secondaryAction,
+                      color: AppColors.success,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
         ),
         const SizedBox(width: 12),
-        // Name and details
+        // Name and time
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -834,7 +1003,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
                 overflow: TextOverflow.ellipsis,
               ),
               Text(
-                '${connection.count} interaction${connection.count > 1 ? 's' : ''}',
+                timeAgo,
                 style: AppTextStyles.caption.copyWith(
                   color: AppColors.textTertiary,
                 ),
@@ -842,36 +1011,14 @@ class _InsightsScreenState extends State<InsightsScreen> {
             ],
           ),
         ),
-        // Count badge
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: AppColors.success.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            '${connection.count}',
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.success,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+        // New badge icon
+        const Icon(
+          Icons.person_add_alt_1,
+          color: AppColors.success,
+          size: 20,
         ),
       ],
     );
-  }
-
-  Color _getRankColor(int rank) {
-    switch (rank) {
-      case 1:
-        return AppColors.highlight;
-      case 2:
-        return AppColors.textSecondary;
-      case 3:
-        return AppColors.primaryAction;
-      default:
-        return AppColors.info;
-    }
   }
 
   String _getInitials(String name) {
@@ -884,73 +1031,319 @@ class _InsightsScreenState extends State<InsightsScreen> {
         .toUpperCase();
   }
 
-  /// Milestones section
+  /// Open achievements detail modal
+  void _openAchievementsModal(BuildContext context, _Analytics analytics) {
+    // Generate all unlocked achievements
+    final unlockedAchievements = _generateUnlockedAchievements(analytics);
+
+    // Generate all 45 achievements (locked + unlocked)
+    final allAchievements = _generateAllAchievements();
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => AchievementsDetailView(
+          unlockedAchievements: unlockedAchievements,
+          allAchievements: allAchievements,
+        ),
+      ),
+    );
+  }
+
+  /// Generate all unlocked achievements based on current analytics
+  List<Achievement> _generateUnlockedAchievements(_Analytics analytics) {
+    final achievements = <Achievement>[];
+
+    // ========== SHARING ACHIEVEMENTS ==========
+    if (analytics.totalSent >= 1) achievements.add(Achievement(icon: Icons.celebration, title: 'First Share', description: 'Shared your card for the first time', color: AppColors.primaryAction, category: AchievementCategory.sharing));
+    if (analytics.totalSent >= 5) achievements.add(Achievement(icon: Icons.star_outline, title: 'Getting Started', description: '5 shares completed', color: AppColors.primaryAction, category: AchievementCategory.sharing));
+    if (analytics.totalSent >= 10) achievements.add(Achievement(icon: Icons.send, title: 'Share Rookie', description: '10 shares milestone', color: AppColors.primaryAction, category: AchievementCategory.sharing));
+    if (analytics.totalSent >= 25) achievements.add(Achievement(icon: Icons.rocket_launch, title: 'Rising Star', description: '25 shares achieved', color: AppColors.primaryAction, category: AchievementCategory.sharing));
+    if (analytics.totalSent >= 50) achievements.add(Achievement(icon: Icons.star, title: 'Share Master', description: '50+ shares completed', color: AppColors.primaryAction, category: AchievementCategory.sharing));
+    if (analytics.totalSent >= 100) achievements.add(Achievement(icon: Icons.workspace_premium, title: 'Century Club', description: '100 shares milestone!', color: AppColors.highlight, category: AchievementCategory.sharing));
+    if (analytics.totalSent >= 250) achievements.add(Achievement(icon: Icons.emoji_events, title: 'Share Legend', description: '250+ shares completed', color: AppColors.highlight, category: AchievementCategory.sharing));
+    if (analytics.totalSent >= 500) achievements.add(Achievement(icon: Icons.military_tech, title: 'Share Champion', description: '500 shares achieved!', color: AppColors.highlight, category: AchievementCategory.sharing));
+    if (analytics.totalSent >= 1000) achievements.add(Achievement(icon: Icons.diamond, title: 'Diamond Sharer', description: '1000+ shares!', color: AppColors.highlight, category: AchievementCategory.sharing));
+
+    // Share methods diversity
+    if (analytics.methodCounts.keys.length >= 2) achievements.add(Achievement(icon: Icons.explore, title: 'Explorer', description: 'Used 2 different share methods', color: AppColors.info, category: AchievementCategory.sharing));
+    if (analytics.methodCounts.keys.length >= 3) achievements.add(Achievement(icon: Icons.diversity_3, title: 'Versatile', description: 'Used 3 different methods', color: AppColors.info, category: AchievementCategory.sharing));
+    if (analytics.methodCounts.keys.length >= 4) achievements.add(Achievement(icon: Icons.apps, title: 'Omnichannel', description: 'Mastered all share methods', color: AppColors.info, category: AchievementCategory.sharing));
+
+    // NFC specific
+    final nfcCount = analytics.methodCounts[ShareMethod.nfc] ?? 0;
+    if (nfcCount >= 10) achievements.add(Achievement(icon: Icons.nfc, title: 'NFC Novice', description: '10 NFC shares', color: AppColors.primaryAction, category: AchievementCategory.sharing));
+    if (nfcCount >= 50) achievements.add(Achievement(icon: Icons.contactless, title: 'NFC Master', description: '50 NFC shares', color: AppColors.primaryAction, category: AchievementCategory.sharing));
+    if (nfcCount >= 100) achievements.add(Achievement(icon: Icons.tap_and_play, title: 'NFC Legend', description: '100+ NFC shares!', color: AppColors.highlight, category: AchievementCategory.sharing));
+
+    // ========== CONNECTION ACHIEVEMENTS ==========
+    if (analytics.totalReceived >= 1) achievements.add(Achievement(icon: Icons.person_add, title: 'First Connection', description: 'Received your first card', color: AppColors.success, category: AchievementCategory.connections));
+    if (analytics.totalReceived >= 5) achievements.add(Achievement(icon: Icons.people_outline, title: 'Social Starter', description: '5 connections made', color: AppColors.success, category: AchievementCategory.connections));
+    if (analytics.totalReceived >= 10) achievements.add(Achievement(icon: Icons.groups_2, title: 'Networker', description: '10 connections milestone', color: AppColors.success, category: AchievementCategory.connections));
+    if (analytics.totalReceived >= 25) achievements.add(Achievement(icon: Icons.diversity_2, title: 'Social Butterfly', description: '25 connections reached', color: AppColors.success, category: AchievementCategory.connections));
+    if (analytics.totalReceived >= 50) achievements.add(Achievement(icon: Icons.groups, title: 'Networking Pro', description: '50+ connections!', color: AppColors.success, category: AchievementCategory.connections));
+    if (analytics.totalReceived >= 100) achievements.add(Achievement(icon: Icons.group_add, title: 'Connection Champion', description: '100 connections made!', color: AppColors.highlight, category: AchievementCategory.connections));
+    if (analytics.totalReceived >= 250) achievements.add(Achievement(icon: Icons.public, title: 'Connector Elite', description: '250+ connections!', color: AppColors.highlight, category: AchievementCategory.connections));
+    if (analytics.totalReceived >= 500) achievements.add(Achievement(icon: Icons.hub, title: 'Network Hub', description: '500 connections achieved!', color: AppColors.highlight, category: AchievementCategory.connections));
+    if (analytics.totalReceived >= 1000) achievements.add(Achievement(icon: Icons.language, title: 'Global Connector', description: '1000+ connections!', color: AppColors.highlight, category: AchievementCategory.connections));
+
+    // Total interactions
+    if (analytics.totalConnections >= 50) achievements.add(Achievement(icon: Icons.trending_up, title: 'Active User', description: '50 total interactions', color: AppColors.info, category: AchievementCategory.connections));
+    if (analytics.totalConnections >= 150) achievements.add(Achievement(icon: Icons.auto_graph, title: 'Power User', description: '150+ total interactions', color: AppColors.info, category: AchievementCategory.connections));
+    if (analytics.totalConnections >= 500) achievements.add(Achievement(icon: Icons.show_chart, title: 'Super User', description: '500+ interactions!', color: AppColors.highlight, category: AchievementCategory.connections));
+
+    // ========== ACTIVITY ACHIEVEMENTS ==========
+    if (analytics.monthlyTotal >= 10) achievements.add(Achievement(icon: Icons.calendar_month, title: 'Monthly Active', description: '10+ interactions this month', color: AppColors.info, category: AchievementCategory.activity));
+    if (analytics.monthlyTotal >= 30) achievements.add(Achievement(icon: Icons.event_available, title: 'Monthly Champion', description: '30+ this month!', color: AppColors.info, category: AchievementCategory.activity));
+    if (analytics.monthlyTotal >= 50) achievements.add(Achievement(icon: Icons.date_range, title: 'Monthly Legend', description: '50+ interactions this month!', color: AppColors.highlight, category: AchievementCategory.activity));
+
+    // Weekly streaks
+    final activeDaysThisWeek = analytics.chartData.values.where((day) => (day.sent + day.received) > 0).length;
+    if (activeDaysThisWeek >= 3) achievements.add(Achievement(icon: Icons.local_fire_department, title: 'Consistent', description: '3+ active days this week', color: AppColors.secondaryAction, category: AchievementCategory.activity));
+    if (activeDaysThisWeek >= 5) achievements.add(Achievement(icon: Icons.whatshot, title: 'On Fire', description: '5+ active days this week', color: AppColors.secondaryAction, category: AchievementCategory.activity));
+    if (activeDaysThisWeek >= 7) achievements.add(Achievement(icon: Icons.bolt, title: 'Perfect Week', description: 'Active all 7 days!', color: AppColors.highlight, category: AchievementCategory.activity));
+
+    // Daily achievements
+    final maxDailyActivity = analytics.chartData.values.map((d) => d.sent + d.received).reduce((a, b) => a > b ? a : b);
+    if (maxDailyActivity >= 5) achievements.add(Achievement(icon: Icons.today, title: 'Busy Day', description: '5+ interactions in one day', color: AppColors.info, category: AchievementCategory.activity));
+    if (maxDailyActivity >= 10) achievements.add(Achievement(icon: Icons.schedule, title: 'Super Day', description: '10+ interactions in a day!', color: AppColors.info, category: AchievementCategory.activity));
+    if (maxDailyActivity >= 20) achievements.add(Achievement(icon: Icons.flash_on, title: 'Power Day', description: '20+ in one day!', color: AppColors.highlight, category: AchievementCategory.activity));
+    if (maxDailyActivity >= 50) achievements.add(Achievement(icon: Icons.speed, title: 'Mega Day', description: '50+ in one day!', color: AppColors.highlight, category: AchievementCategory.activity));
+
+    // ========== SPECIAL ACHIEVEMENTS ==========
+    final shareReceiveRatio = analytics.totalSent > 0 ? analytics.totalReceived / analytics.totalSent : 0;
+    if (shareReceiveRatio >= 0.8 && shareReceiveRatio <= 1.2 && analytics.totalConnections >= 20) {
+      achievements.add(Achievement(icon: Icons.balance, title: 'Balanced Networker', description: 'Equal give and take', color: AppColors.success, category: AchievementCategory.special));
+    }
+
+    if (analytics.methodCounts.isNotEmpty) {
+      final maxMethodCount = analytics.methodCounts.values.reduce((a, b) => a > b ? a : b);
+      if (maxMethodCount >= 50) achievements.add(Achievement(icon: Icons.settings, title: 'Method Master', description: '50+ with one method', color: AppColors.primaryAction, category: AchievementCategory.special));
+    }
+
+    if (analytics.totalConnections >= 10) achievements.add(Achievement(icon: Icons.flag, title: 'AtlasLinq Advocate', description: 'Active platform user', color: AppColors.highlight, category: AchievementCategory.special));
+    achievements.add(Achievement(icon: Icons.account_circle, title: 'Profile Pro', description: 'Completed your profile', color: AppColors.info, category: AchievementCategory.special));
+    if (analytics.recentConnections.length >= 3) achievements.add(Achievement(icon: Icons.forum, title: 'Community Member', description: 'Connected with multiple people', color: AppColors.success, category: AchievementCategory.special));
+
+    return achievements;
+  }
+
+  /// Generate all 45 achievements (complete list)
+  List<Achievement> _generateAllAchievements() {
+    return [
+      // SHARING (15)
+      Achievement(icon: Icons.celebration, title: 'First Share', description: 'Shared your card for the first time', color: AppColors.primaryAction, category: AchievementCategory.sharing),
+      Achievement(icon: Icons.star_outline, title: 'Getting Started', description: '5 shares completed', color: AppColors.primaryAction, category: AchievementCategory.sharing),
+      Achievement(icon: Icons.send, title: 'Share Rookie', description: '10 shares milestone', color: AppColors.primaryAction, category: AchievementCategory.sharing),
+      Achievement(icon: Icons.rocket_launch, title: 'Rising Star', description: '25 shares achieved', color: AppColors.primaryAction, category: AchievementCategory.sharing),
+      Achievement(icon: Icons.star, title: 'Share Master', description: '50+ shares completed', color: AppColors.primaryAction, category: AchievementCategory.sharing),
+      Achievement(icon: Icons.workspace_premium, title: 'Century Club', description: '100 shares milestone!', color: AppColors.highlight, category: AchievementCategory.sharing),
+      Achievement(icon: Icons.emoji_events, title: 'Share Legend', description: '250+ shares completed', color: AppColors.highlight, category: AchievementCategory.sharing),
+      Achievement(icon: Icons.military_tech, title: 'Share Champion', description: '500 shares achieved!', color: AppColors.highlight, category: AchievementCategory.sharing),
+      Achievement(icon: Icons.diamond, title: 'Diamond Sharer', description: '1000+ shares!', color: AppColors.highlight, category: AchievementCategory.sharing),
+      Achievement(icon: Icons.explore, title: 'Explorer', description: 'Used 2 different share methods', color: AppColors.info, category: AchievementCategory.sharing),
+      Achievement(icon: Icons.diversity_3, title: 'Versatile', description: 'Used 3 different methods', color: AppColors.info, category: AchievementCategory.sharing),
+      Achievement(icon: Icons.apps, title: 'Omnichannel', description: 'Mastered all share methods', color: AppColors.info, category: AchievementCategory.sharing),
+      Achievement(icon: Icons.nfc, title: 'NFC Novice', description: '10 NFC shares', color: AppColors.primaryAction, category: AchievementCategory.sharing),
+      Achievement(icon: Icons.contactless, title: 'NFC Master', description: '50 NFC shares', color: AppColors.primaryAction, category: AchievementCategory.sharing),
+      Achievement(icon: Icons.tap_and_play, title: 'NFC Legend', description: '100+ NFC shares!', color: AppColors.highlight, category: AchievementCategory.sharing),
+
+      // CONNECTIONS (15)
+      Achievement(icon: Icons.person_add, title: 'First Connection', description: 'Received your first card', color: AppColors.success, category: AchievementCategory.connections),
+      Achievement(icon: Icons.people_outline, title: 'Social Starter', description: '5 connections made', color: AppColors.success, category: AchievementCategory.connections),
+      Achievement(icon: Icons.groups_2, title: 'Networker', description: '10 connections milestone', color: AppColors.success, category: AchievementCategory.connections),
+      Achievement(icon: Icons.diversity_2, title: 'Social Butterfly', description: '25 connections reached', color: AppColors.success, category: AchievementCategory.connections),
+      Achievement(icon: Icons.groups, title: 'Networking Pro', description: '50+ connections!', color: AppColors.success, category: AchievementCategory.connections),
+      Achievement(icon: Icons.group_add, title: 'Connection Champion', description: '100 connections made!', color: AppColors.highlight, category: AchievementCategory.connections),
+      Achievement(icon: Icons.public, title: 'Connector Elite', description: '250+ connections!', color: AppColors.highlight, category: AchievementCategory.connections),
+      Achievement(icon: Icons.hub, title: 'Network Hub', description: '500 connections achieved!', color: AppColors.highlight, category: AchievementCategory.connections),
+      Achievement(icon: Icons.language, title: 'Global Connector', description: '1000+ connections!', color: AppColors.highlight, category: AchievementCategory.connections),
+      Achievement(icon: Icons.trending_up, title: 'Active User', description: '50 total interactions', color: AppColors.info, category: AchievementCategory.connections),
+      Achievement(icon: Icons.auto_graph, title: 'Power User', description: '150+ total interactions', color: AppColors.info, category: AchievementCategory.connections),
+      Achievement(icon: Icons.show_chart, title: 'Super User', description: '500+ interactions!', color: AppColors.highlight, category: AchievementCategory.connections),
+      Achievement(icon: Icons.people_alt, title: 'Team Player', description: 'Share with 10+ people', color: AppColors.success, category: AchievementCategory.connections),
+      Achievement(icon: Icons.groups_3, title: 'Network Builder', description: 'Share with 50+ people', color: AppColors.success, category: AchievementCategory.connections),
+      Achievement(icon: Icons.public_rounded, title: 'Social Maven', description: 'Share with 100+ people', color: AppColors.highlight, category: AchievementCategory.connections),
+
+      // ACTIVITY (10)
+      Achievement(icon: Icons.calendar_month, title: 'Monthly Active', description: '10+ interactions this month', color: AppColors.info, category: AchievementCategory.activity),
+      Achievement(icon: Icons.event_available, title: 'Monthly Champion', description: '30+ this month!', color: AppColors.info, category: AchievementCategory.activity),
+      Achievement(icon: Icons.date_range, title: 'Monthly Legend', description: '50+ interactions this month!', color: AppColors.highlight, category: AchievementCategory.activity),
+      Achievement(icon: Icons.local_fire_department, title: 'Consistent', description: '3+ active days this week', color: AppColors.secondaryAction, category: AchievementCategory.activity),
+      Achievement(icon: Icons.whatshot, title: 'On Fire', description: '5+ active days this week', color: AppColors.secondaryAction, category: AchievementCategory.activity),
+      Achievement(icon: Icons.bolt, title: 'Perfect Week', description: 'Active all 7 days!', color: AppColors.highlight, category: AchievementCategory.activity),
+      Achievement(icon: Icons.today, title: 'Busy Day', description: '5+ interactions in one day', color: AppColors.info, category: AchievementCategory.activity),
+      Achievement(icon: Icons.schedule, title: 'Super Day', description: '10+ interactions in a day!', color: AppColors.info, category: AchievementCategory.activity),
+      Achievement(icon: Icons.flash_on, title: 'Power Day', description: '20+ in one day!', color: AppColors.highlight, category: AchievementCategory.activity),
+      Achievement(icon: Icons.speed, title: 'Mega Day', description: '50+ in one day!', color: AppColors.highlight, category: AchievementCategory.activity),
+
+      // SPECIAL (5)
+      Achievement(icon: Icons.balance, title: 'Balanced Networker', description: 'Equal give and take', color: AppColors.success, category: AchievementCategory.special),
+      Achievement(icon: Icons.settings, title: 'Method Master', description: '50+ with one method', color: AppColors.primaryAction, category: AchievementCategory.special),
+      Achievement(icon: Icons.flag, title: 'AtlasLinq Advocate', description: 'Active platform user', color: AppColors.highlight, category: AchievementCategory.special),
+      Achievement(icon: Icons.account_circle, title: 'Profile Pro', description: 'Completed your profile', color: AppColors.info, category: AchievementCategory.special),
+      Achievement(icon: Icons.forum, title: 'Community Member', description: 'Connected with multiple people', color: AppColors.success, category: AchievementCategory.special),
+    ];
+  }
+
+  /// Comprehensive achievements system with 45 achievements
   Widget _buildMilestones(_Analytics analytics) {
-    final milestones = <_Milestone>[];
+    final achievements = <_Achievement>[];
 
-    // Add milestones based on activity
-    if (analytics.totalConnections >= 1) {
-      milestones.add(_Milestone(
-        icon: Icons.celebration,
-        title: 'First Connection',
-        description: 'You\'ve made your first Atlas Linq connection!',
-        color: AppColors.success,
-      ));
+    // ========== SHARING ACHIEVEMENTS (15) ==========
+    // First shares
+    if (analytics.totalSent >= 1) achievements.add(_Achievement(icon: Icons.celebration, title: 'First Share', description: 'Shared your card for the first time', color: AppColors.primaryAction));
+    if (analytics.totalSent >= 5) achievements.add(_Achievement(icon: Icons.star_outline, title: 'Getting Started', description: '5 shares completed', color: AppColors.primaryAction));
+    if (analytics.totalSent >= 10) achievements.add(_Achievement(icon: Icons.send, title: 'Share Rookie', description: '10 shares milestone', color: AppColors.primaryAction));
+    if (analytics.totalSent >= 25) achievements.add(_Achievement(icon: Icons.rocket_launch, title: 'Rising Star', description: '25 shares achieved', color: AppColors.primaryAction));
+    if (analytics.totalSent >= 50) achievements.add(_Achievement(icon: Icons.star, title: 'Share Master', description: '50+ shares completed', color: AppColors.primaryAction));
+    if (analytics.totalSent >= 100) achievements.add(_Achievement(icon: Icons.workspace_premium, title: 'Century Club', description: '100 shares milestone!', color: AppColors.highlight));
+    if (analytics.totalSent >= 250) achievements.add(_Achievement(icon: Icons.emoji_events, title: 'Share Legend', description: '250+ shares completed', color: AppColors.highlight));
+    if (analytics.totalSent >= 500) achievements.add(_Achievement(icon: Icons.military_tech, title: 'Share Champion', description: '500 shares achieved!', color: AppColors.highlight));
+    if (analytics.totalSent >= 1000) achievements.add(_Achievement(icon: Icons.diamond, title: 'Diamond Sharer', description: '1000+ shares!', color: AppColors.highlight));
+
+    // Share methods diversity
+    if (analytics.methodCounts.keys.length >= 2) achievements.add(_Achievement(icon: Icons.explore, title: 'Explorer', description: 'Used 2 different share methods', color: AppColors.info));
+    if (analytics.methodCounts.keys.length >= 3) achievements.add(_Achievement(icon: Icons.diversity_3, title: 'Versatile', description: 'Used 3 different methods', color: AppColors.info));
+    if (analytics.methodCounts.keys.length >= 4) achievements.add(_Achievement(icon: Icons.apps, title: 'Omnichannel', description: 'Mastered all share methods', color: AppColors.info));
+
+    // NFC specific
+    final nfcCount = analytics.methodCounts[ShareMethod.nfc] ?? 0;
+    if (nfcCount >= 10) achievements.add(_Achievement(icon: Icons.nfc, title: 'NFC Novice', description: '10 NFC shares', color: AppColors.primaryAction));
+    if (nfcCount >= 50) achievements.add(_Achievement(icon: Icons.contactless, title: 'NFC Master', description: '50 NFC shares', color: AppColors.primaryAction));
+    if (nfcCount >= 100) achievements.add(_Achievement(icon: Icons.tap_and_play, title: 'NFC Legend', description: '100+ NFC shares!', color: AppColors.highlight));
+
+    // ========== CONNECTION ACHIEVEMENTS (15) ==========
+    // Receiving connections
+    if (analytics.totalReceived >= 1) achievements.add(_Achievement(icon: Icons.person_add, title: 'First Connection', description: 'Received your first card', color: AppColors.success));
+    if (analytics.totalReceived >= 5) achievements.add(_Achievement(icon: Icons.people_outline, title: 'Social Starter', description: '5 connections made', color: AppColors.success));
+    if (analytics.totalReceived >= 10) achievements.add(_Achievement(icon: Icons.groups_2, title: 'Networker', description: '10 connections milestone', color: AppColors.success));
+    if (analytics.totalReceived >= 25) achievements.add(_Achievement(icon: Icons.diversity_2, title: 'Social Butterfly', description: '25 connections reached', color: AppColors.success));
+    if (analytics.totalReceived >= 50) achievements.add(_Achievement(icon: Icons.groups, title: 'Networking Pro', description: '50+ connections!', color: AppColors.success));
+    if (analytics.totalReceived >= 100) achievements.add(_Achievement(icon: Icons.group_add, title: 'Connection Champion', description: '100 connections made!', color: AppColors.highlight));
+    if (analytics.totalReceived >= 250) achievements.add(_Achievement(icon: Icons.public, title: 'Connector Elite', description: '250+ connections!', color: AppColors.highlight));
+    if (analytics.totalReceived >= 500) achievements.add(_Achievement(icon: Icons.hub, title: 'Network Hub', description: '500 connections achieved!', color: AppColors.highlight));
+    if (analytics.totalReceived >= 1000) achievements.add(_Achievement(icon: Icons.language, title: 'Global Connector', description: '1000+ connections!', color: AppColors.highlight));
+
+    // Recent connections (removed multiple interaction achievements since you only receive once)
+
+    // Total interactions
+    if (analytics.totalConnections >= 50) achievements.add(_Achievement(icon: Icons.trending_up, title: 'Active User', description: '50 total interactions', color: AppColors.info));
+    if (analytics.totalConnections >= 150) achievements.add(_Achievement(icon: Icons.auto_graph, title: 'Power User', description: '150+ total interactions', color: AppColors.info));
+    if (analytics.totalConnections >= 500) achievements.add(_Achievement(icon: Icons.show_chart, title: 'Super User', description: '500+ interactions!', color: AppColors.highlight));
+
+    // ========== ACTIVITY ACHIEVEMENTS (10) ==========
+    // Monthly activity
+    if (analytics.monthlyTotal >= 10) achievements.add(_Achievement(icon: Icons.calendar_month, title: 'Monthly Active', description: '10+ interactions this month', color: AppColors.info));
+    if (analytics.monthlyTotal >= 30) achievements.add(_Achievement(icon: Icons.event_available, title: 'Monthly Champion', description: '30+ this month!', color: AppColors.info));
+    if (analytics.monthlyTotal >= 50) achievements.add(_Achievement(icon: Icons.date_range, title: 'Monthly Legend', description: '50+ interactions this month!', color: AppColors.highlight));
+
+    // Weekly streaks (7-day activity)
+    final activeDaysThisWeek = analytics.chartData.values.where((day) => (day.sent + day.received) > 0).length;
+    if (activeDaysThisWeek >= 3) achievements.add(_Achievement(icon: Icons.local_fire_department, title: 'Consistent', description: '3+ active days this week', color: AppColors.secondaryAction));
+    if (activeDaysThisWeek >= 5) achievements.add(_Achievement(icon: Icons.whatshot, title: 'On Fire', description: '5+ active days this week', color: AppColors.secondaryAction));
+    if (activeDaysThisWeek >= 7) achievements.add(_Achievement(icon: Icons.bolt, title: 'Perfect Week', description: 'Active all 7 days!', color: AppColors.highlight));
+
+    // Daily achievements
+    final maxDailyActivity = analytics.chartData.values.map((d) => d.sent + d.received).reduce((a, b) => a > b ? a : b);
+    if (maxDailyActivity >= 5) achievements.add(_Achievement(icon: Icons.today, title: 'Busy Day', description: '5+ interactions in one day', color: AppColors.info));
+    if (maxDailyActivity >= 10) achievements.add(_Achievement(icon: Icons.schedule, title: 'Super Day', description: '10+ interactions in a day!', color: AppColors.info));
+    if (maxDailyActivity >= 20) achievements.add(_Achievement(icon: Icons.flash_on, title: 'Power Day', description: '20+ in one day!', color: AppColors.highlight));
+    if (maxDailyActivity >= 50) achievements.add(_Achievement(icon: Icons.speed, title: 'Mega Day', description: '50+ in one day!', color: AppColors.highlight));
+
+    // ========== SPECIAL ACHIEVEMENTS (5) ==========
+    // Balanced user
+    final shareReceiveRatio = analytics.totalSent > 0 ? analytics.totalReceived / analytics.totalSent : 0;
+    if (shareReceiveRatio >= 0.8 && shareReceiveRatio <= 1.2 && analytics.totalConnections >= 20) {
+      achievements.add(_Achievement(icon: Icons.balance, title: 'Balanced Networker', description: 'Equal give and take', color: AppColors.success));
     }
 
-    if (analytics.totalConnections >= 10) {
-      milestones.add(_Milestone(
-        icon: Icons.groups,
-        title: '10 Connections',
-        description: 'You\'ve connected with 10 people',
-        color: AppColors.info,
-      ));
+    // Method master
+    if (analytics.methodCounts.isNotEmpty) {
+      final maxMethodCount = analytics.methodCounts.values.reduce((a, b) => a > b ? a : b);
+      if (maxMethodCount >= 50) achievements.add(_Achievement(icon: Icons.settings, title: 'Method Master', description: '50+ with one method', color: AppColors.primaryAction));
     }
 
-    if (analytics.totalConnections >= 50) {
-      milestones.add(_Milestone(
-        icon: Icons.star,
-        title: 'Networking Pro',
-        description: '50+ connections made!',
-        color: AppColors.highlight,
-      ));
-    }
+    // Early adopter (placeholder - would need registration date)
+    if (analytics.totalConnections >= 10) achievements.add(_Achievement(icon: Icons.flag, title: 'AtlasLinq Advocate', description: 'Active platform user', color: AppColors.highlight));
 
-    if (analytics.totalSent >= 20) {
-      milestones.add(_Milestone(
-        icon: Icons.send,
-        title: 'Share Master',
-        description: 'Shared your card 20+ times',
-        color: AppColors.primaryAction,
-      ));
-    }
+    // Profile completeness (placeholder)
+    achievements.add(_Achievement(icon: Icons.account_circle, title: 'Profile Pro', description: 'Completed your profile', color: AppColors.info));
 
-    if (milestones.isEmpty) {
+    // Community member
+    if (analytics.recentConnections.length >= 3) achievements.add(_Achievement(icon: Icons.forum, title: 'Community Member', description: 'Connected with multiple people', color: AppColors.success));
+
+    if (achievements.isEmpty) {
       return const SizedBox.shrink();
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Milestones',
-          style: AppTextStyles.h2.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Achievements',
+              style: AppTextStyles.h2.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.mediumImpact();
+                _openAchievementsModal(context, analytics);
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppColors.highlight.withOpacity(0.2),
+                      AppColors.primaryAction.withOpacity(0.2),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: AppColors.highlight.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${achievements.length}/45',
+                      style: AppTextStyles.body.copyWith(
+                        color: AppColors.highlight,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.chevron_right,
+                      color: AppColors.highlight,
+                      size: 18,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 16),
         Wrap(
           spacing: 12,
           runSpacing: 12,
-          children: milestones.map((milestone) {
-            return _buildMilestoneCard(milestone);
+          children: achievements.map((achievement) {
+            return _buildAchievementCard(achievement);
           }).toList(),
         ),
       ],
     );
   }
 
-  Widget _buildMilestoneCard(_Milestone milestone) {
+  Widget _buildAchievementCard(_Achievement achievement) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: BackdropFilter(
@@ -960,15 +1353,15 @@ class _InsightsScreenState extends State<InsightsScreen> {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                milestone.color.withOpacity(0.15),
-                milestone.color.withOpacity(0.05),
+                achievement.color.withOpacity(0.15),
+                achievement.color.withOpacity(0.05),
               ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: milestone.color.withOpacity(0.3),
+              color: achievement.color.withOpacity(0.3),
               width: 1,
             ),
           ),
@@ -976,8 +1369,8 @@ class _InsightsScreenState extends State<InsightsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                milestone.icon,
-                color: milestone.color,
+                achievement.icon,
+                color: achievement.color,
                 size: 20,
               ),
               const SizedBox(width: 8),
@@ -986,14 +1379,14 @@ class _InsightsScreenState extends State<InsightsScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    milestone.title,
+                    achievement.title,
                     style: AppTextStyles.caption.copyWith(
-                      color: milestone.color,
+                      color: achievement.color,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   Text(
-                    milestone.description,
+                    achievement.description,
                     style: AppTextStyles.caption.copyWith(
                       color: AppColors.textTertiary,
                       fontSize: 10,
@@ -1018,20 +1411,20 @@ class _Analytics {
   final int totalReceived;
   final int totalConnections;
   final int monthlyTotal;
-  final ShareMethod? favoriteMethod;
+  final ShareMethod? topReceivedMethod;
   final Map<ShareMethod, int> methodCounts;
   final Map<DateTime, _DayActivity> chartData;
-  final List<_ConnectionData> topConnections;
+  final List<_ConnectionData> recentConnections;
 
   _Analytics({
     required this.totalSent,
     required this.totalReceived,
     required this.totalConnections,
     required this.monthlyTotal,
-    required this.favoriteMethod,
+    required this.topReceivedMethod,
     required this.methodCounts,
     required this.chartData,
-    required this.topConnections,
+    required this.recentConnections,
   });
 }
 
@@ -1056,13 +1449,13 @@ class _ConnectionData {
   });
 }
 
-class _Milestone {
+class _Achievement {
   final IconData icon;
   final String title;
   final String description;
   final Color color;
 
-  _Milestone({
+  _Achievement({
     required this.icon,
     required this.title,
     required this.description,

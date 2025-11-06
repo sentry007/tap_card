@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 import '../../theme/theme.dart';
 import '../../models/history_models.dart';
 import '../../services/history_service.dart';
+import '../../services/profile_views_service.dart';
+import '../../core/services/profile_service.dart';
 import '../../core/constants/routes.dart';
 
 /// Activity Insights Widget
@@ -13,8 +15,8 @@ import '../../core/constants/routes.dart';
 /// Displays a summary card of recent activity including:
 /// - Cards sent in the last 7 days
 /// - Cards received in the last 7 days
-/// - New contacts in the last 24 hours
-/// - Profile views (placeholder)
+/// - Profile views this week (from Firestore)
+/// - Total profile views
 ///
 /// Tappable to navigate to the full insights screen.
 class ActivityInsightsWidget extends StatelessWidget {
@@ -22,13 +24,33 @@ class ActivityInsightsWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Get active profile ID
+    final profileService = ProfileService();
+    final activeProfile = profileService.activeProfile;
+
+    if (activeProfile == null) {
+      return const SizedBox.shrink();
+    }
+
     return StreamBuilder<List<HistoryEntry>>(
       stream: HistoryService.historyStream(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
+      builder: (context, historySnapshot) {
+        if (!historySnapshot.hasData) {
           return const SizedBox.shrink();
         }
-        return _ActivityInsightsCard(history: snapshot.data!);
+
+        // Stream view counts from Firestore (real-time)
+        return StreamBuilder<Map<String, int>>(
+          stream: ProfileViewsService.viewCountsStream(activeProfile.id),
+          builder: (context, viewsSnapshot) {
+            final viewCounts = viewsSnapshot.data ?? {'total': 0, 'thisWeek': 0};
+            return _ActivityInsightsCard(
+              history: historySnapshot.data!,
+              viewsThisWeek: viewCounts['thisWeek'] ?? 0,
+              viewsTotal: viewCounts['total'] ?? 0,
+            );
+          },
+        );
       },
     );
   }
@@ -37,8 +59,14 @@ class ActivityInsightsWidget extends StatelessWidget {
 /// Internal widget that displays the insights card
 class _ActivityInsightsCard extends StatelessWidget {
   final List<HistoryEntry> history;
+  final int viewsThisWeek;
+  final int viewsTotal;
 
-  const _ActivityInsightsCard({required this.history});
+  const _ActivityInsightsCard({
+    required this.history,
+    required this.viewsThisWeek,
+    required this.viewsTotal,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -52,11 +80,6 @@ class _ActivityInsightsCard extends StatelessWidget {
         recentHistory.where((e) => e.type == HistoryEntryType.received).length;
     final sentCount =
         recentHistory.where((e) => e.type == HistoryEntryType.sent).length;
-    final newContacts = recentHistory
-        .where((e) =>
-            e.type == HistoryEntryType.received &&
-            now.difference(e.timestamp).inHours < 24)
-        .length;
 
     // Show empty state if no recent activity
     final hasRecentActivity = recentHistory.isNotEmpty;
@@ -85,13 +108,13 @@ class _ActivityInsightsCard extends StatelessWidget {
           ),
         ),
         child: hasRecentActivity
-            ? _buildActivityStats(sentCount, receivedCount, newContacts)
+            ? _buildActivityStats(sentCount, receivedCount, viewsThisWeek, viewsTotal)
             : _buildEmptyState(),
       ),
     );
   }
 
-  Widget _buildActivityStats(int sentCount, int receivedCount, int newContacts) {
+  Widget _buildActivityStats(int sentCount, int receivedCount, int viewsThisWeek, int viewsTotal) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -126,9 +149,9 @@ class _ActivityInsightsCard extends StatelessWidget {
             ),
             Expanded(
               child: _InsightStat(
-                value: newContacts.toString(),
-                label: 'New',
-                icon: CupertinoIcons.sparkles,
+                value: viewsThisWeek.toString(),
+                label: 'Views',
+                icon: CupertinoIcons.eye_fill,
                 color: AppColors.info,
               ),
             ),
@@ -137,11 +160,11 @@ class _ActivityInsightsCard extends StatelessWidget {
               height: 40,
               color: Colors.white.withOpacity(0.1),
             ),
-            const Expanded(
+            Expanded(
               child: _InsightStat(
-                value: '---',
-                label: 'Views',
-                icon: CupertinoIcons.eye_fill,
+                value: _formatLargeNumber(viewsTotal),
+                label: 'Total',
+                icon: CupertinoIcons.chart_bar_circle_fill,
                 color: AppColors.highlight,
               ),
             ),
@@ -171,6 +194,16 @@ class _ActivityInsightsCard extends StatelessWidget {
     );
   }
 
+  /// Format large numbers for display (e.g., 1000 -> 1k, 1500000 -> 1.5M)
+  String _formatLargeNumber(int number) {
+    if (number >= 1000000) {
+      return '${(number / 1000000).toStringAsFixed(1)}M';
+    } else if (number >= 1000) {
+      return '${(number / 1000).toStringAsFixed(1)}k';
+    }
+    return number.toString();
+  }
+
   Widget _buildEmptyState() {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -183,7 +216,7 @@ class _ActivityInsightsCard extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         Text(
-          'Start sharing with Atlas Linq to see insights!',
+          'Start sharing with AtlasLinq to see insights!',
           style: AppTextStyles.body.copyWith(
             color: AppColors.textSecondary,
             fontSize: 14,
