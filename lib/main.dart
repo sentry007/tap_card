@@ -19,6 +19,7 @@ import 'core/providers/app_state.dart';
 import 'core/navigation/app_router.dart';
 import 'core/constants/widget_keys.dart';
 import 'core/services/profile_service.dart';
+import 'services/tutorial_service.dart';
 import 'theme/theme.dart';
 
 /// Application entry point
@@ -79,6 +80,17 @@ void main() async {
   await ProfileService().initialize();
   developer.log(
     '✅ ProfileService initialized',
+    name: 'App.Main',
+  );
+
+  // Initialize TutorialService for interactive onboarding
+  developer.log(
+    '🎓 Initializing TutorialService...',
+    name: 'App.Main',
+  );
+  await TutorialService.initialize();
+  developer.log(
+    '✅ TutorialService initialized',
     name: 'App.Main',
   );
 

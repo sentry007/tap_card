@@ -43,6 +43,8 @@ import '../../screens/settings/settings_screen.dart';
 import '../../screens/insights/insights_screen.dart';
 import '../../screens/contact_detail_screen.dart';
 import '../../models/unified_models.dart';
+import '../../services/tutorial_service.dart';
+import '../../widgets/tutorial/tutorial.dart';
 import 'navigation_wrapper.dart';
 
 /// Router configuration factory
@@ -189,16 +191,37 @@ class AppRouter {
             return NavigationWrapper(child: child);
           },
           routes: [
-            // Home Screen
+            // Home Screen (with Tutorial Overlay)
             GoRoute(
               path: AppRoutes.home,
               name: 'home',
               pageBuilder: (context, state) {
                 developer.log('📍 Navigated to Home', name: 'Router.Navigate');
+
                 return _buildPageWithTransition(
                   context,
                   state,
-                  const HomeScreen(),
+                  FutureBuilder<bool>(
+                    future: TutorialService.shouldShowTutorial(),
+                    builder: (context, snapshot) {
+                      final shouldShowTutorial = snapshot.data ?? false;
+
+                      if (!snapshot.hasData) {
+                        // Show loading or just the screen while checking
+                        return const HomeScreen();
+                      }
+
+                      developer.log(
+                        '🎓 Tutorial should show: $shouldShowTutorial',
+                        name: 'Router.Navigate',
+                      );
+
+                      return TutorialOverlay(
+                        showTutorial: shouldShowTutorial,
+                        child: const HomeScreen(),
+                      );
+                    },
+                  ),
                 );
               },
             ),

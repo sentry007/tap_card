@@ -14,9 +14,12 @@ import '../../services/nfc_service.dart';
 import '../../services/nfc_settings_service.dart';
 import '../../services/history_service.dart';
 import '../../services/settings_service.dart';
+import '../../services/tutorial_service.dart';
+import '../../widgets/tutorial/tutorial.dart';
 import 'profile_detail_modal.dart';
 import 'qr_settings_screen.dart';
 import 'package:app_settings/app_settings.dart';
+import 'package:go_router/go_router.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -322,6 +325,8 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                     _buildNFCSettings(),
                     const SizedBox(height: AppSpacing.lg),
                     _buildNotificationPreferences(),
+                    const SizedBox(height: AppSpacing.lg),
+                    _buildTutorialSection(),
                     const SizedBox(height: AppSpacing.lg),
                     _buildAdvancedOptions(),
                     const SizedBox(height: AppSpacing.bottomNavHeight + AppSpacing.md),
@@ -704,6 +709,84 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
     );
   }
 
+
+  Widget _buildTutorialSection() {
+    return _buildSettingsSection(
+      'Help & Tutorial',
+      CupertinoIcons.book,
+      [
+        Container(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: FutureBuilder<int>(
+            future: TutorialService.getTutorialProgress(),
+            builder: (context, snapshot) {
+              final progress = snapshot.data ?? 0;
+              return Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(AppSpacing.sm),
+                    decoration: BoxDecoration(
+                      color: AppColors.highlight.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                    ),
+                    child: const Icon(
+                      CupertinoIcons.chart_bar_square,
+                      color: AppColors.highlight,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Tutorial Progress',
+                          style: AppTextStyles.body.copyWith(
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        Text(
+                          '$progress% complete',
+                          style: AppTextStyles.caption,
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (progress == 100)
+                    const Icon(
+                      CupertinoIcons.checkmark_seal_fill,
+                      color: AppColors.success,
+                      size: 24,
+                    ),
+                ],
+              );
+            },
+          ),
+        ),
+        SettingsActionTile(
+          icon: CupertinoIcons.arrow_clockwise,
+          title: 'Restart Tutorial',
+          subtitle: 'Replay the interactive guide',
+          onTap: () async {
+            await TutorialService.resetTutorial();
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Tutorial reset! Navigate to Home to start.'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+              // Navigate to home screen with tutorial
+              context.go('/home');
+            }
+          },
+        ),
+      ],
+    );
+  }
 
   Widget _buildNFCSettings() {
     return _buildSettingsSection(
