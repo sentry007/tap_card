@@ -232,6 +232,7 @@ class ProfileData {
   final String? _cachedVCard; // Pre-computed vCard for dual-payload NFC
   final String? _cachedCardUrl; // Pre-computed URL for dual-payload NFC
   final DateTime? _dualPayloadCacheTime; // When dual payload was last generated
+  final List<String> receivedCardUuids; // UUIDs of cards received from others (for history/sharing tracking)
 
   ProfileData({
     required this.id,
@@ -253,6 +254,7 @@ class ProfileData {
     String? cachedVCard,
     String? cachedCardUrl,
     DateTime? dualPayloadCacheTime,
+    this.receivedCardUuids = const [],
   }) : cardAesthetics = cardAesthetics ?? CardAesthetics.defaultForType(type),
        _cachedNfcPayload = cachedNfcPayload,
        _cachedVCard = cachedVCard,
@@ -279,6 +281,7 @@ class ProfileData {
     String? cachedVCard,
     String? cachedCardUrl,
     DateTime? dualPayloadCacheTime,
+    List<String>? receivedCardUuids,
   }) {
     return ProfileData(
       id: id ?? this.id,
@@ -300,6 +303,7 @@ class ProfileData {
       cachedVCard: cachedVCard ?? _cachedVCard,
       cachedCardUrl: cachedCardUrl ?? _cachedCardUrl,
       dualPayloadCacheTime: dualPayloadCacheTime ?? _dualPayloadCacheTime,
+      receivedCardUuids: receivedCardUuids ?? this.receivedCardUuids,
     );
   }
 
@@ -324,6 +328,7 @@ class ProfileData {
       'cachedVCard': _cachedVCard,
       'cachedCardUrl': _cachedCardUrl,
       'dualPayloadCacheTime': _dualPayloadCacheTime?.toIso8601String(),
+      'receivedCardUuids': receivedCardUuids,
     };
   }
 
@@ -362,6 +367,9 @@ class ProfileData {
       dualPayloadCacheTime: json['dualPayloadCacheTime'] != null
         ? DateTime.parse(json['dualPayloadCacheTime'])
         : null,
+      receivedCardUuids: (json['receivedCardUuids'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList() ?? [],
     );
   }
 

@@ -555,6 +555,43 @@ class ProfileService extends ChangeNotifier {
     }
   }
 
+  /// Add received card UUID to active profile
+  ///
+  /// Tracks cards received from others for history and sharing analytics
+  /// Prevents duplicates - only adds if UUID not already in list
+  Future<void> addReceivedCard(String receivedProfileUuid) async {
+    final active = activeProfile;
+    if (active == null) {
+      developer.log(
+        '⚠️ No active profile - cannot add received card',
+        name: 'ProfileService.ReceivedCards',
+      );
+      return;
+    }
+
+    // Don't add duplicates
+    if (active.receivedCardUuids.contains(receivedProfileUuid)) {
+      developer.log(
+        'ℹ️ Card already in received list: $receivedProfileUuid',
+        name: 'ProfileService.ReceivedCards',
+      );
+      return;
+    }
+
+    // Add to list
+    final updatedUuids = [...active.receivedCardUuids, receivedProfileUuid];
+    final updatedProfile = active.copyWith(receivedCardUuids: updatedUuids);
+
+    developer.log(
+      '📇 Added received card to profile\n'
+      '   • Received UUID: $receivedProfileUuid\n'
+      '   • Total received: ${updatedUuids.length}',
+      name: 'ProfileService.ReceivedCards',
+    );
+
+    await updateProfile(updatedProfile);
+  }
+
   // ========== Firebase Sync Methods ==========
 
   /// Sync profile to Firestore (background, non-blocking)
