@@ -1,10 +1,11 @@
-import 'dart:ui';
+import 'dart:ui' as ui;
 import 'dart:io';
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
-import 'package:qr_flutter/qr_flutter.dart';
+import 'package:flutter/foundation.dart'; // For SynchronousFuture
+import 'package:pretty_qr_code/pretty_qr_code.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -70,11 +71,12 @@ class _ShareModalState extends State<ShareModal>
 
   // QR settings
   QrSize _qrSize = QrSize.medium;
-  int _errorCorrectionLevel = QrErrorCorrectLevel.M;
+  int _errorCorrectionLevel = QrErrorCorrectLevel.M; // 0=L, 1=M, 2=Q, 3=H
   int _colorMode = 0;
   Color _borderColor = AppColors.p2pSecondary;
-  bool _showInitials = false;
-  String _initials = '';
+  bool _showLogo = true; // Show logo in QR by default
+  QrLogoType _logoType = QrLogoType.atlasLogo; // Default to Atlas logo
+  String _initials = ''; // User initials for QR
 
   @override
   void initState() {
@@ -91,8 +93,10 @@ class _ShareModalState extends State<ShareModal>
     final errorLevel = await QrSettingsService.getErrorCorrectionLevel();
     final colorMode = await QrSettingsService.getColorMode();
     final borderColorValue = await QrSettingsService.getBorderColor();
-    final showInitials = await QrSettingsService.getShowInitials();
-    final initials = await QrSettingsService.getInitials();
+    final showLogo = await QrSettingsService.getIncludeLogo();
+    final logoType = await QrSettingsService.getQrLogoType();
+    // Auto-extract initials from userName
+    final initials = QrSettingsService.extractInitials(widget.userName);
 
     if (mounted) {
       setState(() {
@@ -100,8 +104,9 @@ class _ShareModalState extends State<ShareModal>
         _errorCorrectionLevel = errorLevel;
         _colorMode = colorMode;
         _borderColor = borderColorValue != null ? Color(borderColorValue) : AppColors.p2pSecondary;
-        _showInitials = showInitials;
-        _initials = initials ?? '';
+        _showLogo = showLogo;
+        _logoType = logoType;
+        _initials = initials;
       });
     }
   }
@@ -182,7 +187,7 @@ class _ShareModalState extends State<ShareModal>
         borderRadius: BorderRadius.circular(24),
         child: BackdropFilter(
           key: const Key('share_modal_backdrop'),
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
             key: const Key('share_modal_content_container'),
             decoration: BoxDecoration(
@@ -458,29 +463,24 @@ class _ShareModalState extends State<ShareModal>
               ),
             ],
           ),
-          child: _colorMode == 1
-              ? QrImageView(
-                  data: _qrData,
-                  version: QrVersions.auto,
-                  size: _qrSize.pixels.toDouble(),
-                  backgroundColor: Colors.white,
-                  errorCorrectionLevel: _errorCorrectionLevel,
-                  eyeStyle: QrEyeStyle(
-                    eyeShape: QrEyeShape.square,
-                    color: _borderColor,
-                  ),
-                  dataModuleStyle: const QrDataModuleStyle(
-                    dataModuleShape: QrDataModuleShape.square,
-                    color: Colors.black,
-                  ),
-                )
-              : QrImageView(
-                  data: _qrData,
-                  version: QrVersions.auto,
-                  size: _qrSize.pixels.toDouble(),
-                  backgroundColor: Colors.white,
-                  errorCorrectionLevel: _errorCorrectionLevel,
-                ),
+          child: SizedBox(
+            width: _qrSize.pixels.toDouble(),
+            height: _qrSize.pixels.toDouble(),
+            child: PrettyQrView.data(
+              data: _qrData,
+              errorCorrectLevel: _errorCorrectionLevel,
+              decoration: PrettyQrDecoration(
+                shape: _colorMode == 1
+                    ? PrettyQrSmoothSymbol(
+                        color: _borderColor,
+                      )
+                    : const PrettyQrSmoothSymbol(
+                        color: Colors.black,
+                      ),
+                image: _showLogo ? _buildLogoImage() : null,
+              ),
+            ),
+          ),
         ),
         const SizedBox(height: 12),
         Text(
@@ -491,6 +491,40 @@ class _ShareModalState extends State<ShareModal>
         ),
       ],
     );
+  }
+
+  /// Build logo image based on selected type
+  PrettyQrDecorationImage? _buildLogoImage() {
+    switch (_logoType) {
+      case QrLogoType.atlasLogo:
+        return const PrettyQrDecorationImage(
+          image: AssetImage('assets/images/atlaslinq_logo_white.png'),
+        );
+
+      case QrLogoType.initials:
+        if (_initials.isEmpty) return null;
+        // Use a custom painter to render initials
+        return PrettyQrDecorationImage(
+          image: _buildInitialsImage(),
+        );
+
+      case QrLogoType.profileImage:
+        if (widget.profileImageUrl != null && widget.profileImageUrl!.isNotEmpty) {
+          return PrettyQrDecorationImage(
+            image: NetworkImage(widget.profileImageUrl!),
+          );
+        }
+        // Fallback to Atlas logo if no profile image
+        return const PrettyQrDecorationImage(
+          image: AssetImage('assets/images/atlaslinq_logo_white.png'),
+        );
+    }
+  }
+
+  /// Build initials as an image using a custom image provider
+  ImageProvider _buildInitialsImage() {
+    // Use a custom painted image provider for initials
+    return _InitialsImageProvider(_initials);
   }
 
   Widget _buildCompactLinkSection() {
@@ -793,7 +827,7 @@ class _ShareModalState extends State<ShareModal>
         content: ClipRRect(
           borderRadius: BorderRadius.circular(12),
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
               decoration: BoxDecoration(
@@ -828,7 +862,7 @@ class _ShareModalState extends State<ShareModal>
         content: ClipRRect(
           borderRadius: BorderRadius.circular(12),
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
               decoration: BoxDecoration(
@@ -857,4 +891,63 @@ class _ShareModalState extends State<ShareModal>
     );
   }
 
+}
+
+/// Custom ImageProvider for rendering initials as a circular image
+class _InitialsImageProvider extends ImageProvider<_InitialsImageProvider> {
+  final String initials;
+
+  const _InitialsImageProvider(this.initials);
+
+  @override
+  Future<_InitialsImageProvider> obtainKey(ImageConfiguration configuration) {
+    return SynchronousFuture<_InitialsImageProvider>(this);
+  }
+
+  @override
+  ImageStreamCompleter loadImage(_InitialsImageProvider key, ImageDecoderCallback decode) {
+    return OneFrameImageStreamCompleter(_loadAsync(key));
+  }
+
+  Future<ImageInfo> _loadAsync(_InitialsImageProvider key) async {
+    const size = 200.0;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+
+    // Draw simple initials text (no circular background)
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: initials,
+        style: const TextStyle(
+          color: Colors.black,
+          fontSize: size * 0.6,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 4,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout();
+    textPainter.paint(
+      canvas,
+      Offset(
+        (size - textPainter.width) / 2,
+        (size - textPainter.height) / 2,
+      ),
+    );
+
+    // Convert to image
+    final picture = recorder.endRecording();
+    final img = await picture.toImage(size.toInt(), size.toInt());
+    return ImageInfo(image: img);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other.runtimeType != runtimeType) return false;
+    return other is _InitialsImageProvider && other.initials == initials;
+  }
+
+  @override
+  int get hashCode => initials.hashCode;
 }

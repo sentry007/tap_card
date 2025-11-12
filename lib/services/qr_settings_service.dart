@@ -11,7 +11,7 @@ library;
 
 import 'dart:developer' as developer;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:qr_flutter/qr_flutter.dart';
+import 'package:qr/qr.dart' show QrErrorCorrectLevel;
 
 /// QR Code size presets
 enum QrSize {
@@ -22,6 +22,24 @@ enum QrSize {
   const QrSize(this.pixels, this.label);
   final int pixels;
   final String label;
+}
+
+/// QR Code logo type options
+enum QrLogoType {
+  atlasLogo(0, 'Atlas Linq Logo'),
+  initials(1, 'My Initials'),
+  profileImage(2, 'My Profile Picture');
+
+  const QrLogoType(this.value, this.label);
+  final int value;
+  final String label;
+
+  static QrLogoType fromValue(int value) {
+    return QrLogoType.values.firstWhere(
+      (type) => type.value == value,
+      orElse: () => QrLogoType.atlasLogo,
+    );
+  }
 }
 
 /// Singleton service for managing QR-related settings
@@ -38,6 +56,7 @@ class QrSettingsService {
   static const String _qrBorderColorKey = 'qr_border_color';
   static const String _qrInitialsKey = 'qr_initials';
   static const String _qrShowInitialsKey = 'qr_show_initials';
+  static const String _qrLogoTypeKey = 'qr_logo_type';
 
   static bool _isInitialized = false;
   static SharedPreferences? _prefs;
@@ -185,6 +204,46 @@ class QrSettingsService {
     } catch (e) {
       developer.log(
         '❌ Error setting include logo: $e',
+        name: 'QR.Settings',
+        error: e
+      );
+    }
+  }
+
+  /// Get QR logo type (atlas logo, initials, or profile image)
+  /// Returns [QrLogoType.atlasLogo] if not set or on error
+  static Future<QrLogoType> getQrLogoType() async {
+    await _ensureInitialized();
+
+    try {
+      final value = _prefs?.getInt(_qrLogoTypeKey);
+      if (value == null) {
+        return QrLogoType.atlasLogo; // Default to Atlas logo
+      }
+      return QrLogoType.fromValue(value);
+    } catch (e) {
+      developer.log(
+        '❌ Error getting QR logo type: $e',
+        name: 'QR.Settings',
+        error: e
+      );
+      return QrLogoType.atlasLogo;
+    }
+  }
+
+  /// Set QR logo type
+  static Future<void> setQrLogoType(QrLogoType type) async {
+    await _ensureInitialized();
+
+    try {
+      await _prefs?.setInt(_qrLogoTypeKey, type.value);
+      developer.log(
+        '✅ QR logo type set to: ${type.label}',
+        name: 'QR.Settings'
+      );
+    } catch (e) {
+      developer.log(
+        '❌ Error setting QR logo type: $e',
         name: 'QR.Settings',
         error: e
       );
@@ -385,6 +444,7 @@ class QrSettingsService {
       await _prefs?.remove(_qrBorderColorKey);
       await _prefs?.remove(_qrInitialsKey);
       await _prefs?.remove(_qrShowInitialsKey);
+      await _prefs?.remove(_qrLogoTypeKey);
       developer.log('🔄 QR settings reset to defaults', name: 'QR.Settings');
     } catch (e) {
       developer.log(

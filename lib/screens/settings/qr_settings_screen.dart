@@ -6,18 +6,25 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
-import 'package:qr_flutter/qr_flutter.dart';
+import 'package:flutter/foundation.dart';
+import 'package:pretty_qr_code/pretty_qr_code.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
-import 'dart:ui';
+import 'dart:ui' as ui;
 
 import '../../theme/theme.dart';
 import '../../widgets/widgets.dart';
 import '../../services/qr_settings_service.dart';
 import '../../core/constants/app_constants.dart';
-import '../../core/services/profile_service.dart';
 
 class QrSettingsScreen extends StatefulWidget {
-  const QrSettingsScreen({super.key});
+  final String userName;
+  final String? profileImageUrl;
+
+  const QrSettingsScreen({
+    super.key,
+    required this.userName,
+    this.profileImageUrl,
+  });
 
   @override
   State<QrSettingsScreen> createState() => _QrSettingsScreenState();
@@ -27,11 +34,13 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
   // QR Settings
   QrSize _qrSize = QrSize.medium;
   int _errorCorrectionLevel = QrErrorCorrectLevel.M;
-  bool _includeLogo = false;
+  bool _includeLogo = false; // Whether to show logo in QR
+  QrLogoType _logoType = QrLogoType.atlasLogo; // Which logo type to use
   int _colorMode = 0; // 0 = black/white, 1 = custom border
   Color _borderColor = AppColors.p2pSecondary; // Default deep purple
-  bool _showInitials = false;
-  String _initials = '';
+
+  // Auto-extracted initials from userName
+  String get _initials => QrSettingsService.extractInitials(widget.userName);
 
   @override
   void initState() {
@@ -45,32 +54,18 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
     final size = await QrSettingsService.getQrSize();
     final errorLevel = await QrSettingsService.getErrorCorrectionLevel();
     final logo = await QrSettingsService.getIncludeLogo();
+    final logoType = await QrSettingsService.getQrLogoType();
     final colorMode = await QrSettingsService.getColorMode();
     final borderColorValue = await QrSettingsService.getBorderColor();
-    final showInitials = await QrSettingsService.getShowInitials();
-    final initials = await QrSettingsService.getInitials();
-
-    // Get user's name from ProfileService to extract initials
-    final profileService = ProfileService();
-    final activeProfile = profileService.activeProfile;
-    String extractedInitials = '';
-    if (activeProfile != null && activeProfile.name.isNotEmpty) {
-      extractedInitials = QrSettingsService.extractInitials(activeProfile.name);
-      // Save initials if not already set
-      if (initials == null || initials.isEmpty) {
-        await QrSettingsService.setInitials(extractedInitials);
-      }
-    }
 
     if (mounted) {
       setState(() {
         _qrSize = size;
         _errorCorrectionLevel = errorLevel;
         _includeLogo = logo;
+        _logoType = logoType;
         _colorMode = colorMode;
         _borderColor = borderColorValue != null ? Color(borderColorValue) : AppColors.p2pSecondary;
-        _showInitials = showInitials;
-        _initials = initials ?? extractedInitials;
       });
     }
   }
@@ -100,9 +95,6 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                     const SizedBox(height: AppSpacing.lg),
                     _buildStyleSettings(),
                     const SizedBox(height: AppSpacing.bottomNavHeight + AppSpacing.md),
-                    // TODO: Implement initials feature
-                    // Requires text-to-image rendering using custom painter
-                    // For now, initials are saved but not displayed in QR codes
                   ]),
                 ),
               ),
@@ -125,7 +117,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
       ),
       flexibleSpace: ClipRect(
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -696,7 +688,183 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
               ),
             ),
           ],
+          const Divider(color: AppColors.glassBorder, height: 1),
+          _buildLogoToggle(),
+          if (_includeLogo) ...[
+            const Divider(color: AppColors.glassBorder, height: 1),
+            _buildLogoTypeSelector(),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildLogoToggle() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          setState(() => _includeLogo = !_includeLogo);
+          QrSettingsService.setIncludeLogo(_includeLogo);
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _includeLogo
+                      ? AppColors.primaryAction.withOpacity(0.1)
+                      : AppColors.glassBorder.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  CupertinoIcons.photo,
+                  color: _includeLogo
+                      ? AppColors.primaryAction
+                      : AppColors.textSecondary,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Show Logo in QR Code',
+                      style: AppTextStyles.body.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Display overlay in center of QR code',
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              CupertinoSwitch(
+                value: _includeLogo,
+                activeTrackColor: AppColors.primaryAction,
+                onChanged: (value) {
+                  HapticFeedback.selectionClick();
+                  setState(() => _includeLogo = value);
+                  QrSettingsService.setIncludeLogo(value);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLogoTypeSelector() {
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Logo Type',
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _buildLogoTypeOption(QrLogoType.atlasLogo),
+          const Divider(color: AppColors.glassBorder, height: 1, indent: 40),
+          _buildLogoTypeOption(QrLogoType.initials),
+          const Divider(color: AppColors.glassBorder, height: 1, indent: 40),
+          _buildLogoTypeOption(QrLogoType.profileImage),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLogoTypeOption(QrLogoType type) {
+    final isSelected = _logoType == type;
+
+    IconData icon;
+    switch (type) {
+      case QrLogoType.atlasLogo:
+        icon = CupertinoIcons.sparkles;
+        break;
+      case QrLogoType.initials:
+        icon = CupertinoIcons.textformat;
+        break;
+      case QrLogoType.profileImage:
+        icon = CupertinoIcons.person_crop_circle;
+        break;
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          setState(() => _logoType = type);
+          QrSettingsService.setQrLogoType(type);
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+          child: Row(
+            children: [
+              Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isSelected
+                        ? AppColors.primaryAction
+                        : AppColors.glassBorder,
+                    width: 2,
+                  ),
+                ),
+                child: isSelected
+                    ? Center(
+                        child: Container(
+                          width: 10,
+                          height: 10,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppColors.primaryAction,
+                          ),
+                        ),
+                      )
+                    : null,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Icon(
+                icon,
+                size: 18,
+                color: isSelected
+                    ? AppColors.primaryAction
+                    : AppColors.textSecondary,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  type.label,
+                  style: AppTextStyles.body.copyWith(
+                    fontWeight: isSelected ? FontWeight.w500 : FontWeight.w400,
+                    color: isSelected
+                        ? AppColors.primaryAction
+                        : AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -708,13 +876,13 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
       context: context,
       barrierColor: Colors.black.withOpacity(0.5),
       builder: (context) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+        filter: ui.ImageFilter.blur(sigmaX: 15, sigmaY: 15),
         child: Dialog(
           backgroundColor: Colors.transparent,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(24),
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
               child: Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
@@ -828,32 +996,56 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
   }
 
   Widget _buildQrCodePreview() {
-    if (_colorMode == 1) {
-      // Custom border color mode (2-tone: color on eye shapes, black on data)
-      return QrImageView(
+    return SizedBox(
+      width: _qrSize.pixels.toDouble(),
+      height: _qrSize.pixels.toDouble(),
+      child: PrettyQrView.data(
         data: 'https://tapcard.app/share/preview',
-        version: QrVersions.auto,
-        size: _qrSize.pixels.toDouble(),
-        backgroundColor: Colors.white,
-        errorCorrectionLevel: _errorCorrectionLevel,
-        eyeStyle: QrEyeStyle(
-          eyeShape: QrEyeShape.square,
-          color: _borderColor,
+        errorCorrectLevel: _errorCorrectionLevel,
+        decoration: PrettyQrDecoration(
+          shape: _colorMode == 1
+              ? PrettyQrSmoothSymbol(
+                  color: _borderColor,
+                )
+              : const PrettyQrSmoothSymbol(
+                  color: Colors.black,
+                ),
+          image: _includeLogo ? _buildPreviewLogoImage() : null,
         ),
-        dataModuleStyle: const QrDataModuleStyle(
-          dataModuleShape: QrDataModuleShape.square,
-          color: Colors.black,
-        ),
-      );
-    } else {
-      // Classic black and white
-      return QrImageView(
-        data: 'https://tapcard.app/share/preview',
-        version: QrVersions.auto,
-        size: _qrSize.pixels.toDouble(),
-        backgroundColor: Colors.white,
-        errorCorrectionLevel: _errorCorrectionLevel,
-      );
+      ),
+    );
+  }
+
+  /// Build logo image for preview based on selected type
+  PrettyQrDecorationImage? _buildPreviewLogoImage() {
+    switch (_logoType) {
+      case QrLogoType.atlasLogo:
+        return const PrettyQrDecorationImage(
+          image: AssetImage('assets/images/atlaslinq_logo_white.png'),
+        );
+
+      case QrLogoType.initials:
+        if (_initials.isEmpty) {
+          // Fallback to Atlas logo if no initials
+          return const PrettyQrDecorationImage(
+            image: AssetImage('assets/images/atlaslinq_logo_white.png'),
+          );
+        }
+        // Use custom image provider to render initials
+        return PrettyQrDecorationImage(
+          image: _InitialsImageProvider(_initials),
+        );
+
+      case QrLogoType.profileImage:
+        if (widget.profileImageUrl != null && widget.profileImageUrl!.isNotEmpty) {
+          return PrettyQrDecorationImage(
+            image: NetworkImage(widget.profileImageUrl!),
+          );
+        }
+        // Fallback to Atlas logo if no profile image
+        return const PrettyQrDecorationImage(
+          image: AssetImage('assets/images/atlaslinq_logo_white.png'),
+        );
     }
   }
 
@@ -867,4 +1059,63 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
       ),
     );
   }
+}
+
+/// Custom ImageProvider for rendering initials as a circular image
+class _InitialsImageProvider extends ImageProvider<_InitialsImageProvider> {
+  final String initials;
+
+  const _InitialsImageProvider(this.initials);
+
+  @override
+  Future<_InitialsImageProvider> obtainKey(ImageConfiguration configuration) {
+    return SynchronousFuture<_InitialsImageProvider>(this);
+  }
+
+  @override
+  ImageStreamCompleter loadImage(_InitialsImageProvider key, ImageDecoderCallback decode) {
+    return OneFrameImageStreamCompleter(_loadAsync(key));
+  }
+
+  Future<ImageInfo> _loadAsync(_InitialsImageProvider key) async {
+    const size = 200.0;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+
+    // Draw simple initials text (no circular background)
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: initials,
+        style: const TextStyle(
+          color: Colors.black,
+          fontSize: size * 0.6,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 4,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout();
+    textPainter.paint(
+      canvas,
+      Offset(
+        (size - textPainter.width) / 2,
+        (size - textPainter.height) / 2,
+      ),
+    );
+
+    // Convert to image
+    final picture = recorder.endRecording();
+    final img = await picture.toImage(size.toInt(), size.toInt());
+    return ImageInfo(image: img);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other.runtimeType != runtimeType) return false;
+    return other is _InitialsImageProvider && other.initials == initials;
+  }
+
+  @override
+  int get hashCode => initials.hashCode;
 }
