@@ -611,29 +611,33 @@ class ProfileData {
       buffer.write('EMAIL:$email\n');
     }
 
-    // Website - User's personal website as primary URL (if provided)
-    // Otherwise use Atlas Linq URL as primary
+    // Build NOTE field with embedded metadata
+    // flutter_contacts properly parses NOTE field, so we embed X-AL metadata here
+    final noteLines = <String>[];
+
+    // Add primary note text
+    if (website != null && website!.isNotEmpty) {
+      noteLines.add('View full digital card: ${_generateCardUrl()}');
+    }
+    noteLines.add('Shared via Atlas Linq');
+
+    // Embed X-AL metadata in NOTE field (~40 bytes overhead)
+    // This ensures flutter_contacts can actually read the metadata
+    if (shareContext != null) {
+      noteLines.add('X-AL-M:${shareContext.methodCode}');  // Method code (N/Q/W/T)
+      noteLines.add('X-AL-T:${shareContext.unixTimestamp}');  // Unix timestamp
+      noteLines.add('X-AL-P:${type.code}');  // Profile type (1/2/3)
+    }
+
+    // Write URL (user's website OR Atlas Linq URL)
     if (website != null && website!.isNotEmpty) {
       buffer.write('URL:$website\n');
-      // Add Atlas Linq URL in NOTE field for full card access
-      buffer.write('NOTE:View full digital card: ${_generateCardUrl()}\\nShared via Atlas Linq\n');
     } else {
-      // No personal website - use Atlas Linq URL as primary
       buffer.write('URL:${_generateCardUrl()}\n');
-      buffer.write('NOTE:Shared via Atlas Linq\n');
     }
 
-    // Add optimized metadata if sharing context provided (~40 bytes overhead)
-    if (shareContext != null) {
-      // X-AL-M: Method code (N/Q/L/T) - ~13 bytes
-      buffer.write('X-AL-M:${shareContext.methodCode}\n');
-
-      // X-AL-T: Unix timestamp - ~20 bytes
-      buffer.write('X-AL-T:${shareContext.unixTimestamp}\n');
-
-      // X-AL-P: Profile type code (1/2/3) - ~9 bytes
-      buffer.write('X-AL-P:${type.code}\n');
-    }
+    // Write combined NOTE field with embedded metadata
+    buffer.write('NOTE:${noteLines.join('\\n')}\n');
 
     buffer.write('END:VCARD');
     return buffer.toString();
