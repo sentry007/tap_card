@@ -15,11 +15,11 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:uuid/uuid.dart';
 import '../models/profile_models.dart';
 import '../constants/app_constants.dart';
 import '../../services/firestore_sync_service.dart';
 import '../../services/firebase_config.dart';
+import 'auth_service.dart';
 
 /// Manages user profiles with local storage and future cloud sync
 class ProfileService extends ChangeNotifier {
@@ -42,6 +42,10 @@ class ProfileService extends ChangeNotifier {
   /// Whether the service has been initialized
   bool _isInitialized = false;
 
+  /// Whether profiles have been loaded from storage
+  /// This flag prevents race conditions in router redirect logic
+  bool _isLoaded = false;
+
   // ========== Public Getters ==========
 
   /// Get all profiles
@@ -53,12 +57,19 @@ class ProfileService extends ChangeNotifier {
   /// Whether service is initialized
   bool get isInitialized => _isInitialized;
 
+  /// Whether profiles have finished loading
+  ///
+  /// Use this to check if profiles are ready before making navigation decisions
+  /// Prevents race conditions where router checks profiles before they load
+  bool get isLoaded => _isLoaded;
+
   /// Whether multiple profiles feature is enabled
   bool get multipleProfilesEnabled => _settings.multipleProfilesEnabled;
 
   /// Get the currently active profile
   ///
-  /// Returns the profile marked as active, or the first profile if none active
+  /// Returns the profile marked as active by the isActive flag
+  /// For shared UUID architecture, the isActive flag indicates which TYPE is active
   ProfileData? get activeProfile {
     if (_profiles.isEmpty) {
       developer.log(
@@ -68,16 +79,28 @@ class ProfileService extends ChangeNotifier {
       return null;
     }
 
-    return _profiles.firstWhere(
-      (profile) => profile.id == _settings.activeProfileId,
-      orElse: () {
+    // First try to find a profile marked as active
+    try {
+      return _profiles.firstWhere((profile) => profile.isActive);
+    } catch (e) {
+      // If no profile is marked active, fall back to ID-based lookup
+      developer.log(
+        'ℹ️  No active profile found by flag, using ID fallback',
+        name: 'ProfileService.Get',
+      );
+
+      try {
+        return _profiles.firstWhere(
+          (profile) => profile.id == _settings.activeProfileId,
+        );
+      } catch (e) {
         developer.log(
-          'ℹ️  Active profile not found, returning first profile',
+          '⚠️  Active profile not found, returning first profile',
           name: 'ProfileService.Get',
         );
         return _profiles.first;
-      },
-    );
+      }
+    }
   }
 
   // ========== Initialization ==========
@@ -110,32 +133,46 @@ class ProfileService extends ChangeNotifier {
       ]);
 
       // Create default profiles if none exist (3 profiles: one per type)
+      // Only create if user is authenticated - otherwise wait for auth
       if (_profiles.isEmpty) {
-        developer.log(
-          '📝 No profiles found - Creating default profiles',
-          name: 'ProfileService.Init',
-        );
-        await _createDefaultProfile();
+        final authService = AuthService();
+        if (authService.uid != null) {
+          developer.log(
+            '📝 No profiles found - Creating default profiles',
+            name: 'ProfileService.Init',
+          );
+          await _createDefaultProfile();
+        } else {
+          developer.log(
+            'ℹ️  No profiles found and no UID available yet\n'
+            '   Profiles will be created after user authenticates',
+            name: 'ProfileService.Init',
+          );
+        }
       }
 
-      // Ensure active profile is valid
-      if (_settings.activeProfileId.isEmpty ||
-          !_profiles.any((p) => p.id == _settings.activeProfileId)) {
-        developer.log(
-          '⚠️  Invalid active profile - Setting to first profile',
-          name: 'ProfileService.Init',
-        );
-        await _setActiveProfile(_profiles.first.id);
+      // Ensure active profile is valid (only if we have profiles)
+      if (_profiles.isNotEmpty) {
+        if (_settings.activeProfileId.isEmpty ||
+            !_profiles.any((p) => p.id == _settings.activeProfileId)) {
+          developer.log(
+            '⚠️  Invalid active profile - Setting to first profile',
+            name: 'ProfileService.Init',
+          );
+          await _setActiveProfile(_profiles.first.id);
+        }
       }
 
       _isInitialized = true;
+      _isLoaded = true; // Mark profiles as loaded after initialization
 
       final duration = DateTime.now().difference(startTime).inMilliseconds;
       developer.log(
         '✅ ProfileService initialized in ${duration}ms\n'
         '   • Profiles loaded: ${_profiles.length}\n'
         '   • Active profile: ${activeProfile?.name ?? "None"}\n'
-        '   • Multiple profiles: $multipleProfilesEnabled',
+        '   • Multiple profiles: $multipleProfilesEnabled\n'
+        '   • Profiles ready: $_isLoaded',
         name: 'ProfileService.Init',
       );
 
@@ -283,12 +320,22 @@ class ProfileService extends ChangeNotifier {
     // Create exactly 3 profiles - one for each type with realistic mock data
     final now = DateTime.now();
 
-    // Generate ONE UUID for this user - all profiles share the same UUID
-    final userUuid = const Uuid().v4();
+    // Use Firebase Auth UID as the ONLY profile ID - all profiles share the same user ID
+    final authService = AuthService();
+    final userUuid = authService.uid;
+
+    if (userUuid == null) {
+      developer.log(
+        '❌ Cannot create profile - No Firebase Auth UID available\n'
+        '   User must be authenticated first',
+        name: 'ProfileService.CreateDefault',
+      );
+      throw Exception('User must be authenticated to create profile');
+    }
 
     developer.log(
-      '🆔 Generated user UUID: $userUuid\n'
-      '   All profiles will use this same ID',
+      '🆔 Using Firebase Auth UID for all profiles: $userUuid\n'
+      '   All 3 profile types will share this same ID',
       name: 'ProfileService.CreateDefault',
     );
 
@@ -349,6 +396,99 @@ class ProfileService extends ChangeNotifier {
     await _saveSettings();
   }
 
+  // ========== Profile-Auth Synchronization ==========
+
+  /// Ensure profiles exist and match current Firebase UID
+  ///
+  /// Call this after any authentication event (guest, Google, phone)
+  /// Handles profile creation and UID migration
+  Future<void> ensureProfilesExist() async {
+    print('[PROFILE] 🔄 ensureProfilesExist() called');
+
+    final authService = AuthService();
+    final currentUid = authService.uid;
+
+    print('[PROFILE] Current UID from AuthService: ${currentUid ?? "null"}');
+    print('[PROFILE] Existing profiles count: ${_profiles.length}');
+    print('[PROFILE] isLoaded before: $_isLoaded');
+
+    if (currentUid == null) {
+      print('[PROFILE] ⚠️  No Firebase UID available - cannot ensure profiles');
+      return;
+    }
+
+    if (_profiles.isEmpty) {
+      // No profiles at all - create them with current UID
+      print('[PROFILE] 📝 No profiles found - creating default profiles with UID: $currentUid');
+      await _createDefaultProfile();
+      print('[PROFILE] ✅ Default profiles created successfully');
+    } else if (_profiles.first.id != currentUid) {
+      // UID mismatch - profiles were created with different UID
+      // This happens when user had anonymous account and upgraded to Google
+      print('[PROFILE] ⚠️  UID mismatch detected!');
+      print('[PROFILE]    Old UID: ${_profiles.first.id}');
+      print('[PROFILE]    New UID: $currentUid');
+      print('[PROFILE] 🔄 Migrating profiles to new UID...');
+      await _migrateProfilesToNewUid(currentUid);
+      print('[PROFILE] ✅ Profile migration complete');
+    } else {
+      print('[PROFILE] ✅ Profiles already exist and match current UID');
+    }
+
+    _isLoaded = true; // Mark profiles as loaded after ensuring they exist
+    print('[PROFILE] isLoaded set to: $_isLoaded');
+    notifyListeners();
+    print('[PROFILE] ✅ ensureProfilesExist() complete - notified listeners');
+  }
+
+  /// Migrate all profiles to a new UID
+  ///
+  /// Used when upgrading from anonymous to real account
+  Future<void> _migrateProfilesToNewUid(String newUid) async {
+    developer.log(
+      '🔄 Migrating ${_profiles.length} profiles to new UID: $newUid',
+      name: 'ProfileService.Migration',
+    );
+
+    // Update all profile UIDs
+    _profiles = _profiles.map((p) => p.copyWith(id: newUid)).toList();
+
+    // Update settings with new UID
+    _settings = _settings.copyWith(activeProfileId: newUid);
+
+    await _saveProfiles();
+    await _saveSettings();
+
+    developer.log(
+      '✅ Profile migration complete - all profiles now use UID: $newUid',
+      name: 'ProfileService.Migration',
+    );
+  }
+
+  /// Clear all profiles from storage
+  ///
+  /// Called when user signs out completely
+  Future<void> clearAllProfiles() async {
+    developer.log(
+      '🗑️  Clearing all profiles...',
+      name: 'ProfileService.Clear',
+    );
+
+    _profiles = [];
+    _settings = ProfileSettings(activeProfileId: '');
+    _isLoaded = false; // Reset loaded flag on sign-out
+
+    await _saveProfiles();
+    await _saveSettings();
+
+    developer.log(
+      '✅ All profiles cleared - profiles no longer loaded',
+      name: 'ProfileService.Clear',
+    );
+
+    notifyListeners();
+  }
+
   Future<void> enableMultipleProfiles() async {
     // Ensure we have exactly 3 profiles when enabling multiple profiles
     if (_profiles.length != 3) {
@@ -384,9 +524,21 @@ class ProfileService extends ChangeNotifier {
   }
 
   Future<void> _setActiveProfile(String profileId) async {
-    // Update active status
+    // Find the target profile by ID (there may be multiple with same ID but different types)
+    // When called from _switchToProfileType, we need to identify which TYPE to activate
+    final targetProfile = _profiles.firstWhere(
+      (p) => p.id == profileId,
+      orElse: () => _profiles.first,
+    );
+
+    // Update active status - when profiles share same ID, we need to track the active TYPE
+    // Mark only the specific profile (by ID + TYPE combo) as active
     _profiles = _profiles.map((profile) {
-      return profile.copyWith(isActive: profile.id == profileId);
+      // If this is the exact profile we want (matching both ID and type from activeProfile getter)
+      // OR if we're setting initial profile, mark it active
+      final shouldBeActive = profile.id == profileId &&
+        (profile.type == targetProfile.type || profile.isActive);
+      return profile.copyWith(isActive: shouldBeActive);
     }).toList();
 
     _settings = _settings.copyWith(activeProfileId: profileId);
@@ -398,6 +550,31 @@ class ProfileService extends ChangeNotifier {
 
   Future<void> setActiveProfile(String profileId) async {
     await _setActiveProfile(profileId);
+  }
+
+  /// Set active profile by type (for shared UUID architecture)
+  /// This is used when switching between profile types that share the same UUID
+  Future<void> setActiveProfileByType(ProfileType type) async {
+    final profile = getProfileByType(type);
+    if (profile == null) return;
+
+    // Mark only this type as active, others as inactive
+    _profiles = _profiles.map((p) {
+      return p.copyWith(isActive: p.type == type);
+    }).toList();
+
+    // Keep the same profile ID in settings (shared UUID)
+    _settings = _settings.copyWith(activeProfileId: profile.id);
+
+    await _saveProfiles();
+    await _saveSettings();
+    notifyListeners();
+
+    developer.log(
+      '🔄 Switched active profile to ${type.label}\n'
+      '   • Profile name: ${profile.name}',
+      name: 'ProfileService.Switch',
+    );
   }
 
   // No longer needed - we always have exactly 3 profiles
@@ -414,7 +591,9 @@ class ProfileService extends ChangeNotifier {
   /// Updates profile data and regenerates NFC cache if needed
   /// TODO: Firebase - Sync changes to Firestore
   Future<void> updateProfile(ProfileData updatedProfile) async {
-    final index = _profiles.indexWhere((p) => p.id == updatedProfile.id);
+    // When profiles share the same ID, match by both ID and TYPE
+    final index = _profiles.indexWhere((p) =>
+      p.id == updatedProfile.id && p.type == updatedProfile.type);
 
     if (index != -1) {
       // Regenerate NFC cache if profile data changed (includes dual-payload)
@@ -441,7 +620,7 @@ class ProfileService extends ChangeNotifier {
       }
     } else {
       developer.log(
-        '⚠️  Profile not found for update: ${updatedProfile.id}',
+        '⚠️  Profile not found for update: ${updatedProfile.id} (${updatedProfile.type.name})',
         name: 'ProfileService.Update',
       );
     }
