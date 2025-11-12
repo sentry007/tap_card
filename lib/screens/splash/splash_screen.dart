@@ -4,11 +4,16 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:ui';
+import 'dart:developer' as developer;
 
 import '../../theme/theme.dart';
 import '../../core/providers/app_state.dart';
 import '../../core/constants/routes.dart';
+import '../../core/services/auth_service.dart';
+import '../../widgets/auth/google_sign_in_helper.dart';
+import '../../widgets/auth/phone_auth_modal.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -21,6 +26,7 @@ class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -49,48 +55,188 @@ class _SplashScreenState extends State<SplashScreen>
     _fadeController.forward();
   }
 
-
   void _onPhoneSignIn() async {
     HapticFeedback.lightImpact();
-    // TODO: Implement phone sign in when backend is ready
-    _navigateToAppSkipOnboarding();
+
+    print('[SPLASH] 📱 Phone Sign-In button tapped');
+
+    if (!mounted) {
+      print('[SPLASH] ⚠️  Widget not mounted - aborting');
+      return;
+    }
+
+    try {
+      print('[SPLASH] 🔄 Showing phone auth modal...');
+
+      // Show custom phone auth modal
+      final userCredential = await showPhoneAuthModal(context);
+
+      print('[SPLASH] 📦 Phone auth modal returned: ${userCredential != null ? "UserCredential" : "null"}');
+
+      if (userCredential != null) {
+        print('[SPLASH] ✅ Phone sign-in successful');
+        print('[SPLASH]    • Phone: ${userCredential.user?.phoneNumber}');
+        print('[SPLASH]    • UID: ${userCredential.user?.uid}');
+        print('[SPLASH] 👉 AppState auth listener will handle profile coordination');
+        print('[SPLASH] 👉 Router will handle navigation');
+
+        // AppState will automatically call ensureProfilesExist() via auth listener
+        // Navigation will be handled by router listening to auth state
+      } else {
+        print('[SPLASH] ❌ Phone sign-in cancelled by user');
+      }
+    } catch (e, stackTrace) {
+      print('[SPLASH] ❌ Phone sign-in error: $e');
+      print('[SPLASH]    Type: ${e.runtimeType}');
+      print('[SPLASH]    Stack trace: $stackTrace');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Phone sign-in failed. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   void _onGoogleSignIn() async {
     HapticFeedback.lightImpact();
-    // TODO: Implement Google sign in when backend is ready
-    _navigateToAppSkipOnboarding();
+
+    print('[SPLASH] 🔵 Google Sign-In button tapped');
+
+    if (_isLoading) {
+      print('[SPLASH] ⚠️  Already loading - ignoring tap');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    print('[SPLASH] ⏳ Set loading state to true');
+
+    try {
+      print('[SPLASH] 🔄 Calling GoogleSignInHelper.signInWithGoogle()...');
+
+      // Use custom Google Sign-In helper (no extra screens!)
+      final userCredential = await GoogleSignInHelper.signInWithGoogle();
+
+      print('[SPLASH] 📦 GoogleSignInHelper returned: ${userCredential != null ? "UserCredential" : "null"}');
+
+      if (userCredential != null) {
+        print('[SPLASH] ✅ Google sign-in successful');
+        print('[SPLASH]    • Email: ${userCredential.user?.email}');
+        print('[SPLASH]    • UID: ${userCredential.user?.uid}');
+        print('[SPLASH]    • Display Name: ${userCredential.user?.displayName}');
+        print('[SPLASH] 👉 AppState auth listener will handle profile coordination');
+        print('[SPLASH] 👉 Router will handle navigation');
+
+        // AppState will automatically call ensureProfilesExist() via auth listener
+        // Navigation will be handled by router listening to auth state
+      } else {
+        print('[SPLASH] ❌ Google sign-in returned null (user cancelled)');
+      }
+    } on FirebaseAuthException catch (e, stackTrace) {
+      print('[SPLASH] ❌ Firebase Auth Exception: ${e.code}');
+      print('[SPLASH]    Message: ${e.message}');
+      print('[SPLASH]    Stack trace: $stackTrace');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Google sign-in failed: ${e.message ?? e.code}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e, stackTrace) {
+      print('[SPLASH] ❌ Unexpected error during Google sign-in: $e');
+      print('[SPLASH]    Type: ${e.runtimeType}');
+      print('[SPLASH]    Stack trace: $stackTrace');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Google sign-in failed. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        print('[SPLASH] ⏳ Set loading state to false');
+      } else {
+        print('[SPLASH] ⚠️  Widget unmounted - cannot update loading state');
+      }
+    }
   }
 
   void _onAppleSignIn() async {
     HapticFeedback.lightImpact();
-    // TODO: Implement Apple sign in when backend is ready
-    _navigateToAppSkipOnboarding();
+
+    // Apple Sign-In is disabled for now - show "Coming Soon" message
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Apple Sign-In coming soon!'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   void _onGuestContinue() async {
     HapticFeedback.lightImpact();
-    // Guest users always see onboarding
-    _navigateToOnboarding();
-  }
 
-  /// Navigate to app for authenticated users (skip onboarding after first login)
-  void _navigateToAppSkipOnboarding() {
-    if (mounted) {
-      final appState = context.read<AppState>();
-      // Skip onboarding for authenticated users
-      appState.skipToMainApp();
-      context.go(AppRoutes.home);
+    print('[SPLASH] 👤 Guest Continue button tapped');
+
+    if (_isLoading) {
+      print('[SPLASH] ⚠️  Already loading - ignoring tap');
+      return;
     }
-  }
 
-  /// Navigate to onboarding for guest users (show every time)
-  void _navigateToOnboarding() {
-    if (mounted) {
-      final appState = context.read<AppState>();
-      // Complete splash but don't mark onboarding as complete
-      appState.completeSplashForGuest();
-      context.go(AppRoutes.onboarding);
+    setState(() => _isLoading = true);
+    print('[SPLASH] ⏳ Set loading state to true');
+
+    try {
+      final authService = AuthService();
+      print('[SPLASH] 🔄 Calling authService.signInAnonymously()...');
+
+      final user = await authService.signInAnonymously();
+
+      if (user != null) {
+        print('[SPLASH] ✅ Guest sign-in successful');
+        print('[SPLASH]    • UID: ${user.uid}');
+        print('[SPLASH]    • Is Anonymous: ${user.isAnonymous}');
+        print('[SPLASH] 👉 AppState auth listener will handle profile coordination');
+        print('[SPLASH] 👉 Router will handle navigation');
+
+        // AppState will automatically call ensureProfilesExist() via auth listener
+        // Navigation will be handled by router listening to auth state
+      } else {
+        print('[SPLASH] ❌ signInAnonymously returned null');
+        throw Exception('Failed to sign in anonymously');
+      }
+    } catch (e, stackTrace) {
+      print('[SPLASH] ❌ Guest sign-in error: $e');
+      print('[SPLASH]    Type: ${e.runtimeType}');
+      print('[SPLASH]    Stack trace: $stackTrace');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Guest sign-in failed. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        print('[SPLASH] ⏳ Set loading state to false');
+      } else {
+        print('[SPLASH] ⚠️  Widget unmounted - cannot update loading state');
+      }
     }
   }
 
@@ -161,6 +307,17 @@ class _SplashScreenState extends State<SplashScreen>
                 ),
               ),
             ),
+
+            // Loading overlay
+            if (_isLoading)
+              Container(
+                color: Colors.black.withOpacity(0.3),
+                child: const Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -279,6 +436,7 @@ class _SplashScreenState extends State<SplashScreen>
                 onTap: _onPhoneSignIn,
                 cardSize: cardSize,
                 isSolid: true,
+                isDisabled: false,
               ),
               SizedBox(height: (cardSize * 0.02).clamp(4.0, 8.0)),
               _buildSignInButton(
@@ -288,6 +446,7 @@ class _SplashScreenState extends State<SplashScreen>
                 onTap: _onGoogleSignIn,
                 cardSize: cardSize,
                 isSolid: true,
+                isDisabled: false,
               ),
               SizedBox(height: (cardSize * 0.02).clamp(4.0, 8.0)),
               _buildSignInButton(
@@ -297,6 +456,7 @@ class _SplashScreenState extends State<SplashScreen>
                 onTap: _onAppleSignIn,
                 cardSize: cardSize,
                 isSolid: true,
+                isDisabled: true, // Apple is disabled for now
               ),
               SizedBox(height: (cardSize * 0.025).clamp(6.0, 10.0)),
               _buildGuestButton(cardSize),
@@ -314,6 +474,7 @@ class _SplashScreenState extends State<SplashScreen>
     required VoidCallback onTap,
     required double cardSize,
     bool isSolid = false,
+    bool isDisabled = false,
   }) {
     final height = (cardSize * 0.12).clamp(32.0, 48.0);
     final fontSize = (cardSize * 0.035).clamp(11.0, 14.0);
@@ -322,53 +483,74 @@ class _SplashScreenState extends State<SplashScreen>
     return SizedBox(
       width: double.infinity,
       height: height,
-      child: Container(
-        key: Key('splash_signin_${key}_container'),
-        decoration: BoxDecoration(
-          color: isSolid ? Colors.white : Colors.white.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSolid ? Colors.white : Colors.white.withOpacity(0.2),
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(isSolid ? 0.15 : 0.05),
-              blurRadius: isSolid ? 12 : 8,
-              offset: Offset(0, isSolid ? 4 : 2),
-            ),
-          ],
-        ),
-        child: Material(
-          key: Key('splash_signin_${key}_material'),
-          color: Colors.transparent,
-          child: InkWell(
-            key: Key('splash_signin_${key}_inkwell'),
-            onTap: onTap,
+      child: Opacity(
+        opacity: isDisabled ? 0.5 : 1.0,
+        child: Container(
+          key: Key('splash_signin_${key}_container'),
+          decoration: BoxDecoration(
+            color: isSolid ? Colors.white : Colors.white.withOpacity(0.1),
             borderRadius: BorderRadius.circular(12),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                key: Key('splash_signin_${key}_row'),
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    icon,
-                    key: Key('splash_signin_${key}_icon'),
-                    color: isSolid ? AppColors.primaryBackground : AppColors.textPrimary,
-                    size: iconSize,
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    text,
-                    key: Key('splash_signin_${key}_text'),
-                    style: AppTextStyles.body.copyWith(
+            border: Border.all(
+              color: isSolid ? Colors.white : Colors.white.withOpacity(0.2),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(isSolid ? 0.15 : 0.05),
+                blurRadius: isSolid ? 12 : 8,
+                offset: Offset(0, isSolid ? 4 : 2),
+              ),
+            ],
+          ),
+          child: Material(
+            key: Key('splash_signin_${key}_material'),
+            color: Colors.transparent,
+            child: InkWell(
+              key: Key('splash_signin_${key}_inkwell'),
+              onTap: isDisabled ? null : onTap,
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  key: Key('splash_signin_${key}_row'),
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      icon,
+                      key: Key('splash_signin_${key}_icon'),
                       color: isSolid ? AppColors.primaryBackground : AppColors.textPrimary,
-                      fontSize: fontSize,
-                      fontWeight: FontWeight.w600,
+                      size: iconSize,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 12),
+                    Text(
+                      text,
+                      key: Key('splash_signin_${key}_text'),
+                      style: AppTextStyles.body.copyWith(
+                        color: isSolid ? AppColors.primaryBackground : AppColors.textPrimary,
+                        fontSize: fontSize,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (isDisabled) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryBackground.withOpacity(0.5),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'Soon',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: fontSize * 0.7,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
           ),

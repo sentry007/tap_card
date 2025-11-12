@@ -14,8 +14,12 @@ library;
 
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../constants/app_constants.dart';
+import '../services/auth_service.dart';
+import '../services/profile_service.dart';
 
 /// Global app state provider for navigation and authentication flow
 class AppState extends ChangeNotifier {
@@ -27,10 +31,10 @@ class AppState extends ChangeNotifier {
   /// Whether the user has completed the onboarding tutorial
   bool _hasCompletedOnboarding = false;
 
-  /// Whether the user is authenticated (for future Firebase auth)
+  /// Whether the user is authenticated (synced with Firebase Auth)
   bool _isAuthenticated = false;
 
-  /// Current user ID (for future Firebase integration)
+  /// Current user ID (Firebase Auth UID)
   String? _currentUserId;
 
   /// Whether user has shared or received a card (for tutorial flow)
@@ -38,6 +42,114 @@ class AppState extends ChangeNotifier {
 
   /// Whether the state has been initialized from storage
   bool _isInitialized = false;
+
+  /// Auth service instance
+  final AuthService _authService = AuthService();
+
+  /// Profile service instance
+  final ProfileService _profileService = ProfileService();
+
+  /// Constructor - Set up Firebase Auth listener
+  AppState() {
+    _initializeAuthListener();
+    _initializeProfileListener();
+  }
+
+  /// Initialize Firebase Auth state listener
+  ///
+  /// Syncs authentication state with Firebase Auth in real-time
+  /// Also coordinates ProfileService to ensure profiles match auth state
+  void _initializeAuthListener() {
+    _authService.authStateChanges.listen((User? user) {
+      // Call async handler without awaiting (stream listener can't be async)
+      _handleAuthStateChange(user);
+    });
+
+    print('[APP] 👂 Firebase Auth listener initialized with ProfileService coordination');
+  }
+
+  /// Handle auth state changes asynchronously
+  ///
+  /// Separated from listener to properly handle async operations
+  Future<void> _handleAuthStateChange(User? user) async {
+    final startTime = DateTime.now();
+    final wasAuthenticated = _isAuthenticated;
+    final previousUserId = _currentUserId;
+
+    _isAuthenticated = user != null;
+    _currentUserId = user?.uid;
+
+    print(
+      user != null
+          ? '[APP] 🔐 Auth state changed: User signed in (${user.isAnonymous ? "Guest" : _authService.authProviderName}) - UID: ${user.uid}'
+          : '[APP] 🔓 Auth state changed: User signed out',
+    );
+    print('[APP]    • wasAuthenticated: $wasAuthenticated → _isAuthenticated: $_isAuthenticated');
+    print('[APP]    • previousUserId: $previousUserId → _currentUserId: $_currentUserId');
+    print('[APP]    • State change detected: ${wasAuthenticated != _isAuthenticated || previousUserId != _currentUserId}');
+
+    // Coordinate ProfileService when needed
+    // Always ensure profiles exist when user is authenticated, even if auth state didn't change
+    // This handles cases where Firebase restores session before we initialize
+    try {
+      if (_isAuthenticated && user != null) {
+        // User is signed in - ensure profiles exist and match UID
+        print('[APP] 🔄 Starting profile coordination...');
+
+        final profileStartTime = DateTime.now();
+        await ProfileService().ensureProfilesExist();
+        final profileDuration = DateTime.now().difference(profileStartTime).inMilliseconds;
+
+        print('[APP] ✅ Profile coordination complete (${profileDuration}ms)');
+      } else if (!_isAuthenticated && wasAuthenticated) {
+        // User signed out - clear all profiles
+        print('[APP] 🗑️  User signed out - clearing all profiles...');
+        await ProfileService().clearAllProfiles();
+        print('[APP] ✅ Profiles cleared successfully');
+      } else if (!_isAuthenticated && !wasAuthenticated) {
+        print('[APP] ℹ️  No user signed in - no coordination needed');
+      }
+
+      await _saveState();
+
+      final totalDuration = DateTime.now().difference(startTime).inMilliseconds;
+      print('[APP] ✅ Auth state handling complete (${totalDuration}ms total)');
+
+      // ✅ CRITICAL: Defer notifyListeners to next frame to avoid Navigator lock conflicts
+      // This prevents router redirects from happening during active widget transitions
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        print('[APP] 📢 Notifying listeners (deferred) - router will now check redirects');
+        notifyListeners();
+      });
+    } catch (e, stackTrace) {
+      print('[APP] ❌ ERROR in auth state handling: $e');
+      print('[APP] Stack trace: $stackTrace');
+
+      // Still update state and notify even if coordination failed
+      await _saveState();
+
+      // Defer notification to avoid Navigator conflicts during error handling too
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        print('[APP] 📢 Notifying listeners after error (deferred)');
+        notifyListeners();
+      });
+    }
+  }
+
+  /// Initialize ProfileService listener
+  ///
+  /// Listens to profile changes and notifies router when profiles are ready
+  void _initializeProfileListener() {
+    _profileService.addListener(() {
+      // When profiles change, notify router to re-evaluate routes
+      notifyListeners();
+    });
+
+    developer.log(
+      '👂 ProfileService listener initialized',
+      name: 'AppState.Init',
+    );
+  }
 
   // ========== Public Getters ==========
 
@@ -69,6 +181,21 @@ class AppState extends ChangeNotifier {
 
   /// Can access main app features
   bool get canAccessMainApp => _hasCompletedOnboarding && _isInitialized;
+
+  /// Whether auth and profiles are both ready for navigation decisions
+  ///
+  /// This is the single source of truth for router redirect logic.
+  /// Prevents race conditions by ensuring both auth state and profiles are loaded.
+  bool get isAuthAndProfilesReady {
+    // Must be initialized first
+    if (!_isInitialized) return false;
+
+    // If not authenticated, we're ready (will show splash)
+    if (!_isAuthenticated) return true;
+
+    // If authenticated, must wait for profiles to load
+    return ProfileService().isLoaded;
+  }
 
   // ========== State Update Methods ==========
 
@@ -131,36 +258,36 @@ class AppState extends ChangeNotifier {
 
   /// Set user authentication status
   ///
-  /// TODO: Firebase - Integrate with Firebase Auth
-  /// @param value Whether user is authenticated
-  /// @param userId User's unique identifier (Firebase UID)
+  /// Note: Auth state is automatically synced via Firebase Auth listener
+  /// This method is kept for backward compatibility but auth changes
+  /// should happen through AuthService methods (signInAnonymously, etc.)
   void setAuthenticated(bool value, [String? userId]) {
     developer.log(
-      value
-        ? '🔐 User authenticated: $userId'
-        : '🔓 User logged out',
+      '⚠️  setAuthenticated called - Auth state should be managed by Firebase Auth',
       name: 'AppState.Auth',
     );
 
-    _isAuthenticated = value;
-    _currentUserId = userId;
-    _saveState();
-    notifyListeners();
+    // Auth state is now managed by Firebase Auth listener
+    // This method is deprecated but kept for compatibility
   }
 
   /// Sign out current user
   ///
-  /// TODO: Firebase - Call FirebaseAuth.signOut()
-  void signOut() {
-    developer.log(
-      '👋 User signing out - Clearing auth state',
-      name: 'AppState.Auth',
-    );
+  /// Calls Firebase Auth to sign out, which will trigger auth state listener
+  Future<void> signOut() async {
+    print('[APP] 👋 signOut() called - starting sign-out process');
 
-    _isAuthenticated = false;
-    _currentUserId = null;
-    _saveState();
-    notifyListeners();
+    try {
+      print('[APP] 🔄 Calling AuthService.signOut()...');
+      await _authService.signOut();
+      print('[APP] ✅ AuthService.signOut() completed');
+      print('[APP] 👉 Auth state listener will handle profile cleanup and navigation');
+      // Auth state will be updated automatically by listener
+    } catch (e, stackTrace) {
+      print('[APP] ❌ Error signing out: $e');
+      print('[APP] Stack trace: $stackTrace');
+      rethrow;
+    }
   }
 
   /// Reset all app state to initial values

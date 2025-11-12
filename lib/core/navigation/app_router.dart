@@ -34,6 +34,7 @@ import 'package:provider/provider.dart';
 import '../constants/routes.dart';
 import '../constants/app_constants.dart';
 import '../providers/app_state.dart';
+import '../services/auth_service.dart';
 import '../../screens/splash/splash_screen.dart';
 import '../../screens/onboarding/onboarding_screen.dart';
 import '../../screens/home/home_screen.dart';
@@ -54,82 +55,89 @@ class AppRouter {
   /// Create and configure the app router
   ///
   /// Sets up routes, redirects, and page transitions
-  static GoRouter createRouter() {
-    developer.log(
-      '🧭 Creating app router configuration',
-      name: 'Router.Init',
-    );
+  ///
+  /// [appState] - The global app state that coordinates auth and profile state
+  static GoRouter createRouter(AppState appState) {
+    print('[ROUTER] 🧭 Creating app router configuration');
+    print('[ROUTER]    • Router will listen to AppState for refresh events');
 
     return GoRouter(
       initialLocation: AppRoutes.splash,
+      refreshListenable: appState, // Listen to AppState changes (auth + profiles)
 
       /// Global redirect middleware
       ///
-      /// Enforces navigation flow based on app state:
-      /// - Waits for initialization
-      /// - Shows splash on first launch
+      /// Enforces navigation flow based on coordinated auth and profile state:
+      /// - Waits for both auth and profiles to be ready
+      /// - Shows splash/auth screen if not authenticated
       /// - Requires onboarding completion
-      /// - Redirects to home after onboarding
+      /// - Redirects to home after authentication and onboarding
       redirect: (context, state) {
         final appState = context.read<AppState>();
+        final authService = AuthService();
         final currentRoute = state.uri.path;
 
-        // Wait for AppState to initialize before making navigation decisions
-        if (!appState.isInitialized) {
-          developer.log(
-            '⏳ AppState not initialized - staying on current route',
-            name: 'Router.Redirect',
-          );
+        print('[ROUTER] 🧭 Redirect check for route: $currentRoute');
+        print('[ROUTER]    isAuthAndProfilesReady: ${appState.isAuthAndProfilesReady}');
+        print('[ROUTER]    isAuthenticated: ${authService.isSignedIn}');
+        print('[ROUTER]    shouldShowOnboarding: ${appState.shouldShowOnboarding}');
+        print('[ROUTER]    canAccessMainApp: ${appState.canAccessMainApp}');
+        print('[ROUTER]    hasCompletedOnboarding: ${appState.hasCompletedOnboarding}');
+
+        // Wait for both auth and profiles to be ready before making navigation decisions
+        // This prevents race conditions where profiles haven't loaded yet
+        if (!appState.isAuthAndProfilesReady) {
+          print('[ROUTER] ⏳ Auth and profiles not ready - waiting for initialization');
           return null;
         }
 
-        // Handle splash screen (for first launch)
-        if (appState.shouldShowSplash && currentRoute != AppRoutes.splash) {
-          developer.log(
-            '🚀 Redirecting to splash screen (first launch)',
-            name: 'Router.Redirect',
-          );
+        // Check authentication status (after everything is ready)
+        final isAuthenticated = authService.isSignedIn;
+
+        // If not authenticated, redirect to splash/auth screen
+        if (!isAuthenticated && currentRoute != AppRoutes.splash) {
+          print('[ROUTER] 🔐 Not authenticated - redirecting to splash');
           return AppRoutes.splash;
         }
 
-        // After splash, check onboarding for first-time users
-        if (!appState.shouldShowSplash &&
+        // If authenticated but on splash, continue to next step
+        if (isAuthenticated && currentRoute == AppRoutes.splash) {
+          // Check if user needs onboarding
+          if (appState.shouldShowOnboarding) {
+            print('[ROUTER] 📚 Authenticated but needs onboarding');
+            return AppRoutes.onboarding;
+          } else {
+            print('[ROUTER] 🏠 Authenticated and onboarded - redirecting to home');
+            return AppRoutes.home;
+          }
+        }
+
+        // After auth, check onboarding for first-time users
+        if (isAuthenticated &&
             appState.shouldShowOnboarding &&
             currentRoute != AppRoutes.onboarding) {
-          developer.log(
-            '📚 Redirecting to onboarding (new user)',
-            name: 'Router.Redirect',
-          );
+          print('[ROUTER] 📚 Redirecting to onboarding (new user)');
           return AppRoutes.onboarding;
         }
 
-        // Access main app after onboarding complete
-        if (!appState.shouldShowSplash &&
+        // Access main app after authentication and onboarding complete
+        if (isAuthenticated &&
             appState.canAccessMainApp &&
-            (currentRoute == AppRoutes.splash ||
-                currentRoute == AppRoutes.onboarding)) {
-          developer.log(
-            '🏠 Redirecting to home (onboarding complete)',
-            name: 'Router.Redirect',
-          );
+            currentRoute == AppRoutes.onboarding) {
+          print('[ROUTER] 🏠 Redirecting to home (onboarding complete)');
           return AppRoutes.home;
         }
 
         // If user hasn't completed onboarding, always show onboarding
-        if (!appState.shouldShowSplash &&
+        if (isAuthenticated &&
             !appState.hasCompletedOnboarding &&
-            currentRoute != AppRoutes.onboarding) {
-          developer.log(
-            '🎯 User needs onboarding - redirecting from $currentRoute',
-            name: 'Router.Redirect',
-          );
+            currentRoute != AppRoutes.onboarding &&
+            currentRoute != AppRoutes.splash) {
+          print('[ROUTER] 🎯 User needs onboarding - redirecting from $currentRoute');
           return AppRoutes.onboarding;
         }
 
-        developer.log(
-          'ℹ️  No redirect needed - staying on $currentRoute',
-          name: 'Router.Redirect',
-        );
+        print('[ROUTER] ✅ No redirect needed - staying on $currentRoute');
         return null;
       },
       // ========== Route Definitions ==========
