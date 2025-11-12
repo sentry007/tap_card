@@ -40,6 +40,7 @@ class NfcFabWidget extends StatefulWidget {
   final Animation<double> pulseScale;
   final Animation<double> rippleWave;
   final Animation<double> successScale;
+  final Animation<double> gradientAnimation;
 
   const NfcFabWidget({
     super.key,
@@ -55,6 +56,7 @@ class NfcFabWidget extends StatefulWidget {
     required this.pulseScale,
     required this.rippleWave,
     required this.successScale,
+    required this.gradientAnimation,
   });
 
   @override
@@ -139,15 +141,12 @@ class _NfcFabWidgetState extends State<NfcFabWidget> {
                   ),
                 );
               }),
-            // Main FAB
+            // Main FAB with flowing gradient
             Container(
               key: const Key('home_nfc_fab_main'),
               width: 192, // 8px * 24 (doubled width)
               height: 96,
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [nfcColors['primary']!, nfcColors['secondary']!],
-                ),
                 borderRadius:
                     BorderRadius.circular(20), // Smooth square corners
                 boxShadow: [
@@ -168,19 +167,36 @@ class _NfcFabWidgetState extends State<NfcFabWidget> {
                   ),
                 ],
               ),
-              child: Material(
-                key: const Key('home_nfc_fab_material'),
-                color: Colors.transparent,
-                child: InkWell(
-                  key: const Key('home_nfc_fab_inkwell'),
-                  onTap: widget.isLoading ? null : widget.onTap,
-                  onLongPress: widget.isLoading ? null : widget.onLongPress,
-                  borderRadius:
-                      BorderRadius.circular(20), // Match container radius
-                  child: Center(
-                    key: const Key('home_nfc_fab_center'),
-                    child: _buildFabContent(),
-                  ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Stack(
+                  children: [
+                    // Flowing gradient background
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: FlowingGradientPainter(
+                          colors: _getGradientColors(),
+                          animationValue: widget.gradientAnimation.value,
+                        ),
+                      ),
+                    ),
+                    // Interactive overlay
+                    Material(
+                      key: const Key('home_nfc_fab_material'),
+                      color: Colors.transparent,
+                      child: InkWell(
+                        key: const Key('home_nfc_fab_inkwell'),
+                        onTap: widget.isLoading ? null : widget.onTap,
+                        onLongPress: widget.isLoading ? null : widget.onLongPress,
+                        borderRadius:
+                            BorderRadius.circular(20), // Match container radius
+                        child: Center(
+                          key: const Key('home_nfc_fab_center'),
+                          child: _buildFabContent(),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -305,6 +321,136 @@ class _NfcFabWidgetState extends State<NfcFabWidget> {
           'secondary': Colors.red.shade600,
         };
     }
+  }
+
+  /// Get gradient colors for flowing animation based on mode and state
+  List<Color> _getGradientColors() {
+    // Gray colors for NFC disabled
+    if (!widget.nfcAvailable) {
+      return [
+        Colors.grey.shade400,
+        Colors.grey.shade600,
+      ];
+    }
+
+    // State-based colors
+    switch (widget.state) {
+      case NfcFabState.inactive:
+      case NfcFabState.active:
+      case NfcFabState.writing:
+        // Mode-specific flowing gradients using ONLY brand colors
+        if (widget.mode == NfcMode.p2pShare) {
+          // Purple theme for P2P mode - using brand colors only
+          return [
+            AppColors.p2pPrimary,     // #9C27B0 Purple
+            AppColors.p2pSecondary,   // #673AB7 Deep Purple
+          ];
+        } else {
+          // Orange theme for Tag Write mode - using brand colors only
+          return [
+            AppColors.primaryAction,    // #FF5722 Deep Orange
+            AppColors.secondaryAction,  // #673AB7 Deep Purple
+          ];
+        }
+
+      case NfcFabState.success:
+        return [
+          Colors.green.shade400,
+          Colors.green.shade600,
+        ];
+
+      case NfcFabState.error:
+        return [
+          Colors.red.shade400,
+          Colors.red.shade600,
+        ];
+    }
+  }
+}
+
+/// Custom painter for flowing gradient animation
+///
+/// Creates a multi-layered radial gradient effect that animates
+/// to create a flowing, dynamic appearance similar to the website buttons.
+class FlowingGradientPainter extends CustomPainter {
+  final List<Color> colors;
+  final double animationValue;
+
+  FlowingGradientPainter({
+    required this.colors,
+    required this.animationValue,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Base gradient layer - diagonal from top-left to bottom-right
+    final baseGradient = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: colors,
+    );
+
+    final basePaint = Paint()
+      ..shader = baseGradient.createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), basePaint);
+
+    // Animated radial gradients for flowing effect
+    final progress = animationValue;
+
+    // First radial gradient - primary color flowing from left
+    final radial1Center = Offset(
+      size.width * (-0.3 + (progress * 1.6)), // Flows across entire button
+      size.height * (0.5 + (progress * 0.2 - 0.1)), // Slight wave motion
+    );
+
+    final radial1 = RadialGradient(
+      center: Alignment(
+        (radial1Center.dx / size.width) * 2 - 1,
+        (radial1Center.dy / size.height) * 2 - 1,
+      ),
+      radius: 1.5,
+      colors: [
+        colors[0].withOpacity(0.6),
+        colors[0].withOpacity(0.0),
+      ],
+    );
+
+    final radial1Paint = Paint()
+      ..shader = radial1.createShader(Rect.fromLTWH(0, 0, size.width, size.height))
+      ..blendMode = BlendMode.screen;
+
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), radial1Paint);
+
+    // Second radial gradient - secondary color flowing from right
+    final radial2Center = Offset(
+      size.width * (1.3 - (progress * 1.6)), // Flows opposite direction
+      size.height * (0.5 - (progress * 0.2 - 0.1)), // Counter wave motion
+    );
+
+    final radial2 = RadialGradient(
+      center: Alignment(
+        (radial2Center.dx / size.width) * 2 - 1,
+        (radial2Center.dy / size.height) * 2 - 1,
+      ),
+      radius: 1.5,
+      colors: [
+        colors[1].withOpacity(0.6),
+        colors[1].withOpacity(0.0),
+      ],
+    );
+
+    final radial2Paint = Paint()
+      ..shader = radial2.createShader(Rect.fromLTWH(0, 0, size.width, size.height))
+      ..blendMode = BlendMode.screen;
+
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), radial2Paint);
+  }
+
+  @override
+  bool shouldRepaint(FlowingGradientPainter oldDelegate) {
+    return oldDelegate.animationValue != animationValue ||
+        oldDelegate.colors != colors;
   }
 }
 

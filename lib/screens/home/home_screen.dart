@@ -41,6 +41,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late AnimationController _contactsController;
   late AnimationController _rippleController;
   late AnimationController _successController;
+  late AnimationController _gradientController;
 
   late Animation<double> _fabScale;
   late Animation<double> _fabGlow;
@@ -48,6 +49,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late Animation<double> _contactsSlide;
   late Animation<double> _rippleWave;
   late Animation<double> _successScale;
+  late Animation<double> _gradientAnimation;
 
   final bool _isNfcLoading = false;
   bool _isContactsLoading = false;
@@ -263,8 +265,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       curve: Curves.elasticOut,
     ));
 
+    // Gradient animation controller for flowing gradient effect
+    _gradientController = AnimationController(
+      duration: const Duration(seconds: 8),
+      vsync: this,
+    );
+
+    _gradientAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _gradientController,
+      curve: Curves.linear,
+    ));
+
     // Start the breathing pulse animation - key UX element
     _pulseController.repeat(reverse: true);
+
+    // Start the gradient flow animation
+    _gradientController.repeat();
   }
 
   Future<void> _loadContacts() async {
@@ -362,6 +381,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         name: 'Home.ContactSync',
       );
 
+      // Save scanned contacts to history (if not already present)
+      // This ensures they appear in "Recent Connections" on home screen
+      if (tapCardContacts.isNotEmpty) {
+        await _saveScannedContactsToHistory(tapCardContacts);
+      }
+
       if (mounted) {
         setState(() {
           _syncedContactsCount = tapCardContacts.length;
@@ -417,6 +442,68 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         backgroundColor: AppColors.error,
       ),
     );
+  }
+
+  /// Save scanned contacts to history
+  ///
+  /// This ensures scanned contacts appear in "Recent Connections".
+  /// Only saves contacts that aren't already in the history to avoid duplicates.
+  Future<void> _saveScannedContactsToHistory(List<TapCardContact> contacts) async {
+    try {
+      developer.log(
+        '💾 Saving ${contacts.length} scanned contacts to history',
+        name: 'Home.ContactSync',
+      );
+
+      // Get existing history entries to avoid duplicates
+      final existingEntries = await HistoryService.getAllHistory();
+      final existingProfileIds = existingEntries
+          .where((e) => e.type == HistoryEntryType.received && e.senderProfile != null)
+          .map((e) => e.senderProfile!.id)
+          .toSet();
+
+      int savedCount = 0;
+      for (final contact in contacts) {
+        // Skip if already in history (check by profile ID)
+        if (existingProfileIds.contains(contact.profileId)) {
+          developer.log(
+            '  ⏭️ Skipping ${contact.displayName} - already in history',
+            name: 'Home.ContactSync',
+          );
+          continue;
+        }
+
+        // Create history entry from contact (with Firestore fetch)
+        final entry = await HistoryService.createReceivedEntryFromContact(
+          contact: contact,
+        );
+
+        // Add to history using the proper service method
+        await HistoryService.addReceivedEntry(
+          senderProfile: entry.senderProfile!,
+          method: entry.method,
+          location: entry.location,
+          metadata: entry.metadata,
+        );
+
+        savedCount++;
+        developer.log(
+          '  ✅ Saved ${contact.displayName} to history',
+          name: 'Home.ContactSync',
+        );
+      }
+
+      developer.log(
+        '✅ Saved $savedCount/${contacts.length} new contacts to history',
+        name: 'Home.ContactSync',
+      );
+    } catch (e) {
+      developer.log(
+        '❌ Failed to save contacts to history: $e',
+        name: 'Home.ContactSync',
+        error: e,
+      );
+    }
   }
 
   void _onNfcTap() async {
@@ -1363,6 +1450,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _contactsController.dispose();
     _rippleController.dispose();
     _successController.dispose();
+    _gradientController.dispose();
 
     super.dispose();
   }
@@ -1415,13 +1503,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   const SizedBox(height: 16),
                   _isPreviewMode ? _buildPreviewText() : _buildTapToShareText(),
                   const SizedBox(height: 24),
-                  // 3) Recent connections (then frequent contacts)
-                  const RecentConnectionsWidget(),
-                  const SizedBox(height: 24),
-                  _buildFrequentContactsSection(),
-                  const SizedBox(height: 24),
-                  // 4) Recent activity strip
+                  // 3) Unified Recent Activity (connections + activity)
                   _buildRecentHistoryStrip(),
+                  const SizedBox(height: 24),
+                  // 4) Frequent contacts
+                  _buildFrequentContactsSection(),
                   const SizedBox(height: 80), // Space for bottom nav
                 ],
               ),
@@ -1577,7 +1663,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return AnimatedBuilder(
       key: TutorialKeys.homeNfcFabKey,
       animation: Listenable.merge(
-          [_fabController, _pulseController, _rippleController, _successController]),
+          [_fabController, _pulseController, _rippleController, _successController, _gradientController]),
       builder: (context, child) {
         return NfcFabWidget(
           state: _nfcFabState,
@@ -1601,6 +1687,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           pulseScale: _pulseScale,
           rippleWave: _rippleWave,
           successScale: _successScale,
+          gradientAnimation: _gradientAnimation,
         );
       },
     );
@@ -2142,18 +2229,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       key: const Key('home_history_strip'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Section header with "View All" button
         Padding(
           key: const Key('home_history_title_padding'),
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Recent Activity',
-                key: const Key('home_history_title'),
-                style: AppTextStyles.h3.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+              const SectionHeaderWithInfo(
+                key: Key('home_history_title'),
+                title: 'Recent Activity',
+                infoText: 'Your recent connections and sharing activity. Top row shows people who shared with you, bottom section shows your NFC activity (sent & tags).',
               ),
               Material(
                 color: Colors.transparent,
@@ -2180,30 +2266,181 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
         ),
         const SizedBox(height: 12),
+        // Unified activity view with StreamBuilder
+        StreamBuilder<List<HistoryEntry>>(
+          stream: HistoryService.historyStream(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return _buildUnifiedActivityLoading();
+            }
+
+            if (snapshot.hasError) {
+              return _buildUnifiedActivityEmpty();
+            }
+
+            final allHistory = snapshot.data ?? [];
+
+            // Split into received (connections) and sent/tag (activity)
+            final received = allHistory
+                .where((e) => e.type == HistoryEntryType.received && e.senderProfile != null)
+                .take(10)
+                .toList();
+
+            final sentAndTags = allHistory
+                .where((e) => e.type == HistoryEntryType.sent || e.type == HistoryEntryType.tag)
+                .take(5)
+                .toList();
+
+            if (received.isEmpty && sentAndTags.isEmpty) {
+              return _buildUnifiedActivityEmpty();
+            }
+
+            return _buildUnifiedActivity(received, sentAndTags);
+          },
+        ),
+      ],
+    );
+  }
+
+  /// Build unified activity view with received (horizontal) and sent/tags (vertical)
+  Widget _buildUnifiedActivity(List<HistoryEntry> received, List<HistoryEntry> sentAndTags) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Horizontal scrollable connections (received cards)
+        if (received.isNotEmpty) ...[
+          SizedBox(
+            height: 88,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: received.length,
+              itemBuilder: (context, index) {
+                final entry = received[index];
+                return ConnectionCard(entry: entry, index: index);
+              },
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+        // Vertical list of sent/tag activity
+        if (sentAndTags.isNotEmpty) ...[
+          Container(
+            height: 280,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: ListView.builder(
+              physics: const ClampingScrollPhysics(),
+              itemCount: sentAndTags.length,
+              itemBuilder: (context, index) {
+                final entry = sentAndTags[index];
+                return _buildHistoryCard(entry, index);
+              },
+            ),
+          ),
+        ],
+        // Show empty state if no sent/tags but have received
+        if (sentAndTags.isEmpty && received.isNotEmpty) ...[
+          Container(
+            height: 100,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    CupertinoIcons.arrow_up_circle,
+                    color: AppColors.textTertiary,
+                    size: 24,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'No sharing activity yet',
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.textTertiary,
+                      fontSize: 11,
+                    ),
+                  ),
+                  Text(
+                    'Tap the NFC button above to share',
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.textTertiary.withOpacity(0.7),
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// Loading state for unified activity
+  Widget _buildUnifiedActivityLoading() {
+    return Column(
+      children: [
+        // Horizontal loading
+        SizedBox(
+          height: 88,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: 5,
+            itemBuilder: (context, index) {
+              return Container(
+                width: 72,
+                margin: const EdgeInsets.only(right: 12),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.1),
+                          width: 1,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 16),
+        // Vertical loading
         Container(
-          key: const Key('home_history_list_container'),
-          height: 140,
+          height: 200,
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: StreamBuilder<List<HistoryEntry>>(
-            stream: HistoryService.historyStream(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return _buildHistoryLoading();
-              }
-
-              if (snapshot.hasError) {
-                return _buildHistoryEmpty();
-              }
-
-              final allHistory = snapshot.data ?? [];
-              // Show only last 5 items
-              final recentHistory = allHistory.take(5).toList();
-
-              if (recentHistory.isEmpty) {
-                return _buildHistoryEmpty();
-              }
-
-              return _buildHistoryList(recentHistory);
+          child: ListView.builder(
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: 3,
+            itemBuilder: (context, index) {
+              return Container(
+                width: double.infinity,
+                height: 60,
+                margin: const EdgeInsets.only(bottom: 12),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.1),
+                          width: 1,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
             },
           ),
         ),
@@ -2211,73 +2448,40 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildHistoryLoading() {
-    return ListView.builder(
-      key: const Key('home_history_loading_list'),
-      scrollDirection: Axis.vertical,
-      itemCount: 3,
-      itemBuilder: (context, index) {
-        return Container(
-          key: Key('home_history_loading_item_$index'),
-          width: double.infinity,
-          height: 60,
-          margin: const EdgeInsets.only(bottom: 12),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.05),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.1),
-                    width: 1,
-                  ),
-                ),
+  /// Empty state for unified activity
+  Widget _buildUnifiedActivityEmpty() {
+    return Container(
+      height: 200,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              CupertinoIcons.clock,
+              color: AppColors.textTertiary,
+              size: 32,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'No activity yet',
+              style: AppTextStyles.body.copyWith(
+                color: AppColors.textTertiary,
+                fontWeight: FontWeight.w600,
               ),
             ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildHistoryEmpty() {
-    return Center(
-      key: const Key('home_history_empty_center'),
-      child: Column(
-        key: const Key('home_history_empty_column'),
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(
-            CupertinoIcons.clock,
-            key: Key('home_history_empty_icon'),
-            color: AppColors.textTertiary,
-            size: 24,
-          ),
-          const SizedBox(key: Key('home_history_empty_spacing'), height: 8),
-          Text(
-            'No recent activity',
-            key: const Key('home_history_empty_text'),
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.textTertiary,
+            const SizedBox(height: 4),
+            Text(
+              'Start sharing or receiving cards to see activity',
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.textTertiary.withOpacity(0.7),
+                fontSize: 11,
+              ),
+              textAlign: TextAlign.center,
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    );
-  }
-
-  Widget _buildHistoryList(List<HistoryEntry> history) {
-    return ListView.builder(
-      key: const Key('home_history_list_view'),
-      scrollDirection: Axis.vertical,
-      itemCount: history.length,
-      itemBuilder: (context, index) {
-        final entry = history[index];
-        return _buildHistoryCard(entry, index);
-      },
     );
   }
 
@@ -2476,161 +2680,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ),
       ),
     );
-  }
-
-  Widget _buildHistoryActions(HistoryEntry entry, int index) {
-    final actions = <Widget>[];
-
-    switch (entry.type) {
-      case HistoryEntryType.received:
-        actions.addAll([
-          _buildActionButton(
-            'View in History',
-            CupertinoIcons.list_bullet,
-            () {
-              HapticFeedback.lightImpact();
-              context.go(AppRoutes.history);
-            },
-            AppColors.info,
-          ),
-          const SizedBox(width: 8),
-          _buildActionButton(
-            'Save',
-            CupertinoIcons.square_arrow_down,
-            () async {
-              HapticFeedback.lightImpact();
-              if (entry.senderProfile != null) {
-                // Save to device contacts
-                final contact = ContactData(
-                  name: entry.senderProfile!.name,
-                  title: entry.senderProfile!.title,
-                  company: entry.senderProfile!.company,
-                  phone: entry.senderProfile!.phone,
-                  email: entry.senderProfile!.email,
-                  website: entry.senderProfile!.website,
-                  socialMedia: entry.senderProfile!.socialMedia,
-                );
-
-                final result = await ContactService.saveReceivedContact(
-                  ReceivedContact(
-                    id: ReceivedContact.generateId(),
-                    contact: contact,
-                    receivedAt: entry.timestamp,
-                    notes: null,
-                  ),
-                );
-
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(result.message),
-                      backgroundColor:
-                          result.success ? AppColors.success : AppColors.error,
-                      duration: const Duration(seconds: 2),
-                    ),
-                  );
-                }
-              }
-            },
-            AppColors.success,
-          ),
-        ]);
-        break;
-
-      case HistoryEntryType.tag:
-        actions.add(
-          _buildActionButton(
-            'View Details',
-            CupertinoIcons.info_circle,
-            () {
-              HapticFeedback.lightImpact();
-              context.go(AppRoutes.history);
-            },
-            AppColors.secondaryAction,
-          ),
-        );
-        break;
-
-      case HistoryEntryType.sent:
-        actions.add(
-          _buildActionButton(
-            'Details',
-            CupertinoIcons.ellipsis_circle,
-            () {
-              HapticFeedback.lightImpact();
-              context.go(AppRoutes.history);
-            },
-            AppColors.primaryAction,
-          ),
-        );
-        break;
-    }
-
-    if (actions.isEmpty) return const SizedBox.shrink();
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-      child: Row(
-        children: actions,
-      ),
-    );
-  }
-
-  Widget _buildActionButton(
-    String label,
-    IconData icon,
-    VoidCallback onTap,
-    Color color,
-  ) {
-    return Expanded(
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(8),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-            decoration: BoxDecoration(
-              border: Border.all(
-                color: color.withOpacity(0.3),
-                width: 1,
-              ),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  icon,
-                  size: 14,
-                  color: color,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: AppTextStyles.caption.copyWith(
-                    color: color,
-                    fontWeight: FontWeight.w500,
-                    fontSize: 11,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  String? _getProfileSubtitle(ProfileData? profile) {
-    if (profile == null) return null;
-    if (profile.company != null && profile.company!.isNotEmpty) {
-      if (profile.title != null && profile.title!.isNotEmpty) {
-        return '${profile.title} at ${profile.company}';
-      }
-      return profile.company;
-    }
-    return profile.title;
   }
 
   Widget _buildInsightsSection() {
@@ -2877,17 +2926,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         return CupertinoIcons.arrow_down_circle_fill;
       case HistoryEntryType.tag:
         return CupertinoIcons.tag_fill;
-    }
-  }
-
-  String _getHistoryTitle(HistoryEntryType type) {
-    switch (type) {
-      case HistoryEntryType.sent:
-        return 'SENT TO';
-      case HistoryEntryType.received:
-        return 'RECEIVED FROM';
-      case HistoryEntryType.tag:
-        return 'WROTE TO TAG';
     }
   }
 

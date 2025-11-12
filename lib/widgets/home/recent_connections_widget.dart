@@ -9,6 +9,7 @@ import '../../theme/theme.dart';
 import '../../models/history_models.dart';
 import '../../services/history_service.dart';
 import '../../core/constants/routes.dart';
+import '../widgets.dart';
 
 /// Recent Connections Strip Widget
 ///
@@ -23,13 +24,11 @@ class RecentConnectionsWidget extends StatelessWidget {
       key: const Key('contacts-section'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Text(
-            'Recent Connections',
-            style: AppTextStyles.h3.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 24),
+          child: SectionHeaderWithInfo(
+            title: 'Recent Connections',
+            infoText: 'People who have shared their digital cards with you via NFC, QR code, or web link. Tap any contact to view their full profile.',
           ),
         ),
         const SizedBox(height: 12),
@@ -247,7 +246,8 @@ class ConnectionCard extends StatelessWidget {
     final hasImage = profile.profileImagePath != null &&
         profile.profileImagePath!.isNotEmpty;
     final initials = _getInitials(profile.name);
-    final timeAgo = _formatHistoryTime(entry.timestamp);
+    final methodColor = _getMethodColor(entry.method);
+    final timeAgo = _formatTimeAgo(entry.timestamp);
 
     return Container(
       key: Key('connection_card_$index'),
@@ -263,13 +263,13 @@ class ConnectionCard extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  AppColors.success.withOpacity(0.15),
-                  AppColors.success.withOpacity(0.05),
+                  methodColor.withOpacity(0.15),
+                  methodColor.withOpacity(0.05),
                 ],
               ),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: AppColors.success.withOpacity(0.3),
+                color: methodColor.withOpacity(0.3),
                 width: 1,
               ),
               boxShadow: [
@@ -289,60 +289,56 @@ class ConnectionCard extends StatelessWidget {
                 },
                 borderRadius: BorderRadius.circular(16),
                 child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                  padding: const EdgeInsets.all(6),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
                     children: [
                       // Profile picture or initials
                       hasImage
                           ? Container(
-                              width: 40,
-                              height: 40,
+                              width: 36,
+                              height: 36,
                               decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(20),
+                                borderRadius: BorderRadius.circular(18),
                                 border: Border.all(
-                                  color: AppColors.success,
-                                  width: 2,
+                                  color: methodColor,
+                                  width: 1.5,
                                 ),
                               ),
                               child: ClipRRect(
-                                borderRadius: BorderRadius.circular(18),
+                                borderRadius: BorderRadius.circular(16.5),
                                 child: _buildProfileImage(
                                   profile.profileImagePath!,
                                   initials,
+                                  methodColor,
                                 ),
                               ),
                             )
-                          : _buildInitialsCircle(initials, AppColors.success),
-                      const SizedBox(height: 4),
+                          : _buildInitialsCircle(initials, methodColor),
+                      const SizedBox(height: 6),
                       // Name (first name only)
-                      Flexible(
-                        child: Text(
-                          profile.name.split(' ').first,
-                          style: AppTextStyles.caption.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                          textAlign: TextAlign.center,
+                      Text(
+                        profile.name.split(' ').first,
+                        style: AppTextStyles.caption.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                          fontSize: 10,
                         ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                        textAlign: TextAlign.center,
                       ),
+                      const SizedBox(height: 2),
                       // Time ago
-                      Flexible(
-                        child: Text(
-                          timeAgo,
-                          style: AppTextStyles.caption.copyWith(
-                            color: AppColors.success,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                          textAlign: TextAlign.center,
+                      Text(
+                        timeAgo,
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.textTertiary,
+                          fontSize: 8,
                         ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                        textAlign: TextAlign.center,
                       ),
                     ],
                   ),
@@ -356,14 +352,14 @@ class ConnectionCard extends StatelessWidget {
   }
 
   /// Build profile image widget with error fallback
-  Widget _buildProfileImage(String imagePath, String initials) {
+  Widget _buildProfileImage(String imagePath, String initials, Color color) {
     // Check if it's a local file path or network URL
     if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
       return Image.network(
         imagePath,
         fit: BoxFit.cover,
         errorBuilder: (context, error, stackTrace) {
-          return _buildInitialsCircle(initials, AppColors.success);
+          return _buildInitialsCircle(initials, color);
         },
       );
     } else {
@@ -374,11 +370,11 @@ class ConnectionCard extends StatelessWidget {
           file,
           fit: BoxFit.cover,
           errorBuilder: (context, error, stackTrace) {
-            return _buildInitialsCircle(initials, AppColors.success);
+            return _buildInitialsCircle(initials, color);
           },
         );
       } else {
-        return _buildInitialsCircle(initials, AppColors.success);
+        return _buildInitialsCircle(initials, color);
       }
     }
   }
@@ -386,14 +382,14 @@ class ConnectionCard extends StatelessWidget {
   /// Build initials circle widget
   Widget _buildInitialsCircle(String initials, Color color) {
     return Container(
-      width: 40,
-      height: 40,
+      width: 36,
+      height: 36,
       decoration: BoxDecoration(
         color: color,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: color,
-          width: 2,
+          width: 1.5,
         ),
       ),
       child: Center(
@@ -402,7 +398,7 @@ class ConnectionCard extends StatelessWidget {
           style: AppTextStyles.caption.copyWith(
             fontWeight: FontWeight.bold,
             color: Colors.white,
-            fontSize: 14,
+            fontSize: 12,
           ),
         ),
       ),
@@ -421,31 +417,31 @@ class ConnectionCard extends StatelessWidget {
     return (first + last).toUpperCase();
   }
 
-  /// Format timestamp to relative time ago string
-  String _formatHistoryTime(DateTime timestamp) {
+  /// Get color based on share method
+  Color _getMethodColor(ShareMethod method) {
+    switch (method) {
+      case ShareMethod.nfc:
+        return AppColors.primaryAction; // Blue/purple
+      case ShareMethod.qr:
+        return AppColors.secondaryAction; // Purple/pink
+      case ShareMethod.web:
+        return AppColors.highlight; // Yellow/amber
+      case ShareMethod.tag:
+        return AppColors.success; // Green
+    }
+  }
+
+  /// Format time ago string (e.g., "2h ago", "5m ago")
+  String _formatTimeAgo(DateTime timestamp) {
     final now = DateTime.now();
     final difference = now.difference(timestamp);
 
-    if (difference.inSeconds < 60) {
-      return 'Just now';
-    } else if (difference.inMinutes < 60) {
-      final minutes = difference.inMinutes;
-      return '${minutes}m ago';
+    if (difference.inMinutes < 60) {
+      return '${difference.inMinutes}m ago';
     } else if (difference.inHours < 24) {
-      final hours = difference.inHours;
-      return '${hours}h ago';
-    } else if (difference.inDays < 7) {
-      final days = difference.inDays;
-      return '${days}d ago';
-    } else if (difference.inDays < 30) {
-      final weeks = (difference.inDays / 7).floor();
-      return '${weeks}w ago';
-    } else if (difference.inDays < 365) {
-      final months = (difference.inDays / 30).floor();
-      return '${months}mo ago';
+      return '${difference.inHours}h ago';
     } else {
-      final years = (difference.inDays / 365).floor();
-      return '${years}y ago';
+      return '${difference.inDays}d ago';
     }
   }
 }
