@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/scheduler.dart';
 import 'dart:ui';
 
 import '../../theme/theme.dart';
@@ -9,6 +10,7 @@ import '../../widgets/widgets.dart';
 import '../../widgets/settings/settings_tiles.dart';
 import '../../core/providers/app_state.dart';
 import '../../core/services/profile_service.dart';
+import '../../core/services/auth_service.dart';
 import '../../core/constants/app_constants.dart';
 import '../../services/nfc_service.dart';
 import '../../services/nfc_settings_service.dart';
@@ -545,10 +547,76 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
   }
 
   Widget _buildAccountSettings() {
+    final authService = AuthService();
+    final isAuthenticated = authService.isSignedIn;
+    final isGuest = authService.isAnonymous;
+    final authProviderName = authService.authProviderName;
+    final userEmail = authService.email;
+    final userPhone = authService.phoneNumber;
+
     return _buildSettingsSection(
       'Account Settings',
       CupertinoIcons.person_circle,
       [
+        // Authentication status info
+        Container(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                decoration: BoxDecoration(
+                  color: (isGuest ? AppColors.warning : AppColors.success).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                ),
+                child: Icon(
+                  isGuest ? CupertinoIcons.person : CupertinoIcons.checkmark_shield,
+                  color: isGuest ? AppColors.warning : AppColors.success,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      isAuthenticated ? 'Signed In' : 'Not Signed In',
+                      style: AppTextStyles.body.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      isAuthenticated
+                          ? (isGuest
+                              ? 'Guest Account'
+                              : '$authProviderName${userEmail != null ? " • $userEmail" : userPhone != null ? " • $userPhone" : ""}')
+                          : 'Sign in to sync your data',
+                      style: AppTextStyles.caption,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Upgrade account for guest users
+        if (isGuest)
+          SettingsActionTile(
+            icon: CupertinoIcons.arrow_up_circle,
+            title: 'Upgrade Account',
+            subtitle: 'Link to Google or Phone to keep your data',
+            onTap: () {
+              // Sign out to go back to auth screen where they can link
+              _showUpgradeAccountDialog();
+            },
+          ),
+
         SettingsSwitchTile(
           icon: CupertinoIcons.person_3,
           title: 'Multiple Profiles',
@@ -560,7 +628,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           icon: CupertinoIcons.arrow_up_circle,
           title: 'Backup & Sync',
           subtitle: 'Sync data across devices',
-          onTap: null, // TODO: Requires Firebase Auth
+          onTap: null,
           isDisabled: true,
           badge: 'Coming Soon',
         ),
@@ -832,7 +900,10 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => const QrSettingsScreen(),
+                builder: (context) => QrSettingsScreen(
+                  userName: _userName,
+                  profileImageUrl: _profileImageUrl,
+                ),
               ),
             );
           },
@@ -854,6 +925,9 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
   }
 
   Widget _buildAdvancedOptions() {
+    final authService = AuthService();
+    final isAuthenticated = authService.isSignedIn;
+
     return _buildSettingsSection(
       'Advanced',
       CupertinoIcons.settings,
@@ -903,14 +977,21 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           onTap: () => _showClearDataDialog(),
           isDestructive: true,
         ),
-        const SettingsActionTile(
-          icon: CupertinoIcons.arrow_right_square,
-          title: 'Sign Out',
-          subtitle: 'Sign out of your account',
-          onTap: null, // TODO: Requires Firebase Auth
-          isDisabled: true,
-          badge: 'Requires Auth',
-        ),
+        if (isAuthenticated)
+          SettingsActionTile(
+            icon: CupertinoIcons.arrow_right_square,
+            title: 'Sign Out',
+            subtitle: 'Sign out of your account',
+            onTap: () => _showSignOutDialog(),
+          ),
+        if (isAuthenticated)
+          SettingsActionTile(
+            icon: CupertinoIcons.trash,
+            title: 'Delete Account',
+            subtitle: 'Permanently delete your account and data',
+            onTap: () => _showDeleteAccountDialog(),
+            isDestructive: true,
+          ),
       ],
     );
   }
@@ -1401,6 +1482,179 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
     );
   }
 
+  void _showUpgradeAccountDialog() {
+    _showGlassDialog(
+      title: 'Upgrade Account',
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(CupertinoIcons.arrow_up_circle, color: AppColors.primaryAction, size: 48),
+          const SizedBox(height: AppSpacing.md),
+          const Text(
+            'Upgrade from a guest account to a full account by signing in with Google or Phone.',
+            style: AppTextStyles.body,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            'Your data will be preserved after upgrading.',
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.success,
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(
+            'Cancel',
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        TextButton(
+          onPressed: () {
+            print('[SETTINGS] ⬆️  Upgrade account button tapped');
+
+            // ✅ CRITICAL: Capture AppState BEFORE popping dialog
+            final appState = context.read<AppState>();
+
+            // ✅ CRITICAL: Use rootNavigator to pop ONLY the dialog, not GoRouter's stack
+            Navigator.of(context, rootNavigator: true).pop();
+
+            // ✅ CRITICAL: Defer sign-out until AFTER dialog navigation completes
+            SchedulerBinding.instance.addPostFrameCallback((_) async {
+              try {
+                print('[SETTINGS] 🔄 Signing out to show auth options...');
+                await appState.signOut();
+                print('[SETTINGS] ✅ User will be redirected to splash/auth screen');
+              } catch (e, stackTrace) {
+                print('[SETTINGS] ❌ Upgrade account error: $e');
+                print('[SETTINGS] Stack trace: $stackTrace');
+              }
+            });
+          },
+          style: TextButton.styleFrom(
+            backgroundColor: AppColors.primaryAction.withValues(alpha: 0.2),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.sm,
+            ),
+          ),
+          child: Text(
+            'Upgrade Now',
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.primaryAction,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showDeleteAccountDialog() {
+    _showGlassDialog(
+      title: 'Delete Account',
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(CupertinoIcons.trash, color: AppColors.error, size: 48),
+          const SizedBox(height: AppSpacing.md),
+          const Text(
+            'This will permanently delete your account and all associated data including:',
+            style: AppTextStyles.body,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('• Your profile information', style: AppTextStyles.body),
+              Text('• All sharing history', style: AppTextStyles.body),
+              Text('• App preferences', style: AppTextStyles.body),
+              Text('• Account credentials', style: AppTextStyles.body),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            'This action cannot be undone.',
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.error,
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(
+            'Cancel',
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        TextButton(
+          onPressed: () async {
+            print('[SETTINGS] 🗑️  Delete account button tapped');
+            Navigator.pop(context);
+
+            try {
+              print('[SETTINGS] 🔄 Calling authService.deleteAccount()...');
+              final authService = AuthService();
+              await authService.deleteAccount();
+              print('[SETTINGS] ✅ Account deleted successfully');
+
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Account deleted successfully'),
+                    backgroundColor: AppColors.success,
+                  ),
+                );
+              }
+            } catch (e, stackTrace) {
+              print('[SETTINGS] ❌ Delete account error: $e');
+              print('[SETTINGS] Stack trace: $stackTrace');
+
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Failed to delete account: $e'),
+                    backgroundColor: AppColors.error,
+                  ),
+                );
+              }
+            }
+          },
+          style: TextButton.styleFrom(
+            backgroundColor: AppColors.error.withValues(alpha: 0.2),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.sm,
+            ),
+          ),
+          child: Text(
+            'Delete Account',
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.error,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   void _showClearDataDialog() {
     _showGlassDialog(
       title: 'Clear All Data',
@@ -1449,9 +1703,20 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
         const SizedBox(width: AppSpacing.sm),
         TextButton(
           onPressed: () {
-            Navigator.pop(context);
+            print('[SETTINGS] 🗑️  Clear all data button tapped');
+
+            // ✅ CRITICAL: Capture AppState BEFORE popping dialog
             final appState = context.read<AppState>();
-            appState.resetAppState();
+
+            // ✅ CRITICAL: Use rootNavigator to pop ONLY the dialog, not GoRouter's stack
+            Navigator.of(context, rootNavigator: true).pop();
+
+            // ✅ CRITICAL: Defer reset until AFTER dialog navigation completes
+            SchedulerBinding.instance.addPostFrameCallback((_) {
+              print('[SETTINGS] 🔄 Resetting app state...');
+              appState.resetAppState();
+              print('[SETTINGS] ✅ App state reset - all data cleared');
+            });
           },
           style: TextButton.styleFrom(
             backgroundColor: AppColors.error.withOpacity(0.2),
@@ -1613,10 +1878,27 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
         const SizedBox(width: AppSpacing.sm),
         TextButton(
           onPressed: () {
-            Navigator.pop(context);
+            print('[SETTINGS] 🚪 Sign-out button tapped');
+
+            // ✅ CRITICAL: Capture AppState BEFORE popping dialog
             final appState = context.read<AppState>();
-            appState.signOut();
-            _showSignOutSuccessSnackBar();
+
+            // ✅ CRITICAL: Use rootNavigator to pop ONLY the dialog, not GoRouter's stack
+            // This prevents "no pages left to show" error from GoRouter
+            Navigator.of(context, rootNavigator: true).pop();
+
+            // ✅ CRITICAL: Defer sign-out until AFTER dialog navigation completes
+            // This prevents Navigator lock conflict when router tries to redirect
+            SchedulerBinding.instance.addPostFrameCallback((_) async {
+              try {
+                print('[SETTINGS] 🔄 Calling appState.signOut()...');
+                await appState.signOut();
+                print('[SETTINGS] ✅ Sign-out completed - router will redirect to splash');
+              } catch (e, stackTrace) {
+                print('[SETTINGS] ❌ Sign-out error: $e');
+                print('[SETTINGS] Stack trace: $stackTrace');
+              }
+            });
           },
           style: TextButton.styleFrom(
             backgroundColor: AppColors.primaryAction.withOpacity(0.2),
