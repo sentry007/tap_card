@@ -259,7 +259,21 @@ class HistoryEntry {
       case HistoryEntryType.sent:
         return recipientDevice ?? 'Sent';
       case HistoryEntryType.received:
-        return senderProfile?.company ?? senderProfile?.title ?? 'Received';
+        // Try: company > title > email > phone > type label > 'Received'
+        if (senderProfile?.company != null && senderProfile!.company!.isNotEmpty) {
+          return senderProfile!.company!;
+        }
+        if (senderProfile?.title != null && senderProfile!.title!.isNotEmpty) {
+          return senderProfile!.title!;
+        }
+        if (senderProfile?.email != null && senderProfile!.email!.isNotEmpty) {
+          return senderProfile!.email!;
+        }
+        if (senderProfile?.phone != null && senderProfile!.phone!.isNotEmpty) {
+          return senderProfile!.phone!;
+        }
+        // Fallback to profile type label
+        return senderProfile?.type.label ?? 'Received';
       case HistoryEntryType.tag:
         // Show tag type and capacity if available
         if (tagType != null && tagCapacity != null) {

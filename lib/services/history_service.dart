@@ -39,6 +39,9 @@ class HistoryService {
   static List<HistoryEntry> _cache = [];
   static bool _isInitialized = false;
 
+  // Scanned contacts cache (from device contacts)
+  static List<HistoryEntry> _scannedContactsCache = [];
+
   /// Initialize history service and load data
   static Future<void> initialize() async {
     if (_isInitialized) return;
@@ -70,15 +73,70 @@ class HistoryService {
   }
 
   /// Get real-time stream of history entries
+  /// Merges persisted history with scanned device contacts
   static Stream<List<HistoryEntry>> historyStream() async* {
-    // Emit current cache immediately
-    final activeEntries = _cache.where((entry) => !entry.isSoftDeleted).toList();
-    yield activeEntries;
+    // Emit current merged data immediately
+    yield _getMergedEntries();
 
     // Then emit updates from the stream
     await for (final entries in _historyController.stream) {
       yield entries;
     }
+  }
+
+  /// Scan device contacts for TapCard contacts and cache them
+  /// Call this to refresh the scanned contacts list
+  static Future<void> scanDeviceContacts() async {
+    try {
+      developer.log('🔍 Scanning device contacts for TapCard entries...', name: 'History.Service');
+
+      // Scan for TapCard contacts
+      final contacts = await ContactService.scanForTapCardContactsWithIds();
+      developer.log('📱 Found ${contacts.length} TapCard contacts in device', name: 'History.Service');
+
+      // Convert to history entries
+      final entries = await Future.wait(
+        contacts.map((contact) => createReceivedEntryFromContact(contact: contact)),
+      );
+
+      _scannedContactsCache = entries;
+      developer.log('✅ Cached ${_scannedContactsCache.length} scanned contact entries', name: 'History.Service');
+
+      // Notify listeners with merged data
+      _notifyListeners();
+    } catch (e) {
+      developer.log('❌ Failed to scan device contacts: $e', name: 'History.Service', error: e);
+      _scannedContactsCache = [];
+    }
+  }
+
+  /// Get merged list of history entries and scanned contacts
+  /// Deduplicates by profile ID to avoid showing the same contact twice
+  static List<HistoryEntry> _getMergedEntries() {
+    // Start with active history entries (not soft-deleted)
+    final activeHistory = _cache.where((e) => !e.isSoftDeleted).toList();
+
+    // Get profile IDs from received entries in history
+    final existingProfileIds = activeHistory
+        .where((e) => e.type == HistoryEntryType.received && e.senderProfile != null)
+        .map((e) => e.senderProfile!.id)
+        .toSet();
+
+    // Add scanned contacts that aren't already in history
+    final uniqueScannedContacts = _scannedContactsCache
+        .where((e) => !existingProfileIds.contains(e.senderProfile?.id))
+        .toList();
+
+    // Merge and sort by timestamp (most recent first)
+    final merged = [...activeHistory, ...uniqueScannedContacts];
+    merged.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+    developer.log(
+      '🔀 Merged entries: ${activeHistory.length} history + ${uniqueScannedContacts.length} unique scanned = ${merged.length} total',
+      name: 'History.Service',
+    );
+
+    return merged;
   }
 
   /// Add a sent entry to history
@@ -263,17 +321,12 @@ class HistoryService {
       id: profileId,
       type: contact.profileType ?? ProfileType.personal, // Use extracted type or default to personal
       name: displayName,
-      // Smart subtitle fallback: prefer title > company > email prefix
-      // This ensures we always show SOMETHING useful instead of empty subtitle
-      title: contact.title ??
-             (contact.company != null && contact.company!.isNotEmpty
-               ? contact.company
-               : (contact.email != null && contact.email!.isNotEmpty
-                 ? contact.email!.split('@').first
-                 : null)),
-      company: contact.company, // ✅ Use vCard data
-      phone: contact.phone, // ✅ Use vCard data
-      email: contact.email, // ✅ Use vCard data
+      // ✅ Preserve vCard data integrity - don't mix field values
+      // The subtitle getter in HistoryEntry already handles fallback: company ?? title ?? 'Received'
+      title: contact.title, // ✅ Use vCard title as-is (can be null)
+      company: contact.company, // ✅ Use vCard company as-is (can be null)
+      phone: contact.phone, // ✅ Use vCard phone
+      email: contact.email, // ✅ Use vCard email
       website: contact.website ?? 'https://atlaslinq.com/share/$profileId',
       socialMedia: {}, // Empty is OK - rarely stored in vCard
       profileImagePath: null, // Would require Firestore
@@ -315,7 +368,7 @@ class HistoryService {
     return HistoryEntry.received(
       id: 'contact_$profileId', // Special ID prefix for scanned contacts
       method: contact.shareMethod ?? ShareMethod.nfc, // Use extracted method or default to NFC
-      timestamp: contact.shareTimestamp ?? DateTime.now().subtract(const Duration(days: 1)), // Use extracted timestamp or default
+      timestamp: contact.shareTimestamp ?? DateTime.now(), // Use extracted timestamp or default to now
       senderProfile: profile,
       location: null,
       metadata: {
@@ -416,16 +469,72 @@ class HistoryService {
     }
   }
 
+  /// Delete a scanned contact entry (not in history cache, only in UI)
+  /// These entries exist only in the UI's _scannedContactEntries cache
+  /// Returns true if contact was successfully deleted from device
+  static Future<bool> deleteScannedContact(String profileId) async {
+    try {
+      developer.log('🗑️ Deleting scanned contact with profile ID: $profileId', name: 'History.DeleteScanned');
+
+      // Request permission explicitly (not just check)
+      final hasPermission = await FlutterContacts.requestPermission();
+      if (!hasPermission) {
+        developer.log('⚠️ Permission denied for contact deletion', name: 'History.DeleteScanned');
+        return false;
+      }
+
+      // Find contact by TapCard URL
+      final contacts = await FlutterContacts.getContacts(withProperties: true);
+
+      Contact? contactToDelete;
+      for (final contact in contacts) {
+        for (final website in contact.websites) {
+          if (website.url.contains('/share/$profileId')) {
+            contactToDelete = contact;
+            break;
+          }
+        }
+        if (contactToDelete != null) break;
+      }
+
+      // Delete from device contacts
+      if (contactToDelete != null) {
+        await FlutterContacts.deleteContact(contactToDelete);
+        developer.log('🗑️ Deleted scanned contact from device: ${contactToDelete.displayName}', name: 'History.DeleteScanned');
+
+        // Rescan contacts to update cache
+        await scanDeviceContacts();
+
+        return true;
+      } else {
+        developer.log('⚠️ Scanned contact not found in device (may have been already deleted)', name: 'History.DeleteScanned');
+        return false;
+      }
+    } catch (e) {
+      developer.log('❌ Failed to delete scanned contact: $e', name: 'History.DeleteScanned', error: e);
+      return false;
+    }
+  }
+
   /// Permanently delete an entry (routes to appropriate delete method)
   static Future<bool> deleteEntry(String id) async {
     try {
+      // Check if this is a scanned contact entry (from device contacts, not history)
+      if (id.startsWith('contact_')) {
+        developer.log('🔍 Detected scanned contact entry, routing to deleteScannedContact', name: 'History.Service');
+        // Extract profile ID from 'contact_<profileId>' format
+        final profileId = id.substring('contact_'.length);
+        return await deleteScannedContact(profileId);
+      }
+
+      // For regular history entries, find in cache
       final entry = _cache.firstWhere(
         (e) => e.id == id,
         orElse: () => throw Exception('Entry not found: $id')
       );
 
       if (entry.type == HistoryEntryType.received) {
-        // For received entries, delete from device contacts AND history
+        // For received entries in history, delete from device contacts AND history
         return await deleteReceivedEntry(id, deleteFromDevice: true);
       } else {
         // For sent/tag entries, delete from history only
@@ -449,8 +558,8 @@ class HistoryService {
           entry.senderProfile != null &&
           deleteFromDevice) {
 
-        // Get permission to access contacts
-        final hasPermission = await ContactService.hasContactsPermission();
+        // Request permission to access contacts (not just check)
+        final hasPermission = await FlutterContacts.requestPermission();
         if (!hasPermission) {
           developer.log('⚠️ Cannot delete contact - permission denied', name: 'History.DeleteReceived');
           // Still delete from history
@@ -551,10 +660,9 @@ class HistoryService {
     }
   }
 
-  /// Notify all stream listeners
+  /// Notify all stream listeners with merged data
   static void _notifyListeners() {
-    final activeEntries = _cache.where((entry) => !entry.isSoftDeleted).toList();
-    _historyController.add(activeEntries);
+    _historyController.add(_getMergedEntries());
   }
 
   /// Generate rich mock data for first run (only tags and received)

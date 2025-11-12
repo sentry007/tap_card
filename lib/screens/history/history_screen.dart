@@ -68,7 +68,6 @@ class _HistoryScreenState extends State<HistoryScreen>
   bool _isSearching = false;
   bool _isLoading = false;
   String _searchQuery = '';
-  List<HistoryEntry> _scannedContactEntries = []; // Cache for scanned contacts
   bool?
       _hasContactsPermission; // null = checking, false = denied, true = granted
   bool _hasShownInitialModal = false;
@@ -109,12 +108,12 @@ class _HistoryScreenState extends State<HistoryScreen>
       });
     }
 
-    // If already granted, scan immediately
+    // If already granted, scan immediately using HistoryService
     if (hasPermission) {
       if (kDebugMode) {
         print('📇 [History] Permission already granted, scanning automatically...');
       }
-      await _scanContactsForReceived();
+      await HistoryService.scanDeviceContacts();
     } else {
       if (kDebugMode) {
         print('📇 [History] Permission not granted, showing banner...');
@@ -130,7 +129,7 @@ class _HistoryScreenState extends State<HistoryScreen>
     HapticFeedback.lightImpact();
 
     // This will show the permission dialog
-    await _scanContactsForReceived();
+    await HistoryService.scanDeviceContacts();
 
     // Update permission state after scan attempt
     final hasPermission = await ContactService.hasContactsPermission();
@@ -205,7 +204,7 @@ class _HistoryScreenState extends State<HistoryScreen>
     setState(() => _isLoading = true);
 
     // Scan contacts for received TapCard contacts
-    await _scanContactsForReceived();
+    await HistoryService.scanDeviceContacts();
 
     await Future.delayed(const Duration(milliseconds: 500));
     if (mounted) {
@@ -214,135 +213,7 @@ class _HistoryScreenState extends State<HistoryScreen>
     }
   }
 
-  /// Scan device contacts for TapCard URLs (indicates received cards)
-  Future<void> _scanContactsForReceived() async {
-    try {
-      if (kDebugMode) {
-        print('🔍 [History] Starting contact scan...');
-      }
-      final contacts = await ContactService.scanForTapCardContactsWithIds();
-      if (kDebugMode) {
-        print('🔍 [History] Scan returned ${contacts.length} contacts');
-      }
 
-      if (contacts.isEmpty) {
-        print('📇 [History] No TapCard contacts found in device');
-        return;
-      }
-
-      if (kDebugMode) {
-        print('📇 [History] Found ${contacts.length} TapCard contacts:');
-      }
-      for (final contact in contacts) {
-        if (kDebugMode) {
-          print('  - ${contact.displayName} (ID: ${contact.profileId}, legacy: ${contact.isLegacyFormat})');
-        }
-      }
-
-      // Convert contacts to history entries (async fetch from Firestore)
-      if (kDebugMode) {
-        print('🔄 [History] Converting to HistoryEntry objects with Firestore fetch...');
-      }
-      final contactEntries = await Future.wait(
-        contacts.map((contact) async {
-          if (kDebugMode) {
-            print('  🔄 Processing: ${contact.displayName} (${contact.profileId})...');
-          }
-          final entry = await HistoryService.createReceivedEntryFromContact(
-            contact: contact, // Pass full contact with metadata
-          );
-          final source = entry.metadata?['firestore_fetched'] == true
-              ? 'Firestore'
-              : 'Placeholder';
-          if (kDebugMode) {
-            print('  ✅ Created entry for: ${contact.displayName} (source: $source)');
-          }
-          return entry;
-        }),
-      );
-      if (kDebugMode) {
-        print('🔄 [History] Created ${contactEntries.length} history entries with full Firestore data');
-      }
-
-      // Update cache
-      if (kDebugMode) {
-        print('🔄 [History] Current _scannedContactEntries length: ${_scannedContactEntries.length}');
-        print('🔄 [History] Mounted: $mounted');
-      }
-
-      if (mounted) {
-        setState(() {
-          _scannedContactEntries = contactEntries;
-        });
-        if (kDebugMode) {
-          print('✅ [History] setState completed - _scannedContactEntries.length: ${_scannedContactEntries.length}');
-          print('✅ [History] Contact names in cache: ${_scannedContactEntries.map((e) => e.senderProfile?.name).join(", ")}');
-        }
-      } else {
-        if (kDebugMode) {
-          print('⚠️ [History] Widget not mounted, cannot update state');
-        }
-      }
-    } catch (e, stackTrace) {
-      if (kDebugMode) {
-        print('❌ [History] Error scanning contacts: $e');
-        print('❌ [History] Stack trace: $stackTrace');
-      }
-    }
-  }
-
-  /// Merge history entries with scanned contacts from device
-  /// Returns combined list with contacts showing as "received" entries
-  List<HistoryEntry> _mergeWithScannedContacts(
-      List<HistoryEntry> historyItems) {
-    if (kDebugMode) {
-      print('🔀 [History] Starting merge...');
-      print('  📊 historyItems count: ${historyItems.length}');
-      print('  📊 _scannedContactEntries count: ${_scannedContactEntries.length}');
-    }
-
-    if (_scannedContactEntries.isEmpty) {
-      print('  ℹ️ No scanned contacts to merge, returning original history');
-      return historyItems;
-    }
-
-    if (kDebugMode) {
-      print('  📋 Scanned contact names: ${_scannedContactEntries.map((e) => e.senderProfile?.name).join(", ")}');
-    }
-
-    // Use a Set to track existing profile IDs to avoid duplicates
-    final existingProfileIds = historyItems
-        .where((item) =>
-            item.type == HistoryEntryType.received &&
-            item.senderProfile != null)
-        .map((item) => item.senderProfile!.id)
-        .toSet();
-
-    if (kDebugMode) {
-      print('  🔍 Existing profile IDs in history: $existingProfileIds');
-    }
-
-    // Filter out contacts that are already in history
-    final uniqueContactEntries = _scannedContactEntries
-        .where((entry) => !existingProfileIds.contains(entry.senderProfile?.id))
-        .toList();
-
-    if (kDebugMode) {
-      print('  ✅ Unique contact entries: ${uniqueContactEntries.length}');
-      print('  📋 Unique contact names: ${uniqueContactEntries.map((e) => e.senderProfile?.name).join(", ")}');
-    }
-
-    // Merge: history first, then unique contacts
-    final merged = [...historyItems, ...uniqueContactEntries];
-
-    // Sort by timestamp (newest first)
-    merged.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-    if (kDebugMode) {
-      print('  ✅ Final merged count: ${merged.length} (sorted by timestamp)');
-    }
-
-    return merged;
-  }
 
   void _toggleSearch() {
     setState(() {
@@ -410,7 +281,13 @@ class _HistoryScreenState extends State<HistoryScreen>
 
   Future<void> _deleteItem(String itemId,
       {bool isReceivedEntry = false}) async {
-    await HistoryService.deleteEntry(itemId);
+    final isScannedContact = itemId.startsWith('contact_');
+
+    // HistoryService handles both regular entries and scanned contacts
+    // For scanned contacts, it automatically rescans and updates the stream
+    final success = await HistoryService.deleteEntry(itemId);
+
+    // Show appropriate feedback
     HapticFeedback.mediumImpact();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -422,16 +299,26 @@ class _HistoryScreenState extends State<HistoryScreen>
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                 decoration: BoxDecoration(
-                  color: AppColors.success.withOpacity(0.15),
+                  color: success
+                      ? AppColors.success.withOpacity(0.15)
+                      : AppColors.error.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: AppColors.success.withOpacity(0.3),
+                    color: success
+                        ? AppColors.success.withOpacity(0.3)
+                        : AppColors.error.withOpacity(0.3),
                     width: 1,
                   ),
                 ),
-                child: Text(isReceivedEntry
-                    ? 'Contact and history deleted'
-                    : 'Item deleted'),
+                child: Text(
+                  isScannedContact
+                      ? (success
+                          ? 'Contact deleted from device and history'
+                          : 'Failed to delete contact - permission may be required')
+                      : (isReceivedEntry
+                          ? 'Contact and history deleted'
+                          : 'Item deleted'),
+                ),
               ),
             ),
           ),
@@ -874,10 +761,8 @@ class _HistoryScreenState extends State<HistoryScreen>
           return HistoryErrorState(error: snapshot.error.toString());
         }
 
-        final historyItems = snapshot.data ?? [];
-
-        // Merge with scanned contacts from device
-        final allItems = _mergeWithScannedContacts(historyItems);
+        // HistoryService already returns merged data (history + scanned contacts)
+        final allItems = snapshot.data ?? [];
         final filteredItems = _filterHistoryItems(allItems);
 
         if (kDebugMode) {

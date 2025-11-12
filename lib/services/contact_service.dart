@@ -188,7 +188,7 @@ class ContactService {
             if (noteText.contains('X-AL-M:')) {
               final methodCode = noteText
                   .split('X-AL-M:')[1]
-                  .split('\n')[0]
+                  .split(RegExp(r'\\n|\n'))[0]
                   .trim();
               try {
                 extractedMethod = ShareContext.methodFromCode(methodCode);
@@ -202,7 +202,7 @@ class ContactService {
             if (noteText.contains('X-AL-T:')) {
               final timestampStr = noteText
                   .split('X-AL-T:')[1]
-                  .split('\n')[0]
+                  .split(RegExp(r'\\n|\n'))[0]
                   .trim();
               final unixTimestamp = int.tryParse(timestampStr);
               if (unixTimestamp != null) {
@@ -215,7 +215,7 @@ class ContactService {
             if (noteText.contains('X-AL-P:')) {
               final typeCode = noteText
                   .split('X-AL-P:')[1]
-                  .split('\n')[0]
+                  .split(RegExp(r'\\n|\n'))[0]
                   .trim();
               final code = int.tryParse(typeCode);
               if (code != null) {
