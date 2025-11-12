@@ -29,7 +29,8 @@ dependencies:
   # flutter_nfc_hce removed - using custom native NfcTagEmulatorService for Type 4 Tag emulation
 
   # QR Code Generation and Scanning
-  qr_flutter: ^4.1.0
+  pretty_qr_code: ^3.5.0
+  qr: ^3.0.1  # QR error correction levels (dependency of pretty_qr_code)
   mobile_scanner: ^3.5.7
 
   # State Management
@@ -72,10 +73,14 @@ dependencies:
 
   # Firebase Backend
   firebase_core: ^3.6.0
+  firebase_auth: ^5.3.1
   cloud_firestore: ^5.4.4
   firebase_storage: ^12.3.4
   firebase_analytics: ^11.3.3
   cloud_functions: ^5.2.1
+
+  # Google Sign-In (Direct API)
+  google_sign_in: ^6.2.1
 
 dev_dependencies:
   flutter_launcher_icons: ^0.13.1

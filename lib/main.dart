@@ -13,6 +13,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 
 import 'core/providers/app_state.dart';
@@ -72,6 +73,47 @@ void main() async {
     );
   }
 
+  // Wait for Firebase Auth to restore previous session
+  // This ensures users stay logged in across app restarts
+  try {
+    developer.log(
+      '🔐 Waiting for Firebase Auth state restoration...',
+      name: 'App.Main',
+    );
+
+    final authStateRestored = await FirebaseAuth.instance
+        .authStateChanges()
+        .first
+        .timeout(
+          const Duration(seconds: 3),
+          onTimeout: () => null,
+        );
+
+    if (authStateRestored != null) {
+      developer.log(
+        '✅ Auth state restored: User signed in\n'
+        '   • UID: ${authStateRestored.uid}\n'
+        '   • Anonymous: ${authStateRestored.isAnonymous}\n'
+        '   • Provider: ${authStateRestored.providerData.isNotEmpty ? authStateRestored.providerData.first.providerId : "anonymous"}',
+        name: 'App.Main',
+      );
+    } else {
+      developer.log(
+        'ℹ️  No auth session to restore - User will choose auth method on splash screen',
+        name: 'App.Main',
+      );
+      // Don't auto-sign in here - let user choose on splash screen
+      // This prevents creating anonymous accounts before user decides
+    }
+  } catch (e, stackTrace) {
+    developer.log(
+      '⚠️  Auth state restoration error - Continuing with app launch',
+      name: 'App.Main',
+      error: e,
+      stackTrace: stackTrace,
+    );
+  }
+
   // Initialize ProfileService singleton for all screens
   developer.log(
     '🔧 Initializing ProfileService...',
@@ -123,14 +165,15 @@ class _AtlasLinqAppState extends State<AtlasLinqApp> {
   void initState() {
     super.initState();
 
-    developer.log(
-      '📱 Initializing app state and router',
-      name: 'App.Init',
-    );
+    print('[MAIN] 📱 Initializing app state and router');
 
-    // Initialize global state and navigation
+    // Initialize global state first
     _appState = AppState();
-    _router = AppRouter.createRouter();
+
+    // Create router with AppState so it can listen to auth/profile changes
+    _router = AppRouter.createRouter(_appState);
+
+    print('[MAIN] ✅ Router created with AppState as refreshListenable');
 
     // Load persisted state from storage
     _initializeAppState();

@@ -12,7 +12,12 @@
           "package_name": "com.example.tap_card"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "319083477759-nvqfrhrennp1hddjks28lb540b5uc125.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyD814d7qbqzeAlMTIgMSIzWiWnidBLJt60"
@@ -20,7 +25,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "319083477759-nvqfrhrennp1hddjks28lb540b5uc125.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
