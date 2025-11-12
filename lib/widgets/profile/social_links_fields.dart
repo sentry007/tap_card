@@ -6,6 +6,7 @@ import 'dart:ui';
 
 import '../../core/models/profile_models.dart';
 import '../../theme/theme.dart';
+import '../common/section_header_with_info.dart';
 import 'form_field_builders.dart';
 
 /// Widget that builds the social media fields based on the selected profile type.
@@ -48,12 +49,9 @@ class _SocialLinksFieldsState extends State<SocialLinksFields> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Section Label
-        Text(
-          'Social Media',
-          style: AppTextStyles.h3.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
+        const SectionHeaderWithInfo(
+          title: 'Social Media',
+          infoText: 'Add your social media profiles. Select a platform chip to enter your username or profile URL. A green indicator shows which platforms you\'ve filled in.',
         ),
         const SizedBox(height: 16),
         // Horizontal scrollable chips

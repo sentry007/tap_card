@@ -5,6 +5,7 @@ import 'dart:ui';
 
 import '../../core/models/profile_models.dart';
 import '../../theme/theme.dart';
+import '../common/section_header_with_info.dart';
 import 'form_field_builders.dart';
 
 /// Widget that builds the custom link fields (up to 3 links).
@@ -65,12 +66,9 @@ class _CustomLinksFieldsState extends State<CustomLinksFields> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Section Label
-        Text(
-          'Custom Links',
-          style: AppTextStyles.h3.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
+        const SectionHeaderWithInfo(
+          title: 'Custom Links',
+          infoText: 'Add up to 3 custom links to your profile (portfolio, blog, store, etc.). Each link needs a title and URL. Tap the + button to add a new link.',
         ),
         const SizedBox(height: 16),
         // Show horizontal scrollable chips for existing/available links

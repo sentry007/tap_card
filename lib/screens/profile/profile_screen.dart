@@ -979,17 +979,15 @@ class _ProfileScreenState extends State<ProfileScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Profile Type',
-                  style: AppTextStyles.h3.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+                const SectionHeaderWithInfo(
+                  title: 'Profile Type',
+                  infoText: 'Switch between Personal, Professional, and Custom profiles. Each profile type has different fields and styling options tailored for its use case.',
                 ),
                 const SizedBox(height: 16),
                 Row(
                   children: ProfileType.values.map((profileType) {
                     final profile = _profileService.getProfileByType(profileType);
-                    final isSelected = profile?.id == _currentProfile?.id;
+                    final isSelected = profile?.type == _currentProfile?.type;
                     return Expanded(
                       child: Padding(
                         padding: EdgeInsets.only(
@@ -1096,14 +1094,17 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   void _switchToProfileType(ProfileType profileType) async {
     final profile = _profileService.getProfileByType(profileType);
-    if (profile == null || profile.id == _currentProfile?.id) return;
+    if (profile == null || profile.type == _currentProfile?.type) return;
 
     // Save current profile before switching
     if (_currentProfile != null) {
       await _saveCurrentProfile();
     }
 
-    await _profileService.setActiveProfile(profile.id);
+    // Switch to the new profile type using type-based method
+    _selectedProfileType = profileType;
+    await _profileService.setActiveProfileByType(profileType);
+    // _loadCurrentProfile() will be called via listener, repopulating the form
     HapticFeedback.lightImpact();
   }
 
@@ -1121,11 +1122,9 @@ class _ProfileScreenState extends State<ProfileScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Profile Information',
-                  style: AppTextStyles.h3.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+                const SectionHeaderWithInfo(
+                  title: 'Profile Information',
+                  infoText: 'Your contact details that will be shared when someone receives your card. Fill in the fields you want to share.',
                 ),
                 const SizedBox(height: 16),
                 ProfileBasicFields(
@@ -1241,11 +1240,9 @@ class _ProfileScreenState extends State<ProfileScreen>
       children: [
         Row(
           children: [
-            Text(
-              'Glassmorphic Blur',
-              style: AppTextStyles.h3.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
+            const SectionHeaderWithInfo(
+              title: 'Glassmorphic Blur',
+              infoText: 'Adjust the frosted glass blur effect on your card background. Higher values create a more blurred, translucent appearance.',
             ),
             const Spacer(),
             Text(
@@ -1291,11 +1288,9 @@ class _ProfileScreenState extends State<ProfileScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Live Preview',
-                style: AppTextStyles.h3.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+              const SectionHeaderWithInfo(
+                title: 'Live Preview',
+                infoText: 'See how your card will look when shared. Changes update in real-time as you edit. Tap profile image to upload a photo.',
               ),
               const SizedBox(height: 16),
               _buildContactCard(),

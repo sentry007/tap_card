@@ -58,6 +58,8 @@
 - **Contact Scanning**: Auto-detects AtlasLinq contacts in device contacts
 - **Firestore Integration**: Fetches full profile data for received contacts
 - **Profile View Tracking**: Track how many times your profiles are viewed
+- **Contact Detail Screen**: Full contact view with notes, direct actions (call, email, website)
+- **Recent Connections Widget**: Shows last 3 connections on home screen with profile images
 - **Location Tracking**: GPS coordinates with reverse geocoding for addresses
 - **Filters & Search**: Filter by date, method, type; search by name/location
 - **Rich Metadata**:
@@ -71,14 +73,20 @@
   - Cards sent (last 7 days)
   - Cards received (last 7 days)
   - New contacts (last 24 hours)
-  - Profile views tracking (placeholder)
+  - Profile views tracking with Firestore integration
 - **Comprehensive Analytics Screen**:
   - Total shares, connections, monthly activity overview
   - Favorite sharing method analysis
   - 7-day activity chart (sent vs received with stacked bars)
-  - Share methods breakdown with visual progress bars
-  - Top 5 connections leaderboard with interaction counts
-  - Milestones system (First Connection, 10 Connections, Networking Pro, Share Master)
+  - Share methods breakdown with gradient progress bars
+  - Recent connections display with profile images and timestamps
+  - Profile views section with pie chart (this week, this month, all time)
+- **45 Achievement System** (4 categories with locked/unlocked states):
+  - **Sharing** (15): First Share → Diamond Sharer (1000+)
+  - **Connections** (15): First Connection → Global Connector (1000+)
+  - **Activity** (10): Daily, Weekly, Monthly milestones
+  - **Special** (5): Balanced Networker, Method Master, AtlasLinq Advocate
+- **Achievements Detail View**: Full-screen modal showing all 45 achievements with progress
 - **Real-time Data**: All analytics calculated client-side from HistoryService stream
 - **Interactive**: Tap insights widget to view full analytics dashboard
 - **Glassmorphism UI**: Consistent with app design language
@@ -88,7 +96,10 @@
 - **Firebase Storage**: Cloud-hosted images with automatic caching
 - **Network Image Caching**: Optimized loading with cached_network_image
 - **Background Image Management**: Upload, update, delete with cloud sync
-- **Profile Views Service**: Track profile engagement metrics
+- **Profile Views Service**: Track profile engagement metrics with time-based breakdown
+- **Sync Log Service**: Track all sync operations with timestamps, success/failure, and duration
+- **Batch Sync Helper**: Bulk profile syncing with rate limiting
+- **Smart Firestore Fetching**: 4-strategy profile fetch (exact ID, UUID only, type suffixes, query by ID field)
 - **Analytics Events**: User behavior tracking and insights
 
 ### 🎨 **Modern UI/UX**

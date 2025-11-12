@@ -65,5 +65,8 @@
 		<string>snapchat</string>
 		<string>github</string>
 	</array>
+	<!-- Contacts permission for reading and writing TapCard contacts -->
+	<key>NSContactsUsageDescription</key>
+	<string>Atlas Linq needs access to your contacts to save and manage digital business cards you receive.</string>
 </dict>
 </plist>
