@@ -4,7 +4,9 @@
       "Bash(mkdir:*)",
       "Bash(flutter:*)",
       "Read(//c/Users/palwa/OneDrive/Desktop/TapCard_sol/**)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []
