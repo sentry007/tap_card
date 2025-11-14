@@ -1,14 +1,11 @@
 /// Profile Management Service
 ///
-/// Singleton service that manages user profiles including:
+/// Manages user profiles including:
 /// - Multiple profile support (Personal, Professional, Custom)
 /// - Profile CRUD operations
 /// - Active profile switching
 /// - Profile data validation
-/// - Local storage persistence
-///
-/// TODO: Firebase - Sync profiles to Firestore
-/// TODO: Firebase - Real-time profile updates across devices
+/// - Sync with Firebase and local storage
 library;
 
 import 'dart:async';
@@ -18,20 +15,54 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/profile_models.dart';
 import '../constants/app_constants.dart';
+import '../repositories/profile_repository.dart';
+import '../repositories/local_profile_repository.dart';
+import '../repositories/auth_repository.dart';
+import '../repositories/received_cards_repository.dart';
 import '../../services/firestore_sync_service.dart';
 import '../../services/firebase_config.dart';
+import '../../services/validation_service.dart';
+import '../../models/history_models.dart';
 import '../../utils/logger.dart';
 import 'auth_service.dart';
 
-/// Manages user profiles with local storage and future cloud sync
+/// Manages user profiles using repository pattern
 class ProfileService extends ChangeNotifier {
-  // ========== Singleton Pattern ==========
-  static final ProfileService _instance = ProfileService._internal();
+  // ========== Singleton Pattern (Backward Compatibility) ==========
+  static ProfileService? _instance;
 
-  /// Get the singleton instance
-  factory ProfileService() => _instance;
+  /// Get the singleton instance (deprecated - use DI instead)
+  factory ProfileService() {
+    _instance ??= ProfileService._(
+      profileRepository: null,
+      localRepository: null,
+      authRepository: null,
+    );
+    return _instance!;
+  }
 
-  ProfileService._internal();
+  // ========== Dependencies (Injected or null for backward compat) ==========
+  final ProfileRepository? _profileRepository;
+  final LocalProfileRepository? _localRepository;
+  final AuthRepository? _authRepository;
+
+  /// Named constructor with dependency injection (new DI way)
+  ProfileService.withDependencies({
+    required ProfileRepository profileRepository,
+    required LocalProfileRepository localRepository,
+    required AuthRepository authRepository,
+  })  : _profileRepository = profileRepository,
+        _localRepository = localRepository,
+        _authRepository = authRepository;
+
+  /// Private constructor (old singleton way - backward compat)
+  ProfileService._({
+    required ProfileRepository? profileRepository,
+    required LocalProfileRepository? localRepository,
+    required AuthRepository? authRepository,
+  })  : _profileRepository = profileRepository,
+        _localRepository = localRepository,
+        _authRepository = authRepository;
 
   // ========== Private State ==========
 
@@ -228,30 +259,31 @@ class ProfileService extends ChangeNotifier {
 
   // ========== Private Storage Methods ==========
 
-  /// Load profiles from SharedPreferences
+  /// Load profiles from repository
   ///
-  /// TODO: Firebase - Also load from Firestore and merge
+  /// Uses local repository if injected, otherwise falls back to SharedPreferences
   Future<void> _loadProfiles() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final profilesJson = prefs.getString(StorageKeys.userProfiles);
-
-      if (profilesJson != null) {
-        final List<dynamic> profilesList = jsonDecode(profilesJson);
-        _profiles = profilesList
-            .map((json) => ProfileData.fromJson(json))
-            .toList();
-
-        developer.log(
-          '📂 Loaded ${_profiles.length} profiles from storage',
-          name: 'ProfileService.Load',
-        );
+      // New way: Use injected repository
+      if (_localRepository != null) {
+        _profiles = await _localRepository!.getAllProfiles();
       } else {
-        developer.log(
-          'ℹ️  No profiles found in storage',
-          name: 'ProfileService.Load',
-        );
+        // Old way: Direct SharedPreferences access
+        final prefs = await SharedPreferences.getInstance();
+        final profilesJson = prefs.getString(StorageKeys.userProfiles);
+
+        if (profilesJson != null) {
+          final List<dynamic> profilesList = jsonDecode(profilesJson);
+          _profiles = profilesList
+              .map((json) => ProfileData.fromJson(json))
+              .toList();
+        }
       }
+
+      developer.log(
+        '📂 Loaded ${_profiles.length} profiles from storage',
+        name: 'ProfileService.Load',
+      );
     } catch (e, stackTrace) {
       developer.log(
         '❌ Error loading profiles from storage',
@@ -646,6 +678,20 @@ class ProfileService extends ChangeNotifier {
       p.id == updatedProfile.id && p.type == updatedProfile.type);
 
     if (index != -1) {
+      // ✅ Validate profile (warning mode - doesn't block)
+      final validation = ValidationService.validateProfile(updatedProfile);
+      if (!validation.isValid) {
+        developer.log(
+          '⚠️ Profile validation warnings:\n'
+          '   Profile: ${updatedProfile.name}\n'
+          '   Issues: ${validation.userMessage}\n'
+          '   ℹ️ Continuing anyway (warning mode active)',
+          name: 'ProfileService.Update',
+        );
+        // Don't throw - just log the warning
+        // In Phase 2, we'll enforce validation here
+      }
+
       // Regenerate NFC cache if profile data changed (includes dual-payload)
       final needsCacheUpdate = updatedProfile.needsNfcCacheUpdate;
       final finalProfile = needsCacheUpdate
@@ -784,11 +830,18 @@ class ProfileService extends ChangeNotifier {
     }
   }
 
-  /// Add received card UUID to active profile
+  /// Add received card to active profile and ReceivedCardsRepository
   ///
-  /// Tracks cards received from others for history and sharing analytics
+  /// **Two-layer tracking:**
+  /// 1. ProfileData.receivedCardUuids - User's personal list
+  /// 2. ReceivedCardsRepository - App-wide persistent storage
+  ///
   /// Prevents duplicates - only adds if UUID not already in list
-  Future<void> addReceivedCard(String receivedProfileUuid) async {
+  Future<void> addReceivedCard(
+    String receivedProfileUuid, {
+    required ProfileData receivedProfile,
+    required ShareMethod shareMethod,
+  }) async {
     final active = activeProfile;
     if (active == null) {
       developer.log(
@@ -798,27 +851,38 @@ class ProfileService extends ChangeNotifier {
       return;
     }
 
-    // Don't add duplicates
-    if (active.receivedCardUuids.contains(receivedProfileUuid)) {
+    // Don't add duplicates to ProfileData list
+    final alreadyInProfile = active.receivedCardUuids.contains(receivedProfileUuid);
+
+    if (!alreadyInProfile) {
+      // Add to active profile's list
+      final updatedUuids = [...active.receivedCardUuids, receivedProfileUuid];
+      final updatedProfile = active.copyWith(receivedCardUuids: updatedUuids);
+
       developer.log(
-        'ℹ️ Card already in received list: $receivedProfileUuid',
+        '📇 Added received card to active profile\n'
+        '   • Received UUID: $receivedProfileUuid\n'
+        '   • Profile: ${receivedProfile.name}\n'
+        '   • Total received: ${updatedUuids.length}',
         name: 'ProfileService.ReceivedCards',
       );
-      return;
+
+      await updateProfile(updatedProfile);
+    } else {
+      developer.log(
+        'ℹ️ Card already in profile list: $receivedProfileUuid',
+        name: 'ProfileService.ReceivedCards',
+      );
     }
 
-    // Add to list
-    final updatedUuids = [...active.receivedCardUuids, receivedProfileUuid];
-    final updatedProfile = active.copyWith(receivedCardUuids: updatedUuids);
-
-    developer.log(
-      '📇 Added received card to profile\n'
-      '   • Received UUID: $receivedProfileUuid\n'
-      '   • Total received: ${updatedUuids.length}',
-      name: 'ProfileService.ReceivedCards',
+    // ✅ ALWAYS sync to ReceivedCardsRepository (handles duplicates internally)
+    // This ensures repository stays in sync even if profile list already had it
+    final repository = ReceivedCardsRepository();
+    await repository.addReceivedCard(
+      receivedProfileUuid,
+      profile: receivedProfile,
+      shareMethod: shareMethod,
     );
-
-    await updateProfile(updatedProfile);
   }
 
   // ========== Firebase Sync Methods ==========

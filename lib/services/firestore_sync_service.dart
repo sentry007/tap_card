@@ -406,69 +406,82 @@ class FirestoreSyncService {
       DocumentSnapshot? doc;
       String? successfulId;
 
-      // STRATEGY 1: Try exact ID match (most common case)
-      developer.log('   🔍 Strategy 1: Trying exact ID match...', name: 'FirestoreSync.GetProfile');
-      doc = await _firestore.collection('profiles').doc(profileId).get();
+      // Extract UUID from profileId (handles various formats)
+      // Supports: uuid, uuid_type, type_timestamp
+      final uuidPattern = RegExp(r'([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})', caseSensitive: false);
+      final uuidMatch = uuidPattern.firstMatch(profileId);
+      final String? extractedUuid = uuidMatch?.group(1);
 
-      if (doc.exists) {
-        successfulId = profileId;
-        developer.log('   ✅ Strategy 1 SUCCESS!', name: 'FirestoreSync.GetProfile');
-      } else {
-        developer.log('   ❌ Strategy 1 failed - document not found', name: 'FirestoreSync.GetProfile');
+      developer.log(
+        '🔍 Extracted UUID: ${extractedUuid ?? "NONE"}\n'
+        '   • Original ID: $profileId\n'
+        '   • Has UUID: ${extractedUuid != null}',
+        name: 'FirestoreSync.GetProfile',
+      );
 
-        // STRATEGY 2: Try stripping type suffix
-        final uuidMatch = RegExp(r'^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{10,12})', caseSensitive: false).firstMatch(profileId);
-        if (uuidMatch != null) {
-          final uuidOnly = uuidMatch.group(1)!;
-          developer.log('   🔍 Strategy 2: Trying UUID only ($uuidOnly)...', name: 'FirestoreSync.GetProfile');
+      // STRATEGY 1: Try {uuid}_{type} format FIRST (most common after sync)
+      if (extractedUuid != null) {
+        developer.log('   🔍 Strategy 1: Trying UUID with type suffixes...', name: 'FirestoreSync.GetProfile');
+        for (final type in ['personal', 'professional', 'custom']) {
+          final idWithType = '${extractedUuid}_$type';
+          developer.log('      • Trying: $idWithType', name: 'FirestoreSync.GetProfile');
 
-          doc = await _firestore.collection('profiles').doc(uuidOnly).get();
+          doc = await _firestore.collection('profiles').doc(idWithType).get();
 
           if (doc.exists) {
-            successfulId = uuidOnly;
-            developer.log('   ✅ Strategy 2 SUCCESS!', name: 'FirestoreSync.GetProfile');
-          } else {
-            developer.log('   ❌ Strategy 2 failed', name: 'FirestoreSync.GetProfile');
-
-            // STRATEGY 3: Try all type suffixes
-            developer.log('   🔍 Strategy 3: Trying all type suffixes...', name: 'FirestoreSync.GetProfile');
-            for (final type in ['personal', 'professional', 'custom']) {
-              final idWithType = '${uuidOnly}_$type';
-              developer.log('      • Trying: $idWithType', name: 'FirestoreSync.GetProfile');
-
-              doc = await _firestore.collection('profiles').doc(idWithType).get();
-
-              if (doc.exists) {
-                successfulId = idWithType;
-                developer.log('   ✅ Strategy 3 SUCCESS with $type type!', name: 'FirestoreSync.GetProfile');
-                break;
-              }
-            }
-
-            if (doc == null || !doc.exists) {
-              developer.log('   ❌ Strategy 3 failed - tried all type suffixes', name: 'FirestoreSync.GetProfile');
-
-              // STRATEGY 4: Query by 'id' field
-              developer.log('   🔍 Strategy 4: Querying by id field...', name: 'FirestoreSync.GetProfile');
-              try {
-                final querySnapshot = await _firestore
-                  .collection('profiles')
-                  .where('id', isEqualTo: uuidOnly)
-                  .limit(1)
-                  .get();
-
-                if (querySnapshot.docs.isNotEmpty) {
-                  doc = querySnapshot.docs.first;
-                  successfulId = doc.id;
-                  developer.log('   ✅ Strategy 4 SUCCESS! Found via query with doc ID: $successfulId', name: 'FirestoreSync.GetProfile');
-                } else {
-                  developer.log('   ❌ Strategy 4 failed - no documents match id field', name: 'FirestoreSync.GetProfile');
-                }
-              } catch (e) {
-                developer.log('   ❌ Strategy 4 exception: $e', name: 'FirestoreSync.GetProfile');
-              }
-            }
+            successfulId = idWithType;
+            developer.log('   ✅ Strategy 1 SUCCESS with $type type!', name: 'FirestoreSync.GetProfile');
+            break;
           }
+        }
+      }
+
+      // STRATEGY 2: Try exact ID match (legacy or direct match)
+      if (doc == null || !doc.exists) {
+        developer.log('   🔍 Strategy 2: Trying exact ID match...', name: 'FirestoreSync.GetProfile');
+        doc = await _firestore.collection('profiles').doc(profileId).get();
+
+        if (doc.exists) {
+          successfulId = profileId;
+          developer.log('   ✅ Strategy 2 SUCCESS!', name: 'FirestoreSync.GetProfile');
+        } else {
+          developer.log('   ❌ Strategy 2 failed', name: 'FirestoreSync.GetProfile');
+        }
+      }
+
+      // STRATEGY 3: Try UUID only (without type suffix)
+      if (!doc.exists && extractedUuid != null) {
+        developer.log('   🔍 Strategy 3: Trying UUID only ($extractedUuid)...', name: 'FirestoreSync.GetProfile');
+
+        doc = await _firestore.collection('profiles').doc(extractedUuid).get();
+
+        if (doc.exists) {
+          successfulId = extractedUuid;
+          developer.log('   ✅ Strategy 3 SUCCESS!', name: 'FirestoreSync.GetProfile');
+        } else {
+          developer.log('   ❌ Strategy 3 failed', name: 'FirestoreSync.GetProfile');
+        }
+      }
+
+      // STRATEGY 4: Query by 'id' field
+      if (!doc.exists && extractedUuid != null) {
+        developer.log('   🔍 Strategy 4: Querying by id field...', name: 'FirestoreSync.GetProfile');
+        try {
+          final querySnapshot = await _firestore
+            .collection('profiles')
+            .where('id', isEqualTo: extractedUuid)
+            .limit(1)
+            .get();
+
+          if (querySnapshot.docs.isNotEmpty) {
+            doc = querySnapshot.docs.first;
+            successfulId = doc.id;
+            developer.log('   ✅ Strategy 4 SUCCESS! Found via query with doc ID: $successfulId', name: 'FirestoreSync.GetProfile');
+          } else {
+            developer.log('   ❌ Strategy 4 failed - no documents match id field', name: 'FirestoreSync.GetProfile');
+          }
+        } catch (e) {
+          developer.log('   ❌ Strategy 4 exception: $e', name: 'FirestoreSync.GetProfile');
         }
       }
 

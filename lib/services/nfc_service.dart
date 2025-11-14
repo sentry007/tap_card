@@ -34,6 +34,7 @@ import 'package:nfc_manager/nfc_manager.dart';
 
 import '../core/constants/app_constants.dart';
 import '../models/unified_models.dart';
+import 'validation_service.dart';
 
 /// NFC Operation Mode
 enum NfcMode {
@@ -414,6 +415,20 @@ class NFCService {
       if (!nfcData.trim().startsWith('{')) return null;
 
       final jsonData = jsonDecode(nfcData) as Map<String, dynamic>;
+
+      // ✅ Validate NFC data (warning mode - doesn't block)
+      final validation = ValidationService.validateNfcData(jsonData);
+      if (!validation.isValid) {
+        developer.log(
+          '⚠️ NFC data validation warnings:\n'
+          '   Issues: ${validation.userMessage}\n'
+          '   ℹ️ Continuing anyway (warning mode active)',
+          name: 'NFC.Process',
+        );
+        // Don't return null - just log the warning
+        // In Phase 2, we'll block invalid data here
+      }
+
       final appId = jsonData['app'] ?? jsonData['a'];
       if (appId != 'tap_card' && appId != 'tc') return null;
 

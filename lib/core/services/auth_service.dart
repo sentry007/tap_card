@@ -1,6 +1,6 @@
 /// Firebase Authentication Service
 ///
-/// Singleton service that manages Firebase Authentication state and operations.
+/// Service that manages Firebase Authentication state and operations.
 /// Provides a simplified interface for authentication throughout the app.
 ///
 /// Features:
@@ -13,6 +13,7 @@ library;
 
 import 'dart:developer' as developer;
 import 'package:firebase_auth/firebase_auth.dart';
+import '../repositories/auth_repository.dart';
 import '../../widgets/auth/google_sign_in_helper.dart';
 import '../../utils/logger.dart';
 
@@ -21,14 +22,38 @@ import '../../utils/logger.dart';
 /// Simple wrapper around Firebase Auth - does NOT listen to auth state.
 /// AppState is responsible for listening and coordinating state changes.
 class AuthService {
-  // ========== Singleton Pattern ==========
+  // ========== Singleton Pattern (Backward Compatibility) ==========
 
-  static final AuthService _instance = AuthService._internal();
+  static AuthService? _instance;
 
-  /// Get the singleton instance
-  factory AuthService() => _instance;
+  /// Get the singleton instance (deprecated - use DI instead)
+  factory AuthService() {
+    _instance ??= AuthService._(authRepository: null);
+    return _instance!;
+  }
 
-  AuthService._internal() {
+  // ========== Dependencies ==========
+
+  final AuthRepository? _authRepository;
+  final FirebaseAuth _auth;
+
+  /// Named constructor with dependency injection (new DI way)
+  AuthService.withDependencies({
+    required AuthRepository authRepository,
+  })  : _authRepository = authRepository,
+        _auth = FirebaseAuth.instance {
+    _logInitialization();
+  }
+
+  /// Private constructor (old singleton way - backward compat)
+  AuthService._({
+    required AuthRepository? authRepository,
+  })  : _authRepository = authRepository,
+        _auth = FirebaseAuth.instance {
+    _logInitialization();
+  }
+
+  void _logInitialization() {
     Logger.info(
       'AuthService initialized (wrapper only, no listener)\n'
       '  Signed in: $isSignedIn\n'
@@ -38,11 +63,6 @@ class AuthService {
       name: 'AUTH',
     );
   }
-
-  // ========== Private State ==========
-
-  /// Firebase Auth instance
-  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   // ========== Public Getters ==========
 
