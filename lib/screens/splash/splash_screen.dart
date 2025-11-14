@@ -12,6 +12,7 @@ import '../../theme/theme.dart';
 import '../../core/providers/app_state.dart';
 import '../../core/constants/routes.dart';
 import '../../core/services/auth_service.dart';
+import '../../utils/logger.dart';
 import '../../widgets/auth/google_sign_in_helper.dart';
 import '../../widgets/auth/phone_auth_modal.dart';
 
@@ -58,37 +59,31 @@ class _SplashScreenState extends State<SplashScreen>
   void _onPhoneSignIn() async {
     HapticFeedback.lightImpact();
 
-    print('[SPLASH] 📱 Phone Sign-In button tapped');
+    Logger.info('Phone Sign-In button tapped', name: 'SPLASH');
 
     if (!mounted) {
-      print('[SPLASH] ⚠️  Widget not mounted - aborting');
+      Logger.warning('Widget not mounted - aborting', name: 'SPLASH');
       return;
     }
 
     try {
-      print('[SPLASH] 🔄 Showing phone auth modal...');
+      Logger.info('Showing phone auth modal...', name: 'SPLASH');
 
       // Show custom phone auth modal
       final userCredential = await showPhoneAuthModal(context);
 
-      print('[SPLASH] 📦 Phone auth modal returned: ${userCredential != null ? "UserCredential" : "null"}');
+      Logger.debug('Phone auth modal returned: ${userCredential != null ? "UserCredential" : "null"}', name: 'SPLASH');
 
       if (userCredential != null) {
-        print('[SPLASH] ✅ Phone sign-in successful');
-        print('[SPLASH]    • Phone: ${userCredential.user?.phoneNumber}');
-        print('[SPLASH]    • UID: ${userCredential.user?.uid}');
-        print('[SPLASH] 👉 AppState auth listener will handle profile coordination');
-        print('[SPLASH] 👉 Router will handle navigation');
+        Logger.info('Phone sign-in successful\n  Phone: ${userCredential.user?.phoneNumber}\n  UID: ${userCredential.user?.uid}\n  AppState auth listener will handle profile coordination\n  Router will handle navigation', name: 'SPLASH');
 
         // AppState will automatically call ensureProfilesExist() via auth listener
         // Navigation will be handled by router listening to auth state
       } else {
-        print('[SPLASH] ❌ Phone sign-in cancelled by user');
+        Logger.info('Phone sign-in cancelled by user', name: 'SPLASH');
       }
     } catch (e, stackTrace) {
-      print('[SPLASH] ❌ Phone sign-in error: $e');
-      print('[SPLASH]    Type: ${e.runtimeType}');
-      print('[SPLASH]    Stack trace: $stackTrace');
+      Logger.error('Phone sign-in error: $e\n  Type: ${e.runtimeType}', name: 'SPLASH', error: e, stackTrace: stackTrace);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -104,41 +99,34 @@ class _SplashScreenState extends State<SplashScreen>
   void _onGoogleSignIn() async {
     HapticFeedback.lightImpact();
 
-    print('[SPLASH] 🔵 Google Sign-In button tapped');
+    Logger.info('Google Sign-In button tapped', name: 'SPLASH');
 
     if (_isLoading) {
-      print('[SPLASH] ⚠️  Already loading - ignoring tap');
+      Logger.warning('Already loading - ignoring tap', name: 'SPLASH');
       return;
     }
 
     setState(() => _isLoading = true);
-    print('[SPLASH] ⏳ Set loading state to true');
+    Logger.debug('Set loading state to true', name: 'SPLASH');
 
     try {
-      print('[SPLASH] 🔄 Calling GoogleSignInHelper.signInWithGoogle()...');
+      Logger.info('Calling GoogleSignInHelper.signInWithGoogle()...', name: 'SPLASH');
 
       // Use custom Google Sign-In helper (no extra screens!)
       final userCredential = await GoogleSignInHelper.signInWithGoogle();
 
-      print('[SPLASH] 📦 GoogleSignInHelper returned: ${userCredential != null ? "UserCredential" : "null"}');
+      Logger.debug('GoogleSignInHelper returned: ${userCredential != null ? "UserCredential" : "null"}', name: 'SPLASH');
 
       if (userCredential != null) {
-        print('[SPLASH] ✅ Google sign-in successful');
-        print('[SPLASH]    • Email: ${userCredential.user?.email}');
-        print('[SPLASH]    • UID: ${userCredential.user?.uid}');
-        print('[SPLASH]    • Display Name: ${userCredential.user?.displayName}');
-        print('[SPLASH] 👉 AppState auth listener will handle profile coordination');
-        print('[SPLASH] 👉 Router will handle navigation');
+        Logger.info('Google sign-in successful\n  Email: ${userCredential.user?.email}\n  UID: ${userCredential.user?.uid}\n  Display Name: ${userCredential.user?.displayName}\n  AppState auth listener will handle profile coordination\n  Router will handle navigation', name: 'SPLASH');
 
         // AppState will automatically call ensureProfilesExist() via auth listener
         // Navigation will be handled by router listening to auth state
       } else {
-        print('[SPLASH] ❌ Google sign-in returned null (user cancelled)');
+        Logger.info('Google sign-in returned null (user cancelled)', name: 'SPLASH');
       }
     } on FirebaseAuthException catch (e, stackTrace) {
-      print('[SPLASH] ❌ Firebase Auth Exception: ${e.code}');
-      print('[SPLASH]    Message: ${e.message}');
-      print('[SPLASH]    Stack trace: $stackTrace');
+      Logger.error('Firebase Auth Exception: ${e.code}\n  Message: ${e.message}', name: 'SPLASH', error: e, stackTrace: stackTrace);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -149,9 +137,7 @@ class _SplashScreenState extends State<SplashScreen>
         );
       }
     } catch (e, stackTrace) {
-      print('[SPLASH] ❌ Unexpected error during Google sign-in: $e');
-      print('[SPLASH]    Type: ${e.runtimeType}');
-      print('[SPLASH]    Stack trace: $stackTrace');
+      Logger.error('Unexpected error during Google sign-in: $e\n  Type: ${e.runtimeType}', name: 'SPLASH', error: e, stackTrace: stackTrace);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -164,9 +150,9 @@ class _SplashScreenState extends State<SplashScreen>
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
-        print('[SPLASH] ⏳ Set loading state to false');
+        Logger.debug('Set loading state to false', name: 'SPLASH');
       } else {
-        print('[SPLASH] ⚠️  Widget unmounted - cannot update loading state');
+        Logger.warning('Widget unmounted - cannot update loading state', name: 'SPLASH');
       }
     }
   }
@@ -188,39 +174,33 @@ class _SplashScreenState extends State<SplashScreen>
   void _onGuestContinue() async {
     HapticFeedback.lightImpact();
 
-    print('[SPLASH] 👤 Guest Continue button tapped');
+    Logger.info('Guest Continue button tapped', name: 'SPLASH');
 
     if (_isLoading) {
-      print('[SPLASH] ⚠️  Already loading - ignoring tap');
+      Logger.warning('Already loading - ignoring tap', name: 'SPLASH');
       return;
     }
 
     setState(() => _isLoading = true);
-    print('[SPLASH] ⏳ Set loading state to true');
+    Logger.debug('Set loading state to true', name: 'SPLASH');
 
     try {
       final authService = AuthService();
-      print('[SPLASH] 🔄 Calling authService.signInAnonymously()...');
+      Logger.info('Calling authService.signInAnonymously()...', name: 'SPLASH');
 
       final user = await authService.signInAnonymously();
 
       if (user != null) {
-        print('[SPLASH] ✅ Guest sign-in successful');
-        print('[SPLASH]    • UID: ${user.uid}');
-        print('[SPLASH]    • Is Anonymous: ${user.isAnonymous}');
-        print('[SPLASH] 👉 AppState auth listener will handle profile coordination');
-        print('[SPLASH] 👉 Router will handle navigation');
+        Logger.info('Guest sign-in successful\n  UID: ${user.uid}\n  Is Anonymous: ${user.isAnonymous}\n  AppState auth listener will handle profile coordination\n  Router will handle navigation', name: 'SPLASH');
 
         // AppState will automatically call ensureProfilesExist() via auth listener
         // Navigation will be handled by router listening to auth state
       } else {
-        print('[SPLASH] ❌ signInAnonymously returned null');
+        Logger.error('signInAnonymously returned null', name: 'SPLASH');
         throw Exception('Failed to sign in anonymously');
       }
     } catch (e, stackTrace) {
-      print('[SPLASH] ❌ Guest sign-in error: $e');
-      print('[SPLASH]    Type: ${e.runtimeType}');
-      print('[SPLASH]    Stack trace: $stackTrace');
+      Logger.error('Guest sign-in error: $e\n  Type: ${e.runtimeType}', name: 'SPLASH', error: e, stackTrace: stackTrace);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -233,9 +213,9 @@ class _SplashScreenState extends State<SplashScreen>
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
-        print('[SPLASH] ⏳ Set loading state to false');
+        Logger.debug('Set loading state to false', name: 'SPLASH');
       } else {
-        print('[SPLASH] ⚠️  Widget unmounted - cannot update loading state');
+        Logger.warning('Widget unmounted - cannot update loading state', name: 'SPLASH');
       }
     }
   }
@@ -285,8 +265,8 @@ class _SplashScreenState extends State<SplashScreen>
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          AppColors.secondaryAction.withOpacity(0.3),
-                          AppColors.primaryAction.withOpacity(0.3),
+                          AppColors.secondaryAction.withValues(alpha: 0.3),
+                          AppColors.primaryAction.withValues(alpha: 0.3),
                         ],
                       ),
                     ),
@@ -311,7 +291,7 @@ class _SplashScreenState extends State<SplashScreen>
             // Loading overlay
             if (_isLoading)
               Container(
-                color: Colors.black.withOpacity(0.3),
+                color: Colors.black.withValues(alpha: 0.3),
                 child: const Center(
                   child: CircularProgressIndicator(
                     valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
@@ -340,28 +320,28 @@ class _SplashScreenState extends State<SplashScreen>
           child: Container(
             key: const Key('splash_main_card_container'),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(30),
               border: Border.all(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 width: 1.5,
               ),
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  Colors.white.withOpacity(0.15),
-                  Colors.white.withOpacity(0.05),
+                  Colors.white.withValues(alpha: 0.15),
+                  Colors.white.withValues(alpha: 0.05),
                 ],
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 30,
                   offset: const Offset(0, 10),
                 ),
                 BoxShadow(
-                  color: AppColors.primaryAction.withOpacity(0.1),
+                  color: AppColors.primaryAction.withValues(alpha: 0.1),
                   blurRadius: 60,
                   offset: const Offset(0, 20),
                 ),
@@ -488,15 +468,15 @@ class _SplashScreenState extends State<SplashScreen>
         child: Container(
           key: Key('splash_signin_${key}_container'),
           decoration: BoxDecoration(
-            color: isSolid ? Colors.white : Colors.white.withOpacity(0.1),
+            color: isSolid ? Colors.white : Colors.white.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isSolid ? Colors.white : Colors.white.withOpacity(0.2),
+              color: isSolid ? Colors.white : Colors.white.withValues(alpha: 0.2),
               width: 1,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(isSolid ? 0.15 : 0.05),
+                color: Colors.black.withValues(alpha: isSolid ? 0.15 : 0.05),
                 blurRadius: isSolid ? 12 : 8,
                 offset: Offset(0, isSolid ? 4 : 2),
               ),
@@ -536,7 +516,7 @@ class _SplashScreenState extends State<SplashScreen>
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: AppColors.primaryBackground.withOpacity(0.5),
+                          color: AppColors.primaryBackground.withValues(alpha: 0.5),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
@@ -575,10 +555,10 @@ class _SplashScreenState extends State<SplashScreen>
           child: Container(
             key: const Key('splash_guest_container'),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.08),
+              color: Colors.white.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 width: 1,
               ),
             ),

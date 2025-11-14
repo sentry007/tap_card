@@ -18,6 +18,8 @@ import '../../services/history_service.dart';
 import '../../services/settings_service.dart';
 import '../../services/tutorial_service.dart';
 import '../../widgets/tutorial/tutorial.dart';
+import '../../utils/snackbar_helper.dart';
+import '../../utils/logger.dart';
 import 'profile_detail_modal.dart';
 import 'qr_settings_screen.dart';
 import 'package:app_settings/app_settings.dart';
@@ -215,82 +217,18 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
   }
 
   void _showMultipleProfilesEnabledSnackBar() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.success.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppColors.success.withOpacity(0.3),
-                  width: 1,
-                ),
-              ),
-              child: const Row(
-                children: [
-                  Icon(CupertinoIcons.group, color: AppColors.success),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Multiple profiles enabled',
-                      style: AppTextStyles.body,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
+    SnackbarHelper.showSuccess(
+      context,
+      message: 'Multiple profiles enabled',
+      icon: CupertinoIcons.group,
     );
   }
 
   void _showMultipleProfilesDisabledSnackBar() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.blueAccent.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: Colors.blueAccent.withOpacity(0.3),
-                  width: 1,
-                ),
-              ),
-              child: const Row(
-                children: [
-                  Icon(CupertinoIcons.person, color: Colors.blueAccent),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Multiple profiles disabled',
-                      style: AppTextStyles.body,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
+    SnackbarHelper.showInfo(
+      context,
+      message: 'Multiple profiles disabled',
+      icon: CupertinoIcons.person,
     );
   }
 
@@ -358,13 +296,13 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  AppColors.surfaceDark.withOpacity(0.8),
-                  AppColors.surfaceDark.withOpacity(0.5),
+                  AppColors.surfaceDark.withValues(alpha: 0.8),
+                  AppColors.surfaceDark.withValues(alpha: 0.5),
                 ],
               ),
               border: Border(
                 bottom: BorderSide(
-                  color: AppColors.glassBorder.withOpacity(0.2),
+                  color: AppColors.glassBorder.withValues(alpha: 0.2),
                   width: 1,
                 ),
               ),
@@ -396,7 +334,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                       borderRadius: BorderRadius.circular(AppRadius.md),
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.primaryAction.withOpacity(0.3),
+                          color: AppColors.primaryAction.withValues(alpha: 0.3),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -451,8 +389,8 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      AppColors.primaryAction.withOpacity(0.05),
-                      AppColors.secondaryAction.withOpacity(0.05),
+                      AppColors.primaryAction.withValues(alpha: 0.05),
+                      AppColors.secondaryAction.withValues(alpha: 0.05),
                     ],
                   ),
                   borderRadius: BorderRadius.circular(AppRadius.card),
@@ -470,7 +408,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(32),
                             border: Border.all(
-                              color: AppColors.primaryAction.withOpacity(0.3),
+                              color: AppColors.primaryAction.withValues(alpha: 0.3),
                               width: 2,
                             ),
                           ),
@@ -1015,7 +953,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                   borderRadius: BorderRadius.circular(AppRadius.sm),
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.primaryAction.withOpacity(0.3),
+                      color: AppColors.primaryAction.withValues(alpha: 0.3),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -1073,7 +1011,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           Container(
             padding: const EdgeInsets.all(AppSpacing.sm),
             decoration: BoxDecoration(
-              color: AppColors.highlight.withOpacity(0.1),
+              color: AppColors.highlight.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(AppRadius.sm),
             ),
             child: const Icon(
@@ -1106,10 +1044,10 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           ),
           Container(
             decoration: BoxDecoration(
-              color: AppColors.surfaceDark.withOpacity(0.5),
+              color: AppColors.surfaceDark.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: AppColors.glassBorder.withOpacity(0.2),
+                color: AppColors.glassBorder.withValues(alpha: 0.2),
                 width: 0.5,
               ),
             ),
@@ -1207,18 +1145,18 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  AppColors.surfaceDark.withOpacity(0.95),
-                  AppColors.surfaceDark.withOpacity(0.85),
+                  AppColors.surfaceDark.withValues(alpha: 0.95),
+                  AppColors.surfaceDark.withValues(alpha: 0.85),
                 ],
               ),
               borderRadius: BorderRadius.circular(AppRadius.card),
               border: Border.all(
-                color: AppColors.glassBorder.withOpacity(0.3),
+                color: AppColors.glassBorder.withValues(alpha: 0.3),
                 width: 1,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
+                  color: Colors.black.withValues(alpha: 0.3),
                   blurRadius: 20,
                   offset: const Offset(0, 10),
                 ),
@@ -1234,7 +1172,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                   decoration: BoxDecoration(
                     border: Border(
                       bottom: BorderSide(
-                        color: AppColors.glassBorder.withOpacity(0.2),
+                        color: AppColors.glassBorder.withValues(alpha: 0.2),
                         width: 1,
                       ),
                     ),
@@ -1260,7 +1198,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                     decoration: BoxDecoration(
                       border: Border(
                         top: BorderSide(
-                          color: AppColors.glassBorder.withOpacity(0.2),
+                          color: AppColors.glassBorder.withValues(alpha: 0.2),
                           width: 1,
                         ),
                       ),
@@ -1275,151 +1213,6 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           ),
         ),
       ),
-    );
-  }
-
-  void _showEditProfileDialog() {
-    final nameController = TextEditingController(text: _userName);
-    final emailController = TextEditingController(text: _userEmail);
-
-    _showGlassDialog(
-      title: 'Edit Profile',
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: nameController,
-            style: AppTextStyles.body,
-            decoration: const InputDecoration(
-              labelText: 'Name',
-              prefixIcon: Icon(CupertinoIcons.person),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          TextField(
-            controller: emailController,
-            style: AppTextStyles.body,
-            decoration: const InputDecoration(
-              labelText: 'Email',
-              prefixIcon: Icon(CupertinoIcons.mail),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          GlassCard(
-            onTap: () {
-              // TODO: Implement photo picker
-            },
-            child: const Row(
-              children: [
-                Icon(CupertinoIcons.camera),
-                SizedBox(width: AppSpacing.sm),
-                Text(
-                  'Change Profile Photo',
-                  style: AppTextStyles.body,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(
-            'Cancel',
-            style: AppTextStyles.body.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        TextButton(
-          onPressed: () {
-            setState(() {
-              _userName = nameController.text;
-              _userEmail = emailController.text;
-            });
-            Navigator.pop(context);
-            _showUpdateSuccessSnackBar();
-          },
-          style: TextButton.styleFrom(
-            backgroundColor: AppColors.primaryAction.withOpacity(0.2),
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.lg,
-              vertical: AppSpacing.sm,
-            ),
-          ),
-          child: Text(
-            'Save',
-            style: AppTextStyles.body.copyWith(
-              color: AppColors.primaryAction,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _showExportDialog() {
-    _showGlassDialog(
-      title: 'Export Data',
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text(
-            'Choose the format for your data export:',
-            style: AppTextStyles.body,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              Expanded(
-                child: GlassCard(
-                  onTap: () {
-                    Navigator.pop(context);
-                    _showExportSuccessSnackBar('JSON');
-                  },
-                  child: const Column(
-                    children: [
-                      Icon(CupertinoIcons.doc_on_doc, size: 32),
-                      SizedBox(height: AppSpacing.sm),
-                      Text('JSON', style: AppTextStyles.body),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: GlassCard(
-                  onTap: () {
-                    Navigator.pop(context);
-                    _showExportSuccessSnackBar('CSV');
-                  },
-                  child: const Column(
-                    children: [
-                      Icon(CupertinoIcons.table, size: 32),
-                      SizedBox(height: AppSpacing.sm),
-                      Text('CSV', style: AppTextStyles.body),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(
-            'Cancel',
-            style: AppTextStyles.body.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ),
-      ],
     );
   }
 
@@ -1464,7 +1257,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             _showRevokeSuccessSnackBar();
           },
           style: TextButton.styleFrom(
-            backgroundColor: AppColors.error.withOpacity(0.2),
+            backgroundColor: AppColors.error.withValues(alpha: 0.2),
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.lg,
               vertical: AppSpacing.sm,
@@ -1519,7 +1312,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
         const SizedBox(width: AppSpacing.sm),
         TextButton(
           onPressed: () {
-            print('[SETTINGS] ⬆️  Upgrade account button tapped');
+            Logger.info('Upgrade account button tapped', name: 'SETTINGS');
 
             // ✅ CRITICAL: Capture AppState BEFORE popping dialog
             final appState = context.read<AppState>();
@@ -1530,12 +1323,11 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             // ✅ CRITICAL: Defer sign-out until AFTER dialog navigation completes
             SchedulerBinding.instance.addPostFrameCallback((_) async {
               try {
-                print('[SETTINGS] 🔄 Signing out to show auth options...');
+                Logger.info('Signing out to show auth options...', name: 'SETTINGS');
                 await appState.signOut();
-                print('[SETTINGS] ✅ User will be redirected to splash/auth screen');
+                Logger.info('User will be redirected to splash/auth screen', name: 'SETTINGS');
               } catch (e, stackTrace) {
-                print('[SETTINGS] ❌ Upgrade account error: $e');
-                print('[SETTINGS] Stack trace: $stackTrace');
+                Logger.error('Upgrade account error: $e', name: 'SETTINGS', error: e, stackTrace: stackTrace);
               }
             });
           },
@@ -1605,14 +1397,14 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
         const SizedBox(width: AppSpacing.sm),
         TextButton(
           onPressed: () async {
-            print('[SETTINGS] 🗑️  Delete account button tapped');
+            Logger.info('Delete account button tapped', name: 'SETTINGS');
             Navigator.pop(context);
 
             try {
-              print('[SETTINGS] 🔄 Calling authService.deleteAccount()...');
+              Logger.info('Calling authService.deleteAccount()...', name: 'SETTINGS');
               final authService = AuthService();
               await authService.deleteAccount();
-              print('[SETTINGS] ✅ Account deleted successfully');
+              Logger.info('Account deleted successfully', name: 'SETTINGS');
 
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -1623,8 +1415,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                 );
               }
             } catch (e, stackTrace) {
-              print('[SETTINGS] ❌ Delete account error: $e');
-              print('[SETTINGS] Stack trace: $stackTrace');
+              Logger.error('Delete account error: $e', name: 'SETTINGS', error: e, stackTrace: stackTrace);
 
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -1703,7 +1494,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
         const SizedBox(width: AppSpacing.sm),
         TextButton(
           onPressed: () {
-            print('[SETTINGS] 🗑️  Clear all data button tapped');
+            Logger.info('Clear all data button tapped', name: 'SETTINGS');
 
             // ✅ CRITICAL: Capture AppState BEFORE popping dialog
             final appState = context.read<AppState>();
@@ -1713,13 +1504,13 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
 
             // ✅ CRITICAL: Defer reset until AFTER dialog navigation completes
             SchedulerBinding.instance.addPostFrameCallback((_) {
-              print('[SETTINGS] 🔄 Resetting app state...');
+              Logger.info('Resetting app state...', name: 'SETTINGS');
               appState.resetAppState();
-              print('[SETTINGS] ✅ App state reset - all data cleared');
+              Logger.info('App state reset - all data cleared', name: 'SETTINGS');
             });
           },
           style: TextButton.styleFrom(
-            backgroundColor: AppColors.error.withOpacity(0.2),
+            backgroundColor: AppColors.error.withValues(alpha: 0.2),
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.lg,
               vertical: AppSpacing.sm,
@@ -1878,7 +1669,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
         const SizedBox(width: AppSpacing.sm),
         TextButton(
           onPressed: () {
-            print('[SETTINGS] 🚪 Sign-out button tapped');
+            Logger.info('Sign-out button tapped', name: 'SETTINGS');
 
             // ✅ CRITICAL: Capture AppState BEFORE popping dialog
             final appState = context.read<AppState>();
@@ -1891,17 +1682,16 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             // This prevents Navigator lock conflict when router tries to redirect
             SchedulerBinding.instance.addPostFrameCallback((_) async {
               try {
-                print('[SETTINGS] 🔄 Calling appState.signOut()...');
+                Logger.info('Calling appState.signOut()...', name: 'SETTINGS');
                 await appState.signOut();
-                print('[SETTINGS] ✅ Sign-out completed - router will redirect to splash');
+                Logger.info('Sign-out completed - router will redirect to splash', name: 'SETTINGS');
               } catch (e, stackTrace) {
-                print('[SETTINGS] ❌ Sign-out error: $e');
-                print('[SETTINGS] Stack trace: $stackTrace');
+                Logger.error('Sign-out error: $e', name: 'SETTINGS', error: e, stackTrace: stackTrace);
               }
             });
           },
           style: TextButton.styleFrom(
-            backgroundColor: AppColors.primaryAction.withOpacity(0.2),
+            backgroundColor: AppColors.primaryAction.withValues(alpha: 0.2),
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.lg,
               vertical: AppSpacing.sm,
@@ -1919,250 +1709,18 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
     );
   }
 
-  void _showUpdateSuccessSnackBar() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.success.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppColors.success.withOpacity(0.3),
-                  width: 1,
-                ),
-              ),
-              child: const Row(
-                children: [
-                  Icon(CupertinoIcons.checkmark_circle, color: AppColors.success),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Profile updated successfully',
-                      style: AppTextStyles.body,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
-  void _showExportSuccessSnackBar(String format) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.success.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppColors.success.withOpacity(0.3),
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(CupertinoIcons.checkmark_circle, color: AppColors.success),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Data exported as $format',
-                      style: AppTextStyles.body,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 3),
-        action: SnackBarAction(
-          label: 'View',
-          textColor: AppColors.primaryAction,
-          onPressed: () {
-            // TODO: Open exported file
-          },
-        ),
-      ),
-    );
-  }
-
   void _showRevokeSuccessSnackBar() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.warning.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppColors.warning.withOpacity(0.3),
-                  width: 1,
-                ),
-              ),
-              child: const Row(
-                children: [
-                  Icon(CupertinoIcons.hand_raised_fill, color: AppColors.warning),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'All shares have been revoked',
-                      style: AppTextStyles.body,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 3),
-      ),
-    );
-  }
-
-  void _showSignOutSuccessSnackBar() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.blueAccent.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: Colors.blueAccent.withOpacity(0.3),
-                  width: 1,
-                ),
-              ),
-              child: const Row(
-                children: [
-                  Icon(CupertinoIcons.square_arrow_right, color: Colors.blueAccent),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Signed out successfully',
-                      style: AppTextStyles.body,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
-  void _showThemeChangeSnackBar() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.highlight.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppColors.highlight.withOpacity(0.3),
-                  width: 1,
-                ),
-              ),
-              child: const Row(
-                children: [
-                  Icon(CupertinoIcons.paintbrush, color: AppColors.highlight),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Theme will be applied in next update',
-                      style: AppTextStyles.body,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
+    SnackbarHelper.showWarning(
+      context,
+      message: 'All shares have been revoked',
+      icon: CupertinoIcons.hand_raised_fill,
     );
   }
 
   void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.error.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppColors.error.withOpacity(0.3),
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(CupertinoIcons.exclamationmark_circle, color: AppColors.error),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      message,
-                      style: AppTextStyles.body,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 3),
-      ),
+    SnackbarHelper.showError(
+      context,
+      message: message,
     );
   }
 }

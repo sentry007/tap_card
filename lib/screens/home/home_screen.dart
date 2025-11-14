@@ -46,13 +46,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late Animation<double> _fabScale;
   late Animation<double> _fabGlow;
   late Animation<double> _pulseScale;
-  late Animation<double> _contactsSlide;
   late Animation<double> _rippleWave;
   late Animation<double> _successScale;
   late Animation<double> _gradientAnimation;
 
   final bool _isNfcLoading = false;
-  bool _isContactsLoading = false;
   bool _isPreviewMode = false; // Toggle between share mode and preview mode
   final GlobalKey<RefreshIndicatorState> _refreshKey =
       GlobalKey<RefreshIndicatorState>();
@@ -76,13 +74,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   // State reset timer for success/error states
   Timer? _stateResetTimer;
 
-  // Mock recent contacts data
-  List<Contact> _recentContacts = [];
-
   // Device contacts sync state
   bool _isSyncingContacts = false;
-  DateTime? _lastSyncTime;
-  int _syncedContactsCount = 0;
 
   @override
   void initState() {
@@ -171,14 +164,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  // Simplified NFC state handling
-  void _updateNfcUI() {
-    if (mounted) {
-      setState(() {
-        // Update UI based on NFC availability
-      });
-    }
-  }
 
   void _handleCardReceived(Map<String, dynamic> cardData) {
     if (mounted) {
@@ -235,14 +220,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       curve: Curves.easeInOutSine,
     ));
 
-    _contactsSlide = Tween<double>(
-      begin: 1.0,
-      end: 0.0,
-    ).animate(CurvedAnimation(
-      parent: _contactsController,
-      curve: Curves.easeOutCubic,
-    ));
-
     _rippleWave = Tween<double>(
       begin: 0.0,
       end: 2.2, // Slightly larger ripple
@@ -287,57 +264,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _loadContacts() async {
-    setState(() => _isContactsLoading = true);
-
     // Simulate loading delay
     await Future.delayed(const Duration(milliseconds: 800));
 
     if (mounted) {
       setState(() {
-        _recentContacts = _generateMockContacts();
-        _isContactsLoading = false;
+        // Contacts loaded
       });
       _contactsController.forward();
     }
-  }
-
-  List<Contact> _generateMockContacts() {
-    return [
-      Contact(
-          name: 'Christopher Alexander Montgomery-Wellington III',
-          avatar: '👨‍💼',
-          lastShared: '2 min ago'),
-      Contact(name: '李明', avatar: '🧑', lastShared: '5 min ago'),
-      Contact(
-          name: 'José María García-Pérez',
-          avatar: '👨‍🎨',
-          lastShared: '15 min ago'),
-      Contact(
-          name: 'Alex 🚀 Johnson', avatar: '👨‍🚀', lastShared: '1 hour ago'),
-      Contact(name: 'SARAH SMITH', avatar: '👩‍💻', lastShared: '2 hours ago'),
-      Contact(name: 'محمد أحمد', avatar: '👳', lastShared: '3 hours ago'),
-      Contact(
-          name: 'Александр Иванов', avatar: '🧔', lastShared: '5 hours ago'),
-      Contact(name: 'John Doe 42', avatar: '👨‍🔬', lastShared: '8 hours ago'),
-      Contact(
-          name: 'TechCorp Solutions Inc.',
-          avatar: '🏢',
-          lastShared: 'Yesterday'),
-      Contact(name: 'M', avatar: '🎭', lastShared: 'Yesterday'),
-      Contact(
-          name: 'Anne-Marie Smith-Jones',
-          avatar: '👩‍⚕️',
-          lastShared: '2 days ago'),
-      Contact(
-          name: 'Dr. Emily Brown, PhD',
-          avatar: '👩‍🔬',
-          lastShared: '3 days ago'),
-      Contact(
-          name: 'François Müller ✓', avatar: '👨‍💼', lastShared: '5 days ago'),
-      Contact(name: 'a', avatar: '🤷', lastShared: '1 week ago'),
-      Contact(
-          name: 'Very Old Entry Name', avatar: '⏰', lastShared: '3 months ago'),
-    ];
   }
 
   Future<void> _onRefresh() async {
@@ -389,8 +324,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
       if (mounted) {
         setState(() {
-          _syncedContactsCount = tapCardContacts.length;
-          _lastSyncTime = DateTime.now();
           _isSyncingContacts = false;
         });
 
@@ -540,7 +473,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       builder: (context) => Container(
         margin: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.surfaceDark.withOpacity(0.95),
+          color: AppColors.surfaceDark.withValues(alpha: 0.95),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: AppColors.glassBorder, width: 1),
         ),
@@ -560,10 +493,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Container(
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceDark.withOpacity(0.5),
+                  color: AppColors.surfaceDark.withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: AppColors.glassBorder.withOpacity(0.2),
+                    color: AppColors.glassBorder.withValues(alpha: 0.2),
                     width: 0.5,
                   ),
                 ),
@@ -634,8 +567,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               height: 36,
               decoration: BoxDecoration(
                 color: isSelected
-                    ? Colors.white.withOpacity(0.2)
-                    : AppColors.surfaceMedium.withOpacity(0.3),
+                    ? Colors.white.withValues(alpha: 0.2)
+                    : AppColors.surfaceMedium.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
@@ -668,7 +601,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     style: TextStyle(
                       fontSize: 11,
                       color: isSelected
-                          ? Colors.white.withOpacity(0.8)
+                          ? Colors.white.withValues(alpha: 0.8)
                           : AppColors.textTertiary,
                     ),
                     maxLines: 1,
@@ -1544,15 +1477,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             child: Container(
               key: const Key('appbar-glass'),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
+                color: Colors.white.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   width: 1,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withValues(alpha: 0.1),
                     blurRadius: 20,
                     offset: const Offset(0, 4),
                   ),
@@ -1725,7 +1658,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         width: 300,
         height: 180,
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
+          color: Colors.white.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Center(
@@ -1791,7 +1724,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       width: 40,
       height: 40,
       decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
+        color: color.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color, width: 2),
       ),
@@ -1886,7 +1819,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: AppColors.secondaryAction.withOpacity(0.2),
+                          color: AppColors.secondaryAction.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
@@ -1909,13 +1842,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            AppColors.info.withOpacity(0.2),
-                            AppColors.info.withOpacity(0.1),
+                            AppColors.info.withValues(alpha: 0.2),
+                            AppColors.info.withValues(alpha: 0.1),
                           ],
                         ),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: AppColors.info.withOpacity(0.3),
+                          color: AppColors.info.withValues(alpha: 0.3),
                           width: 1,
                         ),
                       ),
@@ -2005,18 +1938,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  AppColors.secondaryAction.withOpacity(0.15),
-                  AppColors.secondaryAction.withOpacity(0.05),
+                  AppColors.secondaryAction.withValues(alpha: 0.15),
+                  AppColors.secondaryAction.withValues(alpha: 0.05),
                 ],
               ),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: AppColors.secondaryAction.withOpacity(0.3),
+                color: AppColors.secondaryAction.withValues(alpha: 0.3),
                 width: 1,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -2115,114 +2048,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildContactsList() {
-    return AnimatedBuilder(
-      key: const Key('home_contacts_list_animated'),
-      animation: _contactsController,
-      builder: (context, child) {
-        return Transform.translate(
-          key: const Key('home_contacts_list_transform'),
-          offset: Offset(0, _contactsSlide.value * 50),
-          child: Opacity(
-            key: const Key('home_contacts_list_opacity'),
-            opacity: 1.0 - _contactsSlide.value,
-            child: ListView.builder(
-              key: const Key('home_contacts_list_view'),
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16), // 8px * 2
-              itemCount: _recentContacts.length,
-              itemBuilder: (context, index) {
-                final contact = _recentContacts[index];
-                return _buildContactCard(contact, index);
-              },
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildContactCard(Contact contact, int index) {
-    return Container(
-      key: Key('home_contact_card_$index'),
-      width: 72, // 8px * 9
-      margin: const EdgeInsets.only(right: 12),
-      child: ClipRRect(
-        key: Key('home_contact_clip_$index'),
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          key: Key('home_contact_backdrop_$index'),
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            key: Key('home_contact_container_$index'),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.2),
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Material(
-              key: Key('home_contact_material_$index'),
-              color: Colors.transparent,
-              child: InkWell(
-                key: Key('home_contact_inkwell_$index'),
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  // TODO: Handle contact tap
-                },
-                borderRadius: BorderRadius.circular(16),
-                child: Padding(
-                  key: Key('home_contact_padding_$index'),
-                  padding: const EdgeInsets.all(8),
-                  child: Column(
-                    key: Key('home_contact_column_$index'),
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        contact.avatar,
-                        key: Key('home_contact_avatar_$index'),
-                        style: const TextStyle(fontSize: 24), // 8px * 3
-                      ),
-                      const SizedBox(
-                          key: Key('home_contact_avatar_spacing'), height: 4),
-                      Text(
-                        contact.name.split(' ').first,
-                        key: Key('home_contact_name_$index'),
-                        style: AppTextStyles.caption.copyWith(
-                          fontWeight: FontWeight.w500,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                      ),
-                      Text(
-                        contact.lastShared,
-                        key: Key('home_contact_last_shared_$index'),
-                        style: AppTextStyles.caption.copyWith(
-                          color: AppColors.textTertiary,
-                          fontSize: 10, // Smaller for secondary info
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
   Widget _buildRecentHistoryStrip() {
     return Column(
@@ -2363,7 +2188,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   Text(
                     'Tap the NFC button above to share',
                     style: AppTextStyles.caption.copyWith(
-                      color: AppColors.textTertiary.withOpacity(0.7),
+                      color: AppColors.textTertiary.withValues(alpha: 0.7),
                       fontSize: 10,
                     ),
                   ),
@@ -2397,10 +2222,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
+                        color: Colors.white.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: Colors.white.withOpacity(0.1),
+                          color: Colors.white.withValues(alpha: 0.1),
                           width: 1,
                         ),
                       ),
@@ -2430,10 +2255,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.05),
+                        color: Colors.white.withValues(alpha: 0.05),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: Colors.white.withOpacity(0.1),
+                          color: Colors.white.withValues(alpha: 0.1),
                           width: 1,
                         ),
                       ),
@@ -2474,7 +2299,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             Text(
               'Start sharing or receiving cards to see activity',
               style: AppTextStyles.caption.copyWith(
-                color: AppColors.textTertiary.withOpacity(0.7),
+                color: AppColors.textTertiary.withValues(alpha: 0.7),
                 fontSize: 11,
               ),
               textAlign: TextAlign.center,
@@ -2515,7 +2340,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -2662,7 +2487,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            color.withOpacity(0.7),
+            color.withValues(alpha: 0.7),
             color,
           ],
           begin: Alignment.topLeft,
@@ -2727,13 +2552,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              AppColors.primaryAction.withOpacity(0.08),
-              AppColors.secondaryAction.withOpacity(0.08),
+              AppColors.primaryAction.withValues(alpha: 0.08),
+              AppColors.secondaryAction.withValues(alpha: 0.08),
             ],
           ),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: AppColors.primaryAction.withOpacity(0.2),
+            color: AppColors.primaryAction.withValues(alpha: 0.2),
             width: 1,
           ),
         ),
@@ -2755,7 +2580,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       Container(
                         width: 1,
                         height: 40,
-                        color: Colors.white.withOpacity(0.1),
+                        color: Colors.white.withValues(alpha: 0.1),
                       ),
                       Expanded(
                         child: _buildInsightStat(
@@ -2768,7 +2593,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       Container(
                         width: 1,
                         height: 40,
-                        color: Colors.white.withOpacity(0.1),
+                        color: Colors.white.withValues(alpha: 0.1),
                       ),
                       Expanded(
                         child: _buildInsightStat(
@@ -2781,7 +2606,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       Container(
                         width: 1,
                         height: 40,
-                        color: Colors.white.withOpacity(0.1),
+                        color: Colors.white.withValues(alpha: 0.1),
                       ),
                       Expanded(
                         child: _buildInsightStat(
@@ -2822,7 +2647,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   Icon(
                     CupertinoIcons.chart_bar,
                     size: 40,
-                    color: AppColors.textTertiary.withOpacity(0.6),
+                    color: AppColors.textTertiary.withValues(alpha: 0.6),
                   ),
                   const SizedBox(height: 12),
                   Text(
@@ -2881,7 +2706,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         Text(
           label,
           style: AppTextStyles.caption.copyWith(
-            color: Colors.white.withOpacity(0.6),
+            color: Colors.white.withValues(alpha: 0.6),
             fontSize: 11,
           ),
         ),
@@ -2893,25 +2718,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     switch (type) {
       case HistoryEntryType.sent:
         return {
-          'background': AppColors.primaryAction.withOpacity(0.1),
-          'border': AppColors.primaryAction.withOpacity(0.3),
-          'iconBg': AppColors.primaryAction.withOpacity(0.2),
+          'background': AppColors.primaryAction.withValues(alpha: 0.1),
+          'border': AppColors.primaryAction.withValues(alpha: 0.3),
+          'iconBg': AppColors.primaryAction.withValues(alpha: 0.2),
           'icon': AppColors.primaryAction,
           'text': AppColors.primaryAction,
         };
       case HistoryEntryType.received:
         return {
-          'background': AppColors.success.withOpacity(0.1),
-          'border': AppColors.success.withOpacity(0.3),
-          'iconBg': AppColors.success.withOpacity(0.2),
+          'background': AppColors.success.withValues(alpha: 0.1),
+          'border': AppColors.success.withValues(alpha: 0.3),
+          'iconBg': AppColors.success.withValues(alpha: 0.2),
           'icon': AppColors.success,
           'text': AppColors.success,
         };
       case HistoryEntryType.tag:
         return {
-          'background': AppColors.secondaryAction.withOpacity(0.1),
-          'border': AppColors.secondaryAction.withOpacity(0.3),
-          'iconBg': AppColors.secondaryAction.withOpacity(0.2),
+          'background': AppColors.secondaryAction.withValues(alpha: 0.1),
+          'border': AppColors.secondaryAction.withValues(alpha: 0.3),
+          'iconBg': AppColors.secondaryAction.withValues(alpha: 0.2),
           'icon': AppColors.secondaryAction,
           'text': AppColors.secondaryAction,
         };

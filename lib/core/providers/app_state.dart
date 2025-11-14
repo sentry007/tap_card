@@ -12,6 +12,7 @@
 /// TODO: Firebase - Store user preferences in Firestore
 library;
 
+import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
@@ -20,6 +21,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../constants/app_constants.dart';
 import '../services/auth_service.dart';
 import '../services/profile_service.dart';
+import '../../utils/logger.dart';
 
 /// Global app state provider for navigation and authentication flow
 class AppState extends ChangeNotifier {
@@ -49,6 +51,9 @@ class AppState extends ChangeNotifier {
   /// Profile service instance
   final ProfileService _profileService = ProfileService();
 
+  /// Lock to prevent concurrent auth state changes
+  Future<void>? _authChangeInProgress;
+
   /// Constructor - Set up Firebase Auth listener
   AppState() {
     _initializeAuthListener();
@@ -65,74 +70,94 @@ class AppState extends ChangeNotifier {
       _handleAuthStateChange(user);
     });
 
-    print('[APP] 👂 Firebase Auth listener initialized with ProfileService coordination');
+    Logger.info('Firebase Auth listener initialized with ProfileService coordination', name: 'APP');
   }
 
   /// Handle auth state changes asynchronously
   ///
   /// Separated from listener to properly handle async operations
+  /// Uses lock to prevent concurrent execution
   Future<void> _handleAuthStateChange(User? user) async {
-    final startTime = DateTime.now();
-    final wasAuthenticated = _isAuthenticated;
-    final previousUserId = _currentUserId;
+    // If auth change already in progress, wait for it to complete
+    if (_authChangeInProgress != null) {
+      Logger.debug('Auth change already in progress, waiting...', name: 'APP');
+      await _authChangeInProgress;
+      Logger.debug('Previous auth change completed, processing new change', name: 'APP');
+    }
 
-    _isAuthenticated = user != null;
-    _currentUserId = user?.uid;
+    // Create a completer to track this auth change
+    final completer = Completer<void>();
+    _authChangeInProgress = completer.future;
 
-    print(
-      user != null
-          ? '[APP] 🔐 Auth state changed: User signed in (${user.isAnonymous ? "Guest" : _authService.authProviderName}) - UID: ${user.uid}'
-          : '[APP] 🔓 Auth state changed: User signed out',
-    );
-    print('[APP]    • wasAuthenticated: $wasAuthenticated → _isAuthenticated: $_isAuthenticated');
-    print('[APP]    • previousUserId: $previousUserId → _currentUserId: $_currentUserId');
-    print('[APP]    • State change detected: ${wasAuthenticated != _isAuthenticated || previousUserId != _currentUserId}');
-
-    // Coordinate ProfileService when needed
-    // Always ensure profiles exist when user is authenticated, even if auth state didn't change
-    // This handles cases where Firebase restores session before we initialize
     try {
+      final startTime = DateTime.now();
+      final wasAuthenticated = _isAuthenticated;
+      final previousUserId = _currentUserId;
+
+      _isAuthenticated = user != null;
+      _currentUserId = user?.uid;
+
+    Logger.info(
+      user != null
+          ? 'Auth state changed: User signed in (${user.isAnonymous ? "Guest" : _authService.authProviderName}) - UID: ${user.uid}'
+          : 'Auth state changed: User signed out',
+      name: 'APP',
+    );
+    Logger.debug('wasAuthenticated: $wasAuthenticated → _isAuthenticated: $_isAuthenticated\n  previousUserId: $previousUserId → _currentUserId: $_currentUserId\n  State change detected: ${wasAuthenticated != _isAuthenticated || previousUserId != _currentUserId}', name: 'APP');
+
+      // Coordinate ProfileService when needed
+      // Always ensure profiles exist when user is authenticated, even if auth state didn't change
+      // This handles cases where Firebase restores session before we initialize
       if (_isAuthenticated && user != null) {
         // User is signed in - ensure profiles exist and match UID
-        print('[APP] 🔄 Starting profile coordination...');
+        Logger.info('Starting profile coordination...', name: 'APP');
 
         final profileStartTime = DateTime.now();
         await ProfileService().ensureProfilesExist();
         final profileDuration = DateTime.now().difference(profileStartTime).inMilliseconds;
 
-        print('[APP] ✅ Profile coordination complete (${profileDuration}ms)');
+        Logger.info('Profile coordination complete (${profileDuration}ms)', name: 'APP');
       } else if (!_isAuthenticated && wasAuthenticated) {
         // User signed out - clear all profiles
-        print('[APP] 🗑️  User signed out - clearing all profiles...');
+        Logger.info('User signed out - clearing all profiles...', name: 'APP');
         await ProfileService().clearAllProfiles();
-        print('[APP] ✅ Profiles cleared successfully');
+        Logger.info('Profiles cleared successfully', name: 'APP');
       } else if (!_isAuthenticated && !wasAuthenticated) {
-        print('[APP] ℹ️  No user signed in - no coordination needed');
+        Logger.info('No user signed in - no coordination needed', name: 'APP');
       }
 
       await _saveState();
 
       final totalDuration = DateTime.now().difference(startTime).inMilliseconds;
-      print('[APP] ✅ Auth state handling complete (${totalDuration}ms total)');
+      Logger.info('Auth state handling complete (${totalDuration}ms total)', name: 'APP');
 
       // ✅ CRITICAL: Defer notifyListeners to next frame to avoid Navigator lock conflicts
       // This prevents router redirects from happening during active widget transitions
       SchedulerBinding.instance.addPostFrameCallback((_) {
-        print('[APP] 📢 Notifying listeners (deferred) - router will now check redirects');
+        Logger.debug('Notifying listeners (deferred) - router will now check redirects', name: 'APP');
         notifyListeners();
       });
+
+      // Complete successfully
+      completer.complete();
+
     } catch (e, stackTrace) {
-      print('[APP] ❌ ERROR in auth state handling: $e');
-      print('[APP] Stack trace: $stackTrace');
+      Logger.error('ERROR in auth state handling: $e', name: 'APP', error: e, stackTrace: stackTrace);
 
       // Still update state and notify even if coordination failed
       await _saveState();
 
       // Defer notification to avoid Navigator conflicts during error handling too
       SchedulerBinding.instance.addPostFrameCallback((_) {
-        print('[APP] 📢 Notifying listeners after error (deferred)');
+        Logger.debug('Notifying listeners after error (deferred)', name: 'APP');
         notifyListeners();
       });
+
+      // Complete with error
+      completer.completeError(e, stackTrace);
+    } finally {
+      // Reset lock - allow next auth change to proceed
+      _authChangeInProgress = null;
     }
   }
 
@@ -275,17 +300,15 @@ class AppState extends ChangeNotifier {
   ///
   /// Calls Firebase Auth to sign out, which will trigger auth state listener
   Future<void> signOut() async {
-    print('[APP] 👋 signOut() called - starting sign-out process');
+    Logger.info('signOut() called - starting sign-out process', name: 'APP');
 
     try {
-      print('[APP] 🔄 Calling AuthService.signOut()...');
+      Logger.info('Calling AuthService.signOut()...', name: 'APP');
       await _authService.signOut();
-      print('[APP] ✅ AuthService.signOut() completed');
-      print('[APP] 👉 Auth state listener will handle profile cleanup and navigation');
+      Logger.info('AuthService.signOut() completed\n  Auth state listener will handle profile cleanup and navigation', name: 'APP');
       // Auth state will be updated automatically by listener
     } catch (e, stackTrace) {
-      print('[APP] ❌ Error signing out: $e');
-      print('[APP] Stack trace: $stackTrace');
+      Logger.error('Error signing out: $e', name: 'APP', error: e, stackTrace: stackTrace);
       rethrow;
     }
   }

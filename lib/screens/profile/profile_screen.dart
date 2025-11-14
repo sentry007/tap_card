@@ -18,6 +18,7 @@ import '../../widgets/tutorial/tutorial_keys.dart';
 import '../../core/constants/routes.dart';
 import '../../core/models/profile_models.dart';
 import '../../core/services/profile_service.dart';
+import '../../utils/logger.dart';
 
 /// Enum for background color picker mode
 enum BackgroundMode { solid, gradient }
@@ -55,7 +56,6 @@ class _ProfileScreenState extends State<ProfileScreen>
   // Social media controllers
   final Map<String, TextEditingController> _socialControllers = {};
   final Map<String, FocusNode> _socialFocusNodes = {};
-  String? _selectedSocialPlatform; // Currently selected social platform for editing
 
   // Custom link controllers (max 3 links)
   final List<TextEditingController> _customLinkTitleControllers = [];
@@ -90,38 +90,6 @@ class _ProfileScreenState extends State<ProfileScreen>
   Color get _primaryColor => _currentAesthetics.primaryColor;
   Color get _secondaryColor => _currentAesthetics.secondaryColor;
 
-  set _backgroundColor(Color? color) {
-    _updateCardAesthetics(backgroundColor: color);
-  }
-
-  set _borderColor(Color color) {
-    _updateCardAesthetics(borderColor: color);
-  }
-
-  // Preset color combinations (displayed before recent combinations)
-  // These are aesthetic presets, not stored in profile data
-  final List<Map<String, dynamic>> _presetCombinations = [
-    {
-      'name': 'Professional',
-      'primary': AppColors.primaryAction,
-      'secondary': AppColors.secondaryAction,
-    },
-    {
-      'name': 'Creative',
-      'primary': AppColors.highlight,
-      'secondary': AppColors.primaryAction,
-    },
-    {
-      'name': 'Minimal',
-      'primary': AppColors.textPrimary,
-      'secondary': AppColors.textSecondary,
-    },
-    {
-      'name': 'Modern',
-      'primary': const Color(0xFF6C63FF),
-      'secondary': const Color(0xFF00BCD4),
-    },
-  ];
   @override
   void initState() {
     super.initState();
@@ -315,10 +283,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     return false;
   }
 
-  void _updatePreview() {
-    setState(() {}); // Trigger rebuild for live preview
-  }
-
   /// Update card aesthetics and trigger preview update
   void _updateCardAesthetics({
     Color? primaryColor,
@@ -413,7 +377,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       }
     } catch (e) {
       // Handle error
-      print('Error picking/cropping image: $e');
+      Logger.error('Error picking/cropping image: $e', name: 'ProfileScreen', error: e);
     }
   }
 
@@ -455,10 +419,10 @@ class _ProfileScreenState extends State<ProfileScreen>
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                 decoration: BoxDecoration(
-                  color: AppColors.success.withOpacity(0.15),
+                  color: AppColors.success.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: AppColors.success.withOpacity(0.3),
+                    color: AppColors.success.withValues(alpha: 0.3),
                     width: 1,
                   ),
                 ),
@@ -830,10 +794,10 @@ class _ProfileScreenState extends State<ProfileScreen>
           child: Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.06),
+              color: Colors.white.withValues(alpha: 0.06),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: Colors.white.withOpacity(0.25),
+                color: Colors.white.withValues(alpha: 0.25),
                 width: 1,
               ),
             ),
@@ -890,10 +854,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: AppColors.error.withOpacity(0.1),
+                          color: AppColors.error.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: AppColors.error.withOpacity(0.3),
+                            color: AppColors.error.withValues(alpha: 0.3),
                             width: 1.5,
                           ),
                         ),
@@ -940,10 +904,10 @@ class _ProfileScreenState extends State<ProfileScreen>
         child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.06),
+            color: Colors.white.withValues(alpha: 0.06),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: Colors.white.withOpacity(0.25),
+              color: Colors.white.withValues(alpha: 0.25),
               width: 1,
             ),
           ),
@@ -1019,18 +983,18 @@ class _ProfileScreenState extends State<ProfileScreen>
             filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
+                color: Colors.white.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: isSelected
                       ? AppColors.primaryAction
-                      : Colors.white.withOpacity(0.2),
+                      : Colors.white.withValues(alpha: 0.2),
                   width: isSelected ? 2 : 1,
                 ),
                 boxShadow: isSelected
                     ? [
                         BoxShadow(
-                          color: AppColors.primaryAction.withOpacity(0.3),
+                          color: AppColors.primaryAction.withValues(alpha: 0.3),
                           blurRadius: 12,
                           offset: const Offset(0, 4),
                         ),
@@ -1258,9 +1222,9 @@ class _ProfileScreenState extends State<ProfileScreen>
         SliderTheme(
           data: SliderTheme.of(context).copyWith(
             activeTrackColor: AppColors.primaryAction,
-            inactiveTrackColor: AppColors.textSecondary.withOpacity(0.3),
+            inactiveTrackColor: AppColors.textSecondary.withValues(alpha: 0.3),
             thumbColor: AppColors.primaryAction,
-            overlayColor: AppColors.primaryAction.withOpacity(0.2),
+            overlayColor: AppColors.primaryAction.withValues(alpha: 0.2),
             trackHeight: 4,
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
           ),
@@ -1403,7 +1367,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                       BoxShadow(
                         color: (_hasUnsavedChanges
                             ? AppColors.secondaryAction
-                            : AppColors.primaryAction).withOpacity(0.3),
+                            : AppColors.primaryAction).withValues(alpha: 0.3),
                         blurRadius: 8,
                         offset: const Offset(0, 4),
                       ),
@@ -1520,10 +1484,10 @@ class _ProfileScreenState extends State<ProfileScreen>
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
               decoration: BoxDecoration(
-                color: AppColors.error.withOpacity(0.15),
+                color: AppColors.error.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: AppColors.error.withOpacity(0.3),
+                  color: AppColors.error.withValues(alpha: 0.3),
                   width: 1,
                 ),
               ),
@@ -1542,26 +1506,5 @@ class _ProfileScreenState extends State<ProfileScreen>
         behavior: SnackBarBehavior.floating,
       ),
     );
-  }
-}
-
-// Template models
-
-// Helper class for focus state listening
-class _FocusNotifier extends ValueNotifier<bool> {
-  final FocusNode focusNode;
-
-  _FocusNotifier(this.focusNode) : super(focusNode.hasFocus) {
-    focusNode.addListener(_onFocusChange);
-  }
-
-  void _onFocusChange() {
-    value = focusNode.hasFocus;
-  }
-
-  @override
-  void dispose() {
-    focusNode.removeListener(_onFocusChange);
-    super.dispose();
   }
 }

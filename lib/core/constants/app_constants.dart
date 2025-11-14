@@ -250,9 +250,6 @@ class StorageKeys {
   static const String userProfiles = 'user_profiles';
   static const String profileSettings = 'profile_settings';
   static const String activeProfileId = 'active_profile_id';
-
-  // Legacy
-  static const String userProfile = 'user_profile'; // TODO: Migrate to userProfiles
 }
 
 /// Firebase Configuration Constants

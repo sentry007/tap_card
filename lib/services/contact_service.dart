@@ -4,6 +4,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 
 import '../models/unified_models.dart';
+import '../utils/logger.dart';
 import 'history_service.dart';
 
 /// Result of contact save operation
@@ -66,10 +67,10 @@ class ContactService {
   static Future<bool> hasContactsPermission() async {
     try {
       final status = await Permission.contacts.status;
-      print('📇 [Silent Check] Contacts permission status: ${status.name}');
+      Logger.debug('[Silent Check] Contacts permission status: ${status.name}', name: 'ContactService');
       return status.isGranted;
     } catch (e) {
-      print('❌ [Silent Check] Error checking permission: $e');
+      Logger.error('[Silent Check] Error checking permission: $e', name: 'ContactService', error: e);
       return false;
     }
   }
@@ -85,28 +86,28 @@ class ContactService {
   static Future<List<TapCardContact>> scanForTapCardContactsWithIds() async {
     try {
       // Check/request permission using flutter_contacts
-      print('📇 Requesting contacts permission via flutter_contacts...');
+      Logger.info('Requesting contacts permission via flutter_contacts...', name: 'ContactService');
       final permissionGranted = await FlutterContacts.requestPermission();
-      print('📇 flutter_contacts.requestPermission() result: ${permissionGranted ? "✅ GRANTED" : "❌ DENIED"}');
+      Logger.info('flutter_contacts.requestPermission() result: ${permissionGranted ? "GRANTED" : "DENIED"}', name: 'ContactService');
 
       if (!permissionGranted) {
         // Known bug: requestPermission() sometimes returns false even after user grants
         // Fallback: Check permission status using permission_handler
-        print('📇 Retrying with permission_handler fallback...');
+        Logger.info('Retrying with permission_handler fallback...', name: 'ContactService');
         await Future.delayed(const Duration(milliseconds: 500)); // Give Android time to propagate
 
         final status = await Permission.contacts.status;
-        print('📇 permission_handler.status result: ${status.name}');
+        Logger.info('permission_handler.status result: ${status.name}', name: 'ContactService');
 
         if (!status.isGranted) {
-          print('📇 Cannot scan contacts - permission denied (verified with fallback)');
+          Logger.warning('Cannot scan contacts - permission denied (verified with fallback)', name: 'ContactService');
           return [];
         }
 
-        print('✅ Permission is actually GRANTED (flutter_contacts bug bypassed)');
+        Logger.info('Permission is actually GRANTED (flutter_contacts bug bypassed)', name: 'ContactService');
       }
 
-      print('📇 Scanning contacts for Atlas Linq URLs...');
+      Logger.info('Scanning contacts for Atlas Linq URLs...', name: 'ContactService');
 
       // Get all contacts with website data
       final contacts = await FlutterContacts.getContacts(
@@ -114,7 +115,7 @@ class ContactService {
         withPhoto: false, // Don't load photos for performance
       );
 
-      print('📇 Total contacts on device: ${contacts.length}');
+      Logger.info('Total contacts on device: ${contacts.length}', name: 'ContactService');
 
       final tapCardContacts = <TapCardContact>[];
 
@@ -130,7 +131,7 @@ class ContactService {
                 : 'Unknown';
 
         if (contact.websites.isNotEmpty) {
-          print('  📱 Contact: $contactName - Websites: ${contact.websites.map((w) => w.url).join(", ")}');
+          Logger.debug('Contact: $contactName - Websites: ${contact.websites.map((w) => w.url).join(", ")}', name: 'ContactService');
         }
 
         // Check websites field (proper URL storage)
@@ -138,7 +139,7 @@ class ContactService {
           for (final website in contact.websites) {
             if (website.url.contains('atlaslinq.com/share/')) {
               tapCardUrl = website.url;
-              print('    ✅ FOUND Atlas Linq URL: $tapCardUrl');
+              Logger.info('FOUND Atlas Linq URL: $tapCardUrl', name: 'ContactService');
               break;
             }
           }
@@ -153,7 +154,7 @@ class ContactService {
                   .firstMatch(note.note);
               if (urlMatch != null) {
                 tapCardUrl = urlMatch.group(0);
-                print('    ✅ FOUND Atlas Linq URL in notes: $tapCardUrl');
+                Logger.info('FOUND Atlas Linq URL in notes: $tapCardUrl', name: 'ContactService');
                 break;
               }
             }
@@ -170,11 +171,11 @@ class ContactService {
 
           // Extract the ID part after "share/"
           final idPart = tapCardUrl.split('atlaslinq.com/share/').last;
-          print('    🔍 Extracted ID: $idPart');
+          Logger.debug('Extracted ID: $idPart', name: 'ContactService');
 
           // Check if it's a UUID format (new) or name format (legacy)
           final isUuidFormat = _isValidUuid(idPart);
-          print('    🔍 UUID validation: ${isUuidFormat ? "✅ VALID" : "❌ LEGACY FORMAT"}');
+          Logger.debug('UUID validation: ${isUuidFormat ? "VALID" : "LEGACY FORMAT"}', name: 'ContactService');
 
           // Extract metadata from vCard X-AL fields in notes
           ShareMethod? extractedMethod;
@@ -192,9 +193,9 @@ class ContactService {
                   .trim();
               try {
                 extractedMethod = ShareContext.methodFromCode(methodCode);
-                print('    📊 Extracted method: ${extractedMethod.label}');
+                Logger.debug('Extracted method: ${extractedMethod.label}', name: 'ContactService');
               } catch (e) {
-                print('    ⚠️ Failed to parse method code: $methodCode');
+                Logger.warning('Failed to parse method code: $methodCode', name: 'ContactService');
               }
             }
 
@@ -207,7 +208,7 @@ class ContactService {
               final unixTimestamp = int.tryParse(timestampStr);
               if (unixTimestamp != null) {
                 extractedTimestamp = ShareContext.timestampFromUnix(unixTimestamp);
-                print('    📊 Extracted timestamp: $extractedTimestamp');
+                Logger.debug('Extracted timestamp: $extractedTimestamp', name: 'ContactService');
               }
             }
 
@@ -220,7 +221,7 @@ class ContactService {
               final code = int.tryParse(typeCode);
               if (code != null) {
                 extractedType = ProfileType.fromCode(code);
-                print('    📊 Extracted profile type: ${extractedType.label}');
+                Logger.debug('Extracted profile type: ${extractedType.label}', name: 'ContactService');
               }
             }
           }
@@ -235,13 +236,13 @@ class ContactService {
           // Extract phone (prefer first mobile, then first number)
           if (contact.phones.isNotEmpty) {
             vCardPhone = contact.phones.first.number;
-            print('    📞 Extracted phone: $vCardPhone');
+            Logger.debug('Extracted phone: $vCardPhone', name: 'ContactService');
           }
 
           // Extract email (prefer first work email, then first email)
           if (contact.emails.isNotEmpty) {
             vCardEmail = contact.emails.first.address;
-            print('    📧 Extracted email: $vCardEmail');
+            Logger.debug('Extracted email: $vCardEmail', name: 'ContactService');
           }
 
           // Extract company and title from organizations
@@ -251,12 +252,12 @@ class ContactService {
             vCardTitle = org.title;
             if (vCardCompany != null) {
               if (vCardCompany.isNotEmpty) {
-                print('    🏢 Extracted company: $vCardCompany');
+                Logger.debug('Extracted company: $vCardCompany', name: 'ContactService');
               }
             }
             if (vCardTitle != null) {
               if (vCardTitle.isNotEmpty) {
-                print('    💼 Extracted title: $vCardTitle');
+                Logger.debug('Extracted title: $vCardTitle', name: 'ContactService');
               }
             }
           }
@@ -266,7 +267,7 @@ class ContactService {
             if (!website.url.contains('atlaslinq.com') &&
                 website.url.isNotEmpty) {
               vCardWebsite = website.url;
-              print('    🌐 Extracted website: $vCardWebsite');
+              Logger.debug('Extracted website: $vCardWebsite', name: 'ContactService');
               break;
             }
           }
@@ -286,22 +287,23 @@ class ContactService {
           );
 
           tapCardContacts.add(tapCardContact);
-          print('    ✅ Added to Atlas Linq contacts list: $displayName '
-                '(${isUuidFormat ? 'UUID' : 'legacy'}: $idPart, '
-                'has metadata: ${extractedMethod != null}, '
-                'has vCard data: phone=${vCardPhone != null}, email=${vCardEmail != null})');
+          Logger.info(
+            'Added to Atlas Linq contacts list: $displayName '
+            '(${isUuidFormat ? 'UUID' : 'legacy'}: $idPart, '
+            'has metadata: ${extractedMethod != null}, '
+            'has vCard data: phone=${vCardPhone != null}, email=${vCardEmail != null})',
+            name: 'ContactService',
+          );
         }
       }
 
-      print('📇 ========================================');
-      print('📇 SCAN COMPLETE: Found ${tapCardContacts.length} Atlas Linq contacts');
+      Logger.info('SCAN COMPLETE: Found ${tapCardContacts.length} Atlas Linq contacts', name: 'ContactService');
       if (tapCardContacts.isNotEmpty) {
-        print('📇 Contact names: ${tapCardContacts.map((c) => c.displayName).join(", ")}');
+        Logger.info('Contact names: ${tapCardContacts.map((c) => c.displayName).join(", ")}', name: 'ContactService');
       }
-      print('📇 ========================================');
       return tapCardContacts;
     } catch (e) {
-      print('❌ Error scanning contacts: $e');
+      Logger.error('Error scanning contacts: $e', name: 'ContactService', error: e);
       return [];
     }
   }
@@ -328,7 +330,7 @@ class ContactService {
     );
 
     final isValid = uuidRegex.hasMatch(cleanValue);
-    print('    🔍 UUID validation: $value → cleaned: $cleanValue → isValid: $isValid');
+    Logger.debug('UUID validation: $value → cleaned: $cleanValue → isValid: $isValid', name: 'ContactService');
     return isValid;
   }
 
@@ -358,7 +360,7 @@ class ContactService {
       // return ContactSaveResult.success('Contact saved successfully');
 
       // For now, simulate saving with improved structure
-      print('📱 Requesting contacts permission (simulated)');
+      Logger.info('Requesting contacts permission (simulated)', name: 'ContactService');
 
       final contactRecord = {
         'id': 'contact_${DateTime.now().millisecondsSinceEpoch}',
@@ -376,11 +378,11 @@ class ContactService {
       savedContacts.add(jsonEncode(contactRecord));
       await prefs.setStringList('saved_contacts', savedContacts);
 
-      print('📞 Contact saved: ${contact.name}');
+      Logger.info('Contact saved: ${contact.name}', name: 'ContactService');
       return ContactSaveResult.success('Contact saved successfully');
 
     } catch (e) {
-      print('❌ Error saving essential contact: $e');
+      Logger.error('Error saving essential contact: $e', name: 'ContactService', error: e);
       return ContactSaveResult.error('Failed to save contact: $e');
     }
   }
@@ -411,7 +413,7 @@ class ContactService {
       // return ContactSaveResult.success('Full contact saved successfully');
 
       // For now, simulate saving with full data structure
-      print('📱 Requesting contacts permission for full contact (simulated)');
+      Logger.info('Requesting contacts permission for full contact (simulated)', name: 'ContactService');
 
       final contactRecord = {
         'id': 'contact_${DateTime.now().millisecondsSinceEpoch}',
@@ -432,11 +434,11 @@ class ContactService {
       savedContacts.add(jsonEncode(contactRecord));
       await prefs.setStringList('saved_contacts', savedContacts);
 
-      print('📞 Received contact saved: ${receivedContact.contact.name}');
+      Logger.info('Received contact saved: ${receivedContact.contact.name}', name: 'ContactService');
       return ContactSaveResult.success('Full contact saved successfully');
 
     } catch (e) {
-      print('❌ Error saving full contact: $e');
+      Logger.error('Error saving full contact: $e', name: 'ContactService', error: e);
       return ContactSaveResult.error('Failed to save full contact: $e');
     }
   }
@@ -470,7 +472,7 @@ class ContactService {
       }).toList();
 
     } catch (e) {
-      print('❌ Error getting saved contacts: $e');
+      Logger.error('Error getting saved contacts: $e', name: 'ContactService', error: e);
       return [];
     }
   }
@@ -487,7 +489,7 @@ class ContactService {
       });
 
     } catch (e) {
-      print('❌ Error checking contact existence: $e');
+      Logger.error('Error checking contact existence: $e', name: 'ContactService', error: e);
       return false;
     }
   }
@@ -515,7 +517,7 @@ class ContactService {
       };
 
     } catch (e) {
-      print('❌ Error getting contact stats: $e');
+      Logger.error('Error getting contact stats: $e', name: 'ContactService', error: e);
       return {
         'total_saved': 0,
         'recent_saves': 0,
@@ -530,7 +532,7 @@ class ContactService {
     try {
       return await HistoryService.deleteEntry(contactId);
     } catch (e) {
-      print('❌ Error deleting contact: $e');
+      Logger.error('Error deleting contact: $e', name: 'ContactService', error: e);
       return false;
     }
   }
@@ -545,9 +547,9 @@ class ContactService {
           await HistoryService.deleteEntry(entry.id);
         }
       }
-      print('🗑️ All saved contacts cleared');
+      Logger.info('All saved contacts cleared', name: 'ContactService');
     } catch (e) {
-      print('❌ Error clearing saved contacts: $e');
+      Logger.error('Error clearing saved contacts: $e', name: 'ContactService', error: e);
     }
   }
 }

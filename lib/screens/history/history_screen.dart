@@ -30,6 +30,7 @@ import '../../models/history_models.dart';
 import '../../services/history_service.dart';
 import '../../services/contact_service.dart';
 import '../../services/firebase_analytics_service.dart';
+import '../../utils/logger.dart';
 import '../../widgets/history/method_chip.dart';
 import '../../widgets/history/history_card.dart';
 import '../../widgets/history/history_detail_modal.dart';
@@ -110,22 +111,16 @@ class _HistoryScreenState extends State<HistoryScreen>
 
     // If already granted, scan immediately using HistoryService
     if (hasPermission) {
-      if (kDebugMode) {
-        print('📇 [History] Permission already granted, scanning automatically...');
-      }
+      Logger.debug('Permission already granted, scanning automatically...', name: 'History');
       await HistoryService.scanDeviceContacts();
     } else {
-      if (kDebugMode) {
-        print('📇 [History] Permission not granted, showing banner...');
-      }
+      Logger.debug('Permission not granted, showing banner...', name: 'History');
     }
   }
 
   /// Request contacts permission explicitly (shows dialog)
   Future<void> _requestContactsPermission() async {
-    if (kDebugMode) {
-      print('📇 [History] User tapped "Allow Access" button');
-    }
+    Logger.info('User tapped "Allow Access" button', name: 'History');
     HapticFeedback.lightImpact();
 
     // This will show the permission dialog
@@ -300,13 +295,13 @@ class _HistoryScreenState extends State<HistoryScreen>
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                 decoration: BoxDecoration(
                   color: success
-                      ? AppColors.success.withOpacity(0.15)
-                      : AppColors.error.withOpacity(0.15),
+                      ? AppColors.success.withValues(alpha: 0.15)
+                      : AppColors.error.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: success
-                        ? AppColors.success.withOpacity(0.3)
-                        : AppColors.error.withOpacity(0.3),
+                        ? AppColors.success.withValues(alpha: 0.3)
+                        : AppColors.error.withValues(alpha: 0.3),
                     width: 1,
                   ),
                 ),
@@ -343,10 +338,10 @@ class _HistoryScreenState extends State<HistoryScreen>
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                 decoration: BoxDecoration(
-                  color: AppColors.primaryAction.withOpacity(0.15),
+                  color: AppColors.primaryAction.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: AppColors.primaryAction.withOpacity(0.3),
+                    color: AppColors.primaryAction.withValues(alpha: 0.3),
                     width: 1,
                   ),
                 ),
@@ -479,133 +474,6 @@ class _HistoryScreenState extends State<HistoryScreen>
     );
   }
 
-  Widget _buildGlassAppBar() {
-    final statusBarHeight = MediaQuery.of(context).padding.top;
-
-    return Padding(
-      padding: EdgeInsets.only(
-        top: statusBarHeight + AppSpacing.md,
-        left: AppSpacing.md,
-        right: AppSpacing.md,
-      ),
-      child: SizedBox(
-        height: 64,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(AppRadius.lg),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.2),
-                  width: 1,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 20,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                child: Row(
-                  children: [
-                    AnimatedBuilder(
-                      animation: _searchAnimController,
-                      builder: (context, child) {
-                        return Transform.scale(
-                          scale: _searchScale.value,
-                          child: _buildAppBarIcon(
-                            _isSearching
-                                ? CupertinoIcons.xmark
-                                : CupertinoIcons.search,
-                            _toggleSearch,
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 300),
-                        transitionBuilder:
-                            (Widget child, Animation<double> animation) {
-                          return SlideTransition(
-                            position: Tween<Offset>(
-                              begin: const Offset(0.0, -0.5),
-                              end: Offset.zero,
-                            ).animate(animation),
-                            child: FadeTransition(
-                                opacity: animation, child: child),
-                          );
-                        },
-                        child: _isSearching
-                            ? TextField(
-                                key: const Key('search_field'),
-                                controller: _searchController,
-                                autofocus: true,
-                                style: AppTextStyles.h3.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.textPrimary,
-                                ),
-                                cursorColor: AppColors.primaryAction,
-                                decoration: InputDecoration(
-                                  hintText: 'Search history...',
-                                  hintStyle: AppTextStyles.h3.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.primaryAction,
-                                  ),
-                                  border: InputBorder.none,
-                                  enabledBorder: InputBorder.none,
-                                  focusedBorder: InputBorder.none,
-                                  isDense: true,
-                                  contentPadding: EdgeInsets.zero,
-                                  filled: false,
-                                ),
-                              )
-                            : Text(
-                                key: const Key('title'),
-                                'History',
-                                style: AppTextStyles.h3.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    _buildAppBarIcon(CupertinoIcons.settings, _openSettings),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAppBarIcon(IconData icon, VoidCallback onTap) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.sm),
-        child: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppRadius.sm),
-          ),
-          child: Icon(icon, color: AppColors.textPrimary, size: 20),
-        ),
-      ),
-    );
-  }
 
   Widget _buildFilterChips() {
     return AnimatedBuilder(
@@ -641,20 +509,20 @@ class _HistoryScreenState extends State<HistoryScreen>
                                 const EdgeInsets.symmetric(horizontal: AppSpacing.md),
                             decoration: BoxDecoration(
                               color: isSelected
-                                  ? filterColors['background']!.withOpacity(0.2)
-                                  : Colors.white.withOpacity(0.1),
+                                  ? filterColors['background']!.withValues(alpha: 0.2)
+                                  : Colors.white.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(18),
                               border: Border.all(
                                 color: isSelected
                                     ? filterColors['border']!
-                                    : Colors.white.withOpacity(0.2),
+                                    : Colors.white.withValues(alpha: 0.2),
                                 width: isSelected ? 1.5 : 1,
                               ),
                               boxShadow: isSelected
                                   ? [
                                       BoxShadow(
                                         color: filterColors['shadow']!
-                                            .withOpacity(0.2),
+                                            .withValues(alpha: 0.2),
                                         blurRadius: 8,
                                         offset: const Offset(0, 2),
                                       ),
@@ -693,28 +561,28 @@ class _HistoryScreenState extends State<HistoryScreen>
       case 'NFC Tags':
         return {
           'background': AppColors.secondaryAction,
-          'border': AppColors.secondaryAction.withOpacity(0.5),
+          'border': AppColors.secondaryAction.withValues(alpha: 0.5),
           'text': AppColors.secondaryAction,
           'shadow': AppColors.secondaryAction,
         };
       case 'Today':
         return {
           'background': AppColors.success,
-          'border': AppColors.success.withOpacity(0.5),
+          'border': AppColors.success.withValues(alpha: 0.5),
           'text': AppColors.success,
           'shadow': AppColors.success,
         };
       case 'This Week':
         return {
           'background': AppColors.highlight,
-          'border': AppColors.highlight.withOpacity(0.5),
+          'border': AppColors.highlight.withValues(alpha: 0.5),
           'text': AppColors.highlight,
           'shadow': AppColors.highlight,
         };
       case 'This Month':
         return {
           'background': AppColors.primaryAction,
-          'border': AppColors.primaryAction.withOpacity(0.5),
+          'border': AppColors.primaryAction.withValues(alpha: 0.5),
           'text': AppColors.primaryAction,
           'shadow': AppColors.primaryAction,
         };
@@ -722,7 +590,7 @@ class _HistoryScreenState extends State<HistoryScreen>
         // 'All' filter
         return {
           'background': AppColors.textPrimary,
-          'border': AppColors.textPrimary.withOpacity(0.5),
+          'border': AppColors.textPrimary.withValues(alpha: 0.5),
           'text': AppColors.textPrimary,
           'shadow': AppColors.textPrimary,
         };
@@ -765,10 +633,7 @@ class _HistoryScreenState extends State<HistoryScreen>
         final allItems = snapshot.data ?? [];
         final filteredItems = _filterHistoryItems(allItems);
 
-        if (kDebugMode) {
-          print('📊 [History] Build - allItems: ${allItems.length}, filteredItems: ${filteredItems.length}');
-          print('📊 [History] Filtered item names: ${filteredItems.map((e) => e.displayName).take(10).join(", ")}');
-        }
+        Logger.debug('Build - allItems: ${allItems.length}, filteredItems: ${filteredItems.length}\n  Filtered item names: ${filteredItems.map((e) => e.displayName).take(10).join(", ")}', name: 'History');
 
         // Auto-open modal if initialEntryId is provided
         if (widget.initialEntryId != null && !_hasShownInitialModal) {
@@ -834,712 +699,6 @@ class _HistoryScreenState extends State<HistoryScreen>
     );
   }
 
-  /// Permission banner shown when contacts access not granted
-  Widget _buildPermissionBanner(double statusBarHeight) {
-    return Positioned(
-      top: statusBarHeight + 80 + 36 + AppSpacing.xs + AppSpacing.md,
-      left: AppSpacing.md,
-      right: AppSpacing.md,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppRadius.card),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceLight.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(AppRadius.card),
-              border: Border.all(
-                color: AppColors.primaryAction.withOpacity(0.3),
-                width: 1,
-              ),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
-                  children: [
-                    Icon(
-                      CupertinoIcons.person_2_square_stack,
-                      color: AppColors.primaryAction,
-                      size: 24,
-                    ),
-                    SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: Text(
-                        'Enable Contact Scanning',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  'Atlas Linq can detect contacts you\'ve received by scanning your device contacts for Atlas Linq URLs.',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.7),
-                    fontSize: 14,
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                SizedBox(
-                  width: double.infinity,
-                  child: CupertinoButton(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    color: AppColors.primaryAction,
-                    borderRadius: BorderRadius.circular(AppRadius.button),
-                    onPressed: _requestContactsPermission,
-                    child: const Text(
-                      'Allow Access to Contacts',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHistoryCard(HistoryEntry item, int index) {
-    final colors = _getHistoryColors(item.type);
-
-    // Debug: Log if tag entry is missing location
-    if (item.type == HistoryEntryType.tag && item.location == null) {
-      print(
-          '⚠️ [History] Tag entry missing location: ${item.displayName} (${item.id})');
-    }
-
-    return Dismissible(
-      key: Key(item.id),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        decoration: BoxDecoration(
-          color: AppColors.error.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(AppRadius.card),
-        ),
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-        child:
-            const Icon(CupertinoIcons.delete, color: AppColors.error, size: 24),
-      ),
-      onDismissed: (direction) {
-        if (item.type == HistoryEntryType.sent) {
-          _softDeleteItem(item.id);
-        } else {
-          _deleteItem(item.id,
-              isReceivedEntry: item.type == HistoryEntryType.received);
-        }
-      },
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => _showItemDetails(item),
-          borderRadius: BorderRadius.circular(AppRadius.card),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(AppRadius.card),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: colors['background'],
-                  borderRadius: BorderRadius.circular(AppRadius.card),
-                  border: Border.all(color: colors['border']!, width: 1),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          SizedBox(
-                            width: 40,
-                            height: 40,
-                            child: _buildProfileAvatar(item),
-                          ),
-                          const Spacer(),
-                          Container(
-                            padding: const EdgeInsets.all(AppSpacing.xs),
-                            decoration: BoxDecoration(
-                              color: _getItemColor(item.type).withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(AppRadius.sm),
-                            ),
-                            child: Icon(
-                              _getTypeIcon(item.type),
-                              color: _getItemColor(item.type),
-                              size: 16,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      Text(
-                        item.displayName,
-                        style: AppTextStyles.body
-                            .copyWith(fontWeight: FontWeight.w600),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: AppSpacing.xs),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              item.subtitle,
-                              style: AppTextStyles.caption
-                                  .copyWith(color: AppColors.textSecondary),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          MethodChip(
-                              method: item.method, fontSize: 9, iconSize: 10),
-                          if (item.location != null)
-                            Expanded(
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  const Icon(CupertinoIcons.location_fill,
-                                      color: AppColors.textTertiary, size: 10),
-                                  const SizedBox(width: AppSpacing.xs),
-                                  Flexible(
-                                    child: Text(
-                                      item.location!,
-                                      style: AppTextStyles.caption.copyWith(
-                                        color: AppColors.textTertiary,
-                                        fontSize: 9,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                        ],
-                      ),
-                      const Spacer(),
-                      Text(
-                        _formatTimestamp(item.timestamp),
-                        style: AppTextStyles.caption.copyWith(
-                          color: AppColors.textTertiary,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProfileAvatar(HistoryEntry item) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final size = constraints.maxWidth;
-        final radius = size / 2;
-        final fontSize = size * 0.5;
-        final iconSize = size * 0.6;
-
-        switch (item.type) {
-          case HistoryEntryType.sent:
-            // Show recipient initial in circle
-            final initial = item.recipientName?.isNotEmpty == true
-                ? item.recipientName![0].toUpperCase()
-                : '?';
-            return Container(
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [
-                    AppColors.primaryAction,
-                    AppColors.secondaryAction,
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(radius),
-              ),
-              child: Center(
-                child: Text(
-                  initial,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: fontSize,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            );
-
-          case HistoryEntryType.received:
-            // Show sender's profile photo or initial
-            final profile = item.senderProfile;
-            if (profile == null) {
-              return Container(
-                decoration: BoxDecoration(
-                  color: AppColors.success.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(radius),
-                ),
-                child: Icon(CupertinoIcons.person,
-                    color: AppColors.success, size: iconSize),
-              );
-            }
-
-            if (profile.profileImagePath != null &&
-                profile.profileImagePath!.isNotEmpty) {
-              final isNetworkImage =
-                  profile.profileImagePath!.startsWith('http://') ||
-                      profile.profileImagePath!.startsWith('https://');
-
-              return ClipRRect(
-                borderRadius: BorderRadius.circular(radius),
-                child: isNetworkImage
-                    ? CachedNetworkImage(
-                        imageUrl: profile.profileImagePath!,
-                        fit: BoxFit.cover,
-                        placeholder: (context, url) => Container(
-                          color: Colors.grey.withOpacity(0.2),
-                          child: const Center(
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        ),
-                        errorWidget: (context, url, error) => Icon(
-                          CupertinoIcons.person,
-                          color: AppColors.success,
-                          size: iconSize,
-                        ),
-                      )
-                    : Image.file(
-                        File(profile.profileImagePath!),
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Icon(
-                            CupertinoIcons.person,
-                            color: AppColors.success,
-                            size: iconSize,
-                          );
-                        },
-                      ),
-              );
-            }
-
-            // Show initial in gradient
-            final initial =
-                profile.name.isNotEmpty ? profile.name[0].toUpperCase() : '?';
-            return Container(
-              decoration: BoxDecoration(
-                gradient: profile.cardAesthetics.gradient,
-                borderRadius: BorderRadius.circular(radius),
-              ),
-              child: Center(
-                child: Text(
-                  initial,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: fontSize,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            );
-
-          case HistoryEntryType.tag:
-            // Show NFC tag icon with type badge
-            return Stack(
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [
-                        AppColors.secondaryAction,
-                        AppColors.highlight,
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(radius),
-                  ),
-                  child: Center(
-                    child: Icon(
-                      CupertinoIcons.tag_fill,
-                      color: Colors.white,
-                      size: iconSize,
-                    ),
-                  ),
-                ),
-                // Tag type badge (NTAG213/215/216)
-                if (item.tagType != null)
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 3, vertical: 1),
-                      decoration: BoxDecoration(
-                        color: AppColors.highlight,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.white, width: 0.5),
-                      ),
-                      child: Text(
-                        item.tagType!.replaceAll('NTAG', ''),
-                        style: const TextStyle(
-                          fontSize: 7,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            );
-        }
-      },
-    );
-  }
-
-
-  Widget _buildDetailRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Icon column with fixed width
-          SizedBox(
-            width: 24,
-            child: Icon(
-              icon,
-              color: AppColors.textSecondary,
-              size: 16,
-            ),
-          ),
-          const SizedBox(width: AppSpacing.xs),
-          // Label column with fixed width
-          SizedBox(
-            width: 72,
-            child: Text(
-              label,
-              style: AppTextStyles.caption.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ),
-          const SizedBox(width: AppSpacing.xs),
-          // Value takes remaining space
-          Expanded(
-            child: Text(
-              value,
-              style: AppTextStyles.body.copyWith(
-                fontWeight: FontWeight.w500,
-                fontSize: 13,
-              ),
-              textAlign: TextAlign.right,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildModalActions(HistoryEntry item) {
-    switch (item.type) {
-      case HistoryEntryType.sent:
-        return SizedBox(
-          width: double.infinity,
-          child: AppButton.outlined(
-            text: 'Archive',
-            icon: const Icon(CupertinoIcons.archivebox, size: 18),
-            onPressed: () {
-              Navigator.pop(context);
-              _softDeleteItem(item.id);
-            },
-          ),
-        );
-
-      case HistoryEntryType.received:
-        return Column(
-          children: [
-            if (item.senderProfile != null) ...[
-              _buildSenderProfileCard(item.senderProfile!),
-              const SizedBox(height: AppSpacing.sm),
-            ],
-            Row(
-              children: [
-                Expanded(
-                  child: AppButton.outlined(
-                    text: 'Delete',
-                    icon: const Icon(CupertinoIcons.delete, size: 18),
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _deleteItem(item.id,
-                          isReceivedEntry:
-                              item.type == HistoryEntryType.received);
-                    },
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: AppButton.contained(
-                    text: 'Save',
-                    icon: const Icon(CupertinoIcons.person_add, size: 18),
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _saveToContacts(item.senderProfile!);
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ],
-        );
-
-      case HistoryEntryType.tag:
-        return SizedBox(
-          width: double.infinity,
-          child: AppButton.outlined(
-            text: 'Delete',
-            icon: const Icon(CupertinoIcons.delete, size: 18),
-            onPressed: () {
-              Navigator.pop(context);
-              _deleteItem(item.id,
-                  isReceivedEntry: item.type == HistoryEntryType.received);
-            },
-          ),
-        );
-    }
-  }
-
-  Widget _buildSenderProfileCard(dynamic profile) {
-    // Debug logging to verify profile data
-    print('🎴 [History] Rendering profile card');
-    print('   • Profile Name: ${profile.name}');
-    print('   • Profile Type: ${profile.type?.label ?? "unknown"}');
-    print('   • Has Email: ${profile.email != null}');
-    print('   • Has Phone: ${profile.phone != null}');
-    print('   • Has Aesthetics: ${profile.cardAesthetics != null}');
-    print('   • Primary Color: ${profile.cardAesthetics?.primaryColor}');
-    print('   • Has Image: ${profile.profileImagePath != null}');
-
-    return Center(
-      child: ProfileCardPreview(
-        profile: profile,
-        width: MediaQuery.of(context).size.width * 0.92,
-        height: 180,
-        borderRadius: AppRadius.xl,
-        onEmailTap:
-            profile.email != null ? () => _launchEmail(profile.email!) : null,
-        onPhoneTap:
-            profile.phone != null ? () => _launchPhone(profile.phone!) : null,
-        onWebsiteTap:
-            profile.website != null ? () => _launchUrl(profile.website!) : null,
-        onSocialTap: (platform, url) => _launchSocialMedia(platform, url),
-        onCustomLinkTap: (title, url) => _launchUrl(url),
-      ),
-    );
-  }
-
-
-  Map<String, Color> _getHistoryColors(HistoryEntryType type) {
-    switch (type) {
-      case HistoryEntryType.sent:
-        return {
-          'background': AppColors.primaryAction.withOpacity(0.1),
-          'border': AppColors.primaryAction.withOpacity(0.3),
-        };
-      case HistoryEntryType.received:
-        return {
-          'background': AppColors.success.withOpacity(0.1),
-          'border': AppColors.success.withOpacity(0.3),
-        };
-      case HistoryEntryType.tag:
-        return {
-          'background': AppColors.secondaryAction.withOpacity(0.1),
-          'border': AppColors.secondaryAction.withOpacity(0.3),
-        };
-    }
-  }
-
-  Color _getItemColor(HistoryEntryType type) {
-    switch (type) {
-      case HistoryEntryType.sent:
-        return AppColors.primaryAction;
-      case HistoryEntryType.received:
-        return AppColors.success;
-      case HistoryEntryType.tag:
-        return AppColors.secondaryAction;
-    }
-  }
-
-  Color _getModalBorderColor(HistoryEntryType type) {
-    switch (type) {
-      case HistoryEntryType.sent:
-        return AppColors.primaryAction.withOpacity(0.5);
-      case HistoryEntryType.received:
-        return AppColors.success.withOpacity(0.5);
-      case HistoryEntryType.tag:
-        return AppColors.secondaryAction.withOpacity(0.5);
-    }
-  }
-
-  IconData _getTypeIcon(HistoryEntryType type) {
-    switch (type) {
-      case HistoryEntryType.sent:
-        return CupertinoIcons.arrow_up_right;
-      case HistoryEntryType.received:
-        return CupertinoIcons.arrow_down_left;
-      case HistoryEntryType.tag:
-        return CupertinoIcons.tag;
-    }
-  }
-
-  String _formatTimestamp(DateTime timestamp) {
-    final now = DateTime.now();
-    final difference = now.difference(timestamp);
-
-    if (difference.inMinutes < 1) {
-      return 'Just now';
-    } else if (difference.inMinutes < 60) {
-      return '${difference.inMinutes}m';
-    } else if (difference.inHours < 24) {
-      return '${difference.inHours}h';
-    } else if (difference.inDays == 1) {
-      return 'Yesterday';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays}d';
-    } else {
-      return '${timestamp.day}/${timestamp.month}';
-    }
-  }
-
-  String _formatTagInfo(HistoryEntry item) {
-    // Format tag information with type, capacity, and payload type
-    final tagType = item.tagType ?? 'Unknown';
-    final capacity = item.tagCapacity;
-    final payloadType = item.payloadType;
-
-    // Build the info string
-    final parts = <String>[tagType];
-
-    if (capacity != null) {
-      parts.add('$capacity bytes');
-    }
-
-    if (payloadType != null) {
-      final payloadLabel = payloadType == 'dual' ? 'Full card' : 'Mini card';
-      parts.add(payloadLabel);
-    }
-
-    return parts.join(' • ');
-  }
-
-  String _formatDetailTimestamp(DateTime timestamp) {
-    final now = DateTime.now();
-    final diff = now.difference(timestamp);
-
-    // Today: Show "Today at 2:30 PM"
-    if (diff.inDays == 0 && timestamp.day == now.day) {
-      final hour = timestamp.hour > 12
-          ? timestamp.hour - 12
-          : (timestamp.hour == 0 ? 12 : timestamp.hour);
-      final period = timestamp.hour >= 12 ? 'PM' : 'AM';
-      return 'Today at $hour:${timestamp.minute.toString().padLeft(2, '0')} $period';
-    }
-
-    // Yesterday: Show "Yesterday at 2:30 PM"
-    if (diff.inDays == 1 || (diff.inDays == 0 && timestamp.day != now.day)) {
-      final hour = timestamp.hour > 12
-          ? timestamp.hour - 12
-          : (timestamp.hour == 0 ? 12 : timestamp.hour);
-      final period = timestamp.hour >= 12 ? 'PM' : 'AM';
-      return 'Yesterday at $hour:${timestamp.minute.toString().padLeft(2, '0')} $period';
-    }
-
-    // This week (within 7 days): Show "Mon, 2:30 PM"
-    if (diff.inDays < 7) {
-      final weekday = [
-        'Sun',
-        'Mon',
-        'Tue',
-        'Wed',
-        'Thu',
-        'Fri',
-        'Sat'
-      ][timestamp.weekday % 7];
-      final hour = timestamp.hour > 12
-          ? timestamp.hour - 12
-          : (timestamp.hour == 0 ? 12 : timestamp.hour);
-      final period = timestamp.hour >= 12 ? 'PM' : 'AM';
-      return '$weekday, $hour:${timestamp.minute.toString().padLeft(2, '0')} $period';
-    }
-
-    // This year: Show "Jan 11, 2:30 PM"
-    if (timestamp.year == now.year) {
-      final month = [
-        'Jan',
-        'Feb',
-        'Mar',
-        'Apr',
-        'May',
-        'Jun',
-        'Jul',
-        'Aug',
-        'Sep',
-        'Oct',
-        'Nov',
-        'Dec'
-      ][timestamp.month - 1];
-      final hour = timestamp.hour > 12
-          ? timestamp.hour - 12
-          : (timestamp.hour == 0 ? 12 : timestamp.hour);
-      final period = timestamp.hour >= 12 ? 'PM' : 'AM';
-      return '$month ${timestamp.day}, $hour:${timestamp.minute.toString().padLeft(2, '0')} $period';
-    }
-
-    // Older: Show "Jan 11, 2024"
-    final month = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec'
-    ][timestamp.month - 1];
-    return '$month ${timestamp.day}, ${timestamp.year}';
-  }
 
   Future<void> _saveToContacts(dynamic profile) async {
     HapticFeedback.lightImpact();
@@ -1572,10 +731,10 @@ class _HistoryScreenState extends State<HistoryScreen>
                   padding:
                       const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                   decoration: BoxDecoration(
-                    color: AppColors.success.withOpacity(0.15),
+                    color: AppColors.success.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: AppColors.success.withOpacity(0.3),
+                      color: AppColors.success.withValues(alpha: 0.3),
                       width: 1,
                     ),
                   ),
@@ -1611,10 +770,10 @@ class _HistoryScreenState extends State<HistoryScreen>
                   padding:
                       const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                   decoration: BoxDecoration(
-                    color: AppColors.error.withOpacity(0.15),
+                    color: AppColors.error.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: AppColors.error.withOpacity(0.3),
+                      color: AppColors.error.withValues(alpha: 0.3),
                       width: 1,
                     ),
                   ),
@@ -1811,10 +970,10 @@ class _HistoryScreenState extends State<HistoryScreen>
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                 decoration: BoxDecoration(
-                  color: AppColors.error.withOpacity(0.15),
+                  color: AppColors.error.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: AppColors.error.withOpacity(0.3),
+                    color: AppColors.error.withValues(alpha: 0.3),
                     width: 1,
                   ),
                 ),
@@ -1838,27 +997,4 @@ class _HistoryScreenState extends State<HistoryScreen>
     }
   }
 
-  /// Get color for profile type badge
-  Color _getProfileTypeColor(ProfileType type) {
-    switch (type) {
-      case ProfileType.personal:
-        return Colors.blue;
-      case ProfileType.professional:
-        return Colors.green;
-      case ProfileType.custom:
-        return Colors.purple;
-    }
-  }
-
-  /// Get icon for profile type badge
-  IconData _getProfileTypeIcon(ProfileType type) {
-    switch (type) {
-      case ProfileType.personal:
-        return CupertinoIcons.person;
-      case ProfileType.professional:
-        return CupertinoIcons.briefcase;
-      case ProfileType.custom:
-        return CupertinoIcons.star;
-    }
-  }
-    }
+}

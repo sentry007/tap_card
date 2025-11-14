@@ -12,7 +12,6 @@ class NFCDiscoveryService {
   static bool _isCurrentlyDetected = false;
   static Timer? _detectionTimer;
   static Timer? _pollingTimer;
-  static bool _isSessionActive = false;
   static bool _isPaused = false;
 
   /// Initialize NFC discovery for animations only
@@ -81,9 +80,6 @@ class NFCDiscoveryService {
           });
         },
       );
-
-      _isSessionActive = true;
-
     } catch (e) {
     }
   }
@@ -105,7 +101,6 @@ class NFCDiscoveryService {
       _detectionTimer?.cancel();
       _detectionTimer = null;
       _isCurrentlyDetected = false;
-      _isSessionActive = false;
       _isPaused = true;
 
       // Notify that device is no longer detected
@@ -148,7 +143,6 @@ class NFCDiscoveryService {
       _detectionTimer?.cancel();
       _detectionTimer = null;
       _isCurrentlyDetected = false;
-      _isSessionActive = false;
       _isPaused = false;
       _onNfcDetectionChanged = null;
 
