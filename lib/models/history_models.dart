@@ -58,6 +58,12 @@ class HistoryEntry {
   // Soft delete (for sent items only)
   final bool isSoftDeleted;
 
+  // Orphaned card tracking (vCard deleted from device but UID retained)
+  final bool isOrphanedCard;
+
+  // Profile UID for cross-device sync and UID retention
+  final String? profileUid;
+
   const HistoryEntry({
     required this.id,
     required this.type,
@@ -75,6 +81,8 @@ class HistoryEntry {
     this.writtenProfileType,
     this.metadata,
     this.isSoftDeleted = false,
+    this.isOrphanedCard = false,
+    this.profileUid,
   });
 
   /// Create a sent entry
@@ -107,6 +115,8 @@ class HistoryEntry {
     required ProfileData senderProfile,
     String? location,
     Map<String, dynamic>? metadata,
+    bool isOrphanedCard = false,
+    String? profileUid,
   }) {
     return HistoryEntry(
       id: id,
@@ -116,6 +126,8 @@ class HistoryEntry {
       senderProfile: senderProfile,
       location: location,
       metadata: metadata,
+      isOrphanedCard: isOrphanedCard,
+      profileUid: profileUid ?? senderProfile.id,
     );
   }
 
@@ -167,6 +179,8 @@ class HistoryEntry {
     ProfileType? writtenProfileType,
     Map<String, dynamic>? metadata,
     bool? isSoftDeleted,
+    bool? isOrphanedCard,
+    String? profileUid,
   }) {
     return HistoryEntry(
       id: id ?? this.id,
@@ -185,6 +199,8 @@ class HistoryEntry {
       writtenProfileType: writtenProfileType ?? this.writtenProfileType,
       metadata: metadata ?? this.metadata,
       isSoftDeleted: isSoftDeleted ?? this.isSoftDeleted,
+      isOrphanedCard: isOrphanedCard ?? this.isOrphanedCard,
+      profileUid: profileUid ?? this.profileUid,
     );
   }
 
@@ -207,6 +223,8 @@ class HistoryEntry {
       if (writtenProfileType != null) 'writtenProfileType': writtenProfileType!.name,
       if (metadata != null) 'metadata': metadata,
       'isSoftDeleted': isSoftDeleted,
+      'isOrphanedCard': isOrphanedCard,
+      if (profileUid != null) 'profileUid': profileUid,
     };
   }
 
@@ -235,6 +253,8 @@ class HistoryEntry {
           ? Map<String, dynamic>.from(json['metadata'])
           : null,
       isSoftDeleted: json['isSoftDeleted'] ?? false,
+      isOrphanedCard: json['isOrphanedCard'] ?? false,
+      profileUid: json['profileUid'],
     );
   }
 

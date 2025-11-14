@@ -382,6 +382,11 @@ class HistoryDetailModal extends StatelessWidget {
               _buildSenderProfileCard(context),
               const SizedBox(height: AppSpacing.sm),
             ],
+            // Show orphaned card warning banner
+            if (item.isOrphanedCard) ...[
+              _buildOrphanedCardBanner(),
+              const SizedBox(height: AppSpacing.sm),
+            ],
             Row(
               children: [
                 Expanded(
@@ -394,8 +399,13 @@ class HistoryDetailModal extends StatelessWidget {
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: AppButton.contained(
-                    text: 'Save',
-                    icon: const Icon(CupertinoIcons.person_add, size: 18),
+                    text: item.isOrphanedCard ? 'Re-save' : 'Save',
+                    icon: Icon(
+                      item.isOrphanedCard
+                          ? CupertinoIcons.arrow_clockwise
+                          : CupertinoIcons.person_add,
+                      size: 18,
+                    ),
                     onPressed: () => onSaveToContacts(item.senderProfile!),
                   ),
                 ),
@@ -431,6 +441,60 @@ class HistoryDetailModal extends StatelessWidget {
             profile.website != null ? () => onLaunchUrl(profile.website!) : null,
         onSocialTap: (platform, url) => onLaunchSocialMedia(platform, url),
         onCustomLinkTap: (title, url) => onLaunchUrl(url),
+      ),
+    );
+  }
+
+  /// Build warning banner for orphaned cards
+  Widget _buildOrphanedCardBanner() {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.all(AppSpacing.sm),
+          decoration: BoxDecoration(
+            color: AppColors.warning.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            border: Border.all(
+              color: AppColors.warning.withValues(alpha: 0.3),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                CupertinoIcons.exclamationmark_triangle,
+                color: AppColors.warning,
+                size: 20,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Contact Deleted',
+                      style: AppTextStyles.body.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.warning,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'This vCard was removed from your device. Tap "Re-save" to restore it.',
+                      style: AppTextStyles.caption.copyWith(
+                        color: Colors.white.withValues(alpha: 0.8),
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

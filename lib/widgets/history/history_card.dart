@@ -84,6 +84,21 @@ class HistoryCard extends StatelessWidget {
                             child: _buildProfileAvatar(),
                           ),
                           const Spacer(),
+                          // ✅ Orphaned card indicator (vCard deleted from device)
+                          if (item.isOrphanedCard)
+                            Container(
+                              padding: const EdgeInsets.all(AppSpacing.xs),
+                              margin: const EdgeInsets.only(right: AppSpacing.xs),
+                              decoration: BoxDecoration(
+                                color: AppColors.warning.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(AppRadius.sm),
+                              ),
+                              child: const Icon(
+                                CupertinoIcons.exclamationmark_triangle,
+                                color: AppColors.warning,
+                                size: 12,
+                              ),
+                            ),
                           Container(
                             padding: const EdgeInsets.all(AppSpacing.xs),
                             decoration: BoxDecoration(

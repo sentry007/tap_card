@@ -19,6 +19,7 @@ import 'package:flutter_contacts/flutter_contacts.dart';
 
 import '../models/history_models.dart';
 import '../core/models/profile_models.dart';
+import '../core/repositories/received_cards_repository.dart';
 import 'contact_service.dart';
 import 'firestore_sync_service.dart';
 
@@ -41,6 +42,9 @@ class HistoryService {
 
   // Scanned contacts cache (from device contacts)
   static List<HistoryEntry> _scannedContactsCache = [];
+
+  // Orphaned cards cache (UIDs retained but vCard deleted)
+  static List<HistoryEntry> _orphanedCardsCache = [];
 
   /// Initialize history service and load data
   static Future<void> initialize() async {
@@ -102,16 +106,107 @@ class HistoryService {
       _scannedContactsCache = entries;
       developer.log('✅ Cached ${_scannedContactsCache.length} scanned contact entries', name: 'History.Service');
 
+      // ✅ NEW: Also load orphaned cards
+      _orphanedCardsCache = await _loadOrphanedCards();
+
       // Notify listeners with merged data
       _notifyListeners();
     } catch (e) {
       developer.log('❌ Failed to scan device contacts: $e', name: 'History.Service', error: e);
       _scannedContactsCache = [];
+      _orphanedCardsCache = [];
     }
   }
 
-  /// Get merged list of history entries and scanned contacts
+  /// Load orphaned cards from ReceivedCardsRepository
+  /// These are cards that were received but the vCard was manually deleted from device
+  static Future<List<HistoryEntry>> _loadOrphanedCards() async {
+    try {
+      final repository = ReceivedCardsRepository();
+      final receivedUids = await repository.getAllReceivedUids();
+
+      // Get UIDs that are in repository but not in active history or scanned contacts
+      final activeHistoryUids = _cache
+          .where((e) => e.type == HistoryEntryType.received && !e.isSoftDeleted && e.profileUid != null)
+          .map((e) => e.profileUid!)
+          .toSet();
+
+      final scannedContactUids = _scannedContactsCache
+          .where((e) => e.profileUid != null)
+          .map((e) => e.profileUid!)
+          .toSet();
+
+      final orphanedUids = receivedUids
+          .where((uid) => !activeHistoryUids.contains(uid) && !scannedContactUids.contains(uid))
+          .toList();
+
+      if (orphanedUids.isEmpty) {
+        return [];
+      }
+
+      developer.log(
+        '🔍 Found ${orphanedUids.length} orphaned cards (vCard deleted from device)',
+        name: 'History.OrphanedCards',
+      );
+
+      // Load metadata and create orphaned entries
+      final orphanedEntries = <HistoryEntry>[];
+      for (final uid in orphanedUids) {
+        final metadata = await repository.getMetadata(uid);
+        if (metadata == null) continue;
+
+        // Try to fetch from Firestore first
+        ProfileData? profile = await _fetchProfileFromFirestore(uid);
+
+        // Fallback to metadata if Firestore fails
+        profile ??= ProfileData(
+          id: uid,
+          type: metadata.profileType,
+          name: metadata.name,
+          company: metadata.company,
+          title: metadata.title,
+          lastUpdated: metadata.lastUpdated,
+        );
+
+        orphanedEntries.add(HistoryEntry.received(
+          id: 'orphaned_$uid',
+          method: metadata.shareMethod,
+          timestamp: metadata.receivedAt,
+          senderProfile: profile,
+          isOrphanedCard: true,
+          profileUid: uid,
+          metadata: {
+            'source': 'orphaned_repository',
+            'vcard_deleted': true,
+            'firestore_fetched': await _fetchProfileFromFirestore(uid) != null,
+          },
+        ));
+      }
+
+      developer.log(
+        '✅ Loaded ${orphanedEntries.length} orphaned card entries',
+        name: 'History.OrphanedCards',
+      );
+
+      return orphanedEntries;
+    } catch (e, stackTrace) {
+      developer.log(
+        '❌ Failed to load orphaned cards: $e',
+        name: 'History.OrphanedCards',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      return [];
+    }
+  }
+
+  /// Get merged list of history entries, scanned contacts, and orphaned cards
   /// Deduplicates by profile ID to avoid showing the same contact twice
+  ///
+  /// **Merge Priority (highest to lowest):**
+  /// 1. Active history entries (explicit user action)
+  /// 2. Scanned contacts (vCard exists in device)
+  /// 3. Orphaned cards (UID retained, vCard deleted)
   static List<HistoryEntry> _getMergedEntries() {
     // Start with active history entries (not soft-deleted)
     final activeHistory = _cache.where((e) => !e.isSoftDeleted).toList();
@@ -127,12 +222,32 @@ class HistoryService {
         .where((e) => !existingProfileIds.contains(e.senderProfile?.id))
         .toList();
 
-    // Merge and sort by timestamp (most recent first)
-    final merged = [...activeHistory, ...uniqueScannedContacts];
+    // Update existing IDs with scanned contacts
+    final scannedProfileIds = uniqueScannedContacts
+        .where((e) => e.senderProfile != null)
+        .map((e) => e.senderProfile!.id)
+        .toSet();
+    existingProfileIds.addAll(scannedProfileIds);
+
+    // ✅ NEW: Add orphaned cards that aren't already in history or scanned
+    final uniqueOrphanedCards = _orphanedCardsCache
+        .where((e) => !existingProfileIds.contains(e.senderProfile?.id))
+        .toList();
+
+    // Merge all three sources and sort by timestamp (most recent first)
+    final merged = [
+      ...activeHistory,
+      ...uniqueScannedContacts,
+      ...uniqueOrphanedCards,
+    ];
     merged.sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
     developer.log(
-      '🔀 Merged entries: ${activeHistory.length} history + ${uniqueScannedContacts.length} unique scanned = ${merged.length} total',
+      '🔀 Merged entries:\n'
+      '   • ${activeHistory.length} active history\n'
+      '   • ${uniqueScannedContacts.length} scanned contacts (vCard exists)\n'
+      '   • ${uniqueOrphanedCards.length} orphaned cards (vCard deleted)\n'
+      '   • ${merged.length} total entries',
       name: 'History.Service',
     );
 
@@ -183,13 +298,28 @@ class HistoryService {
         senderProfile: senderProfile,
         location: location,
         metadata: metadata,
+        profileUid: senderProfile.id,
       );
 
       _cache.insert(0, entry);
       await _saveToStorage();
-      _notifyListeners();
 
-      developer.log('📥 Added received entry: ${senderProfile.name} via ${method.label}', name: 'History.Service');
+      // ✅ NEW: Also add to ReceivedCardsRepository for UID retention
+      final repository = ReceivedCardsRepository();
+      final isNew = await repository.addReceivedCard(
+        senderProfile.id,
+        profile: senderProfile,
+        shareMethod: method,
+      );
+
+      developer.log(
+        '📥 Added received entry: ${senderProfile.name} via ${method.label}\n'
+        '   • UID: ${senderProfile.id}\n'
+        '   • ${isNew ? "New contact" : "Updated existing contact"}',
+        name: 'History.Service',
+      );
+
+      _notifyListeners();
     } catch (e) {
       developer.log('❌ Failed to add received entry: $e', name: 'History.Service', error: e);
     }
@@ -502,6 +632,10 @@ class HistoryService {
         await FlutterContacts.deleteContact(contactToDelete);
         developer.log('🗑️ Deleted scanned contact from device: ${contactToDelete.displayName}', name: 'History.DeleteScanned');
 
+        // ✅ NEW: Also remove from ReceivedCardsRepository
+        final repository = ReceivedCardsRepository();
+        await repository.removeReceivedCard(profileId);
+
         // Rescan contacts to update cache
         await scanDeviceContacts();
 
@@ -588,6 +722,10 @@ class HistoryService {
         } else {
           developer.log('⚠️ Contact not found in device contacts (may have been already deleted)', name: 'History.DeleteReceived');
         }
+
+        // ✅ NEW: Also remove from ReceivedCardsRepository
+        final repository = ReceivedCardsRepository();
+        await repository.removeReceivedCard(profileId);
       }
 
       // Delete from history
