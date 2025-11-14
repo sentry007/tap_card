@@ -13,7 +13,7 @@ import 'package:tap_card/main.dart';
 void main() {
   testWidgets('App loads smoke test', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const TapCardApp());
+    await tester.pumpWidget(const AtlasLinqApp());
 
     // Verify that our app loads without crashing
     expect(find.byType(MaterialApp), findsOneWidget);
