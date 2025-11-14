@@ -1,0 +1,146 @@
+rules_version = '2';
+
+// TapCard Storage Security Rules
+//
+// Current Status: DEVELOPMENT MODE (public access)
+// Before Production: Switch to PRODUCTION MODE rules below
+//
+// Last Updated: 2025-11-14
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ==========================================
+    // 🟢 DEVELOPMENT MODE - CURRENTLY ACTIVE
+    // ==========================================
+    // ⚠️ WARNING: These rules allow public access
+    // ⚠️ TODO: Switch to production rules before launch
+    // ==========================================
+
+    // Profile images - public access for testing
+    match /profile_images/{allPaths=**} {
+      allow read, write: if true;
+    }
+
+    // Background images - public access for testing
+    match /background_images/{allPaths=**} {
+      allow read, write: if true;
+    }
+
+    // ==========================================
+    // 🔴 PRODUCTION MODE - SECURE (COMMENTED OUT)
+    // ==========================================
+    // ✅ UNCOMMENT THESE BEFORE GOING LIVE
+    // ==========================================
+
+    /*
+    // ====================
+    // Helper Functions
+    // ====================
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+
+    function isValidImageSize() {
+      return request.resource.size < 5 * 1024 * 1024;  // 5MB max
+    }
+
+    function isAllowedImageType() {
+      return request.resource.contentType in [
+        'image/jpeg',
+        'image/png',
+        'image/webp',
+        'image/jpg'
+      ];
+    }
+
+    // ====================
+    // Profile Images
+    // ====================
+    // Structure: profile_images/{userId}.{extension}
+    // Example: profile_images/abc123.jpg
+
+    match /profile_images/{userId}.{extension} {
+      // Anyone can read (for public profile display)
+      allow read: if true;
+
+      // Only owner can upload their profile image
+      allow write: if isSignedIn()
+                   && isOwner(userId)
+                   && isImage()
+                   && isValidImageSize()
+                   && isAllowedImageType();
+
+      // Only owner can delete their profile image
+      allow delete: if isSignedIn() && isOwner(userId);
+    }
+
+    // ====================
+    // Background Images
+    // ====================
+    // Structure: background_images/{userId}_bg.{extension}
+    // Example: background_images/abc123_bg.jpg
+
+    match /background_images/{userId}_bg.{extension} {
+      // Anyone can read (for public profile display)
+      allow read: if true;
+
+      // Only owner can upload their background image
+      allow write: if isSignedIn()
+                   && isOwner(userId)
+                   && isImage()
+                   && isValidImageSize()
+                   && isAllowedImageType();
+
+      // Only owner can delete their background image
+      allow delete: if isSignedIn() && isOwner(userId);
+    }
+
+    // ====================
+    // Catch-all: Deny everything else
+    // ====================
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+    */
+  }
+}
+
+// ==========================================
+// FILE SIZE & TYPE LIMITS
+// ==========================================
+// Max Size: 5MB
+// Allowed Types: JPEG, PNG, WebP
+//
+// These limits prevent:
+// - Storage abuse
+// - Large file uploads
+// - Non-image files
+// - Malicious file uploads
+//
+// ==========================================
+
+// ==========================================
+// TESTING CHECKLIST
+// ==========================================
+// Before enabling production rules, test:
+//
+// ✅ 1. User can upload their own profile image
+// ✅ 2. User can upload their own background image
+// ✅ 3. User CANNOT upload image > 5MB (should fail)
+// ✅ 4. User CANNOT upload non-image file (should fail)
+// ✅ 5. User CANNOT upload to another user's path (should fail)
+// ✅ 6. Anyone can read public images
+// ✅ 7. User can delete their own images
+// ✅ 8. User CANNOT delete other users' images
+//
+// ==========================================

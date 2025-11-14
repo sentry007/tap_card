@@ -1,0 +1,185 @@
+rules_version = '2';
+
+// TapCard Firestore Security Rules
+//
+// Current Status: DEVELOPMENT MODE (public access)
+// Before Production: Switch to PRODUCTION MODE rules below
+//
+// Last Updated: 2025-11-14
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ==========================================
+    // 🟢 DEVELOPMENT MODE - CURRENTLY ACTIVE
+    // ==========================================
+    // ⚠️ WARNING: These rules allow public access
+    // ⚠️ TODO: Switch to production rules before launch
+    // ==========================================
+
+    match /profiles/{profileId} {
+      allow read, write: if true;  // Public for testing
+    }
+
+    match /analytics/{docId} {
+      allow read, write: if true;  // Public for testing
+    }
+
+    match /profile_views/{profileId} {
+      allow read, write: if true;  // Public for testing
+    }
+
+    match /sync_logs/{userId}/{document=**} {
+      allow read, write: if true;  // Public for testing
+    }
+
+    // ==========================================
+    // 🔴 PRODUCTION MODE - SECURE (COMMENTED OUT)
+    // ==========================================
+    // ✅ UNCOMMENT THESE BEFORE GOING LIVE
+    // ✅ TEST THOROUGHLY WITH YOUR APP FIRST
+    // ==========================================
+
+    /*
+    // ====================
+    // Helper Functions
+    // ====================
+
+    // Check if user is signed in
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Check if user is the owner of the resource
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Validate profile data structure
+    function isValidProfile(profile) {
+      // Required fields
+      let hasRequiredFields = profile.keys().hasAll(['id', 'uid', 'name', 'type']);
+
+      // Name validation
+      let nameValid = profile.name is string
+                      && profile.name.size() >= 1
+                      && profile.name.size() <= 100;
+
+      // Type validation
+      let typeValid = profile.type in ['personal', 'professional', 'custom'];
+
+      // Optional field validation
+      let emailValid = !('email' in profile)
+                       || (profile.email is string && profile.email.matches('.*@.*\\..*'));
+
+      let phoneValid = !('phone' in profile)
+                       || (profile.phone is string && profile.phone.size() <= 20);
+
+      let websiteValid = !('website' in profile)
+                         || (profile.website is string && profile.website.size() <= 2048);
+
+      return hasRequiredFields
+             && nameValid
+             && typeValid
+             && emailValid
+             && phoneValid
+             && websiteValid;
+    }
+
+    // ====================
+    // Profiles Collection
+    // ====================
+    // Structure: profiles/{profileId}
+    // profileId format: {uid}_{type} (e.g., "abc123_personal")
+
+    match /profiles/{profileId} {
+      // Anyone can read profiles marked as public
+      // Users can read their own profiles
+      allow read: if resource.data.isPublic == true
+                  || isOwner(resource.data.uid);
+
+      // Users can create their own profiles
+      allow create: if isSignedIn()
+                    && isOwner(request.resource.data.uid)
+                    && isValidProfile(request.resource.data)
+                    && request.resource.data.id == resource.data.uid;  // ID matches UID
+
+      // Users can update their own profiles
+      allow update: if isOwner(resource.data.uid)
+                    && isValidProfile(request.resource.data)
+                    && request.resource.data.uid == resource.data.uid  // Can't change owner
+                    && request.resource.data.id == resource.data.id;    // Can't change ID
+
+      // Users can delete their own profiles
+      allow delete: if isOwner(resource.data.uid);
+    }
+
+    // ====================
+    // Analytics Collection
+    // ====================
+    // Structure: analytics/{userId}/events/{eventId}
+
+    match /analytics/{userId} {
+      // Users can read their own analytics
+      allow read: if isOwner(userId);
+
+      // Users can write their own analytics
+      allow write: if isOwner(userId);
+
+      // Analytics events subcollection
+      match /events/{eventId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // ====================
+    // Profile Views Tracking
+    // ====================
+    // Structure: profile_views/{profileId}
+
+    match /profile_views/{profileId} {
+      // Anyone can read view counts (public stats)
+      allow read: if true;
+
+      // Any authenticated user can increment views
+      // (allows tracking when someone views a profile)
+      allow write: if isSignedIn();
+    }
+
+    // ====================
+    // Sync Logs (Debugging)
+    // ====================
+    // Structure: sync_logs/{userId}/logs/{logId}
+
+    match /sync_logs/{userId}/logs/{logId} {
+      // Only owner can read/write their sync logs
+      allow read, write: if isOwner(userId);
+    }
+
+    // ====================
+    // Catch-all: Deny everything else
+    // ====================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+    */
+  }
+}
+
+// ==========================================
+// TESTING CHECKLIST
+// ==========================================
+// Before enabling production rules, test:
+//
+// ✅ 1. User can create their own profile
+// ✅ 2. User can read their own profile
+// ✅ 3. User can update their own profile
+// ✅ 4. User can delete their own profile
+// ✅ 5. User CANNOT read other users' private profiles
+// ✅ 6. User CANNOT update other users' profiles
+// ✅ 7. User CANNOT delete other users' profiles
+// ✅ 8. Unauthenticated user CANNOT create profiles
+// ✅ 9. Unauthenticated user CAN read public profiles
+// ✅ 10. Invalid profile data is rejected
+//
+// ==========================================
