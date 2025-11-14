@@ -484,7 +484,7 @@ class NfcFabStatusText extends StatelessWidget {
 
       switch (state) {
         case NfcFabState.inactive:
-          text = 'Tap to activate • Long press to switch modes';
+          text = 'Tap to share • Long press to switch modes';
           textColor = Colors.white.withValues(alpha: 0.6); // Dull white
           break;
 

@@ -91,11 +91,12 @@ class ProfileCardPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     final aesthetics = profile.cardAesthetics;
 
-    return IntrinsicHeight(
-      child: Container(
-        width: width,
+    return Container(
+      width: width,
+      child: ConstrainedBox(
         constraints: BoxConstraints(minHeight: height),
         child: Stack(
+          fit: StackFit.passthrough,
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(borderRadius),

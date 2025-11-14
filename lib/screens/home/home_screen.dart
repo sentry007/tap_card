@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:app_settings/app_settings.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:ui';
@@ -20,10 +19,12 @@ import '../../core/constants/routes.dart';
 import '../../models/unified_models.dart';
 import '../../services/history_service.dart';
 import '../../services/contact_service.dart';
+import '../../services/profile_performance_service.dart';
 import '../../widgets/history/method_chip.dart';
 import '../../widgets/home/nfc_fab_widget.dart';
 import '../../widgets/home/recent_connections_widget.dart';
 import '../../widgets/home/nfc_helpers.dart';
+import '../../widgets/home/profile_preview_widget.dart';
 import '../../widgets/tutorial/tutorial_keys.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
@@ -1225,142 +1226,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return 'NTAG';
   }
 
-  // Launch methods for ProfileCardPreview interactions
-  Future<void> _launchEmail(String email) async {
-    final uri = Uri(scheme: 'mailto', path: email);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    }
-  }
-
-  Future<void> _launchPhone(String phone) async {
-    final uri = Uri(scheme: 'tel', path: phone);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    }
-  }
-
-  Future<void> _launchUrl(String url) async {
-    try {
-      Uri uri;
-      if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        uri = Uri.parse('https://$url');
-      } else {
-        uri = Uri.parse(url);
-      }
-
-      // Skip canLaunchUrl check - it's unreliable and may return false even when launchUrl works
-      // Just try to launch directly and handle errors
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } catch (e) {
-      // Show error only if launchUrl actually fails
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not open link: $url'),
-            backgroundColor: AppColors.error,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _launchSocialMedia(String platform, String url) async {
-    try {
-      // 1. Try to open native app first
-      final appUri = _getSocialAppUri(platform, url);
-      if (appUri != null && await canLaunchUrl(appUri)) {
-        await launchUrl(appUri, mode: LaunchMode.externalApplication);
-        return;
-      }
-
-      // 2. Fall back to web URL
-      String finalUrl = url;
-      if (!url.startsWith('http')) {
-        finalUrl = _getSocialUrl(platform, url);
-      }
-      await _launchUrl(finalUrl);
-    } catch (e) {
-      // If all fails, show error
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not open $platform link'),
-            backgroundColor: AppColors.error,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    }
-  }
-
-  /// Get native app URI for social platform
-  /// Returns null if platform doesn't support app schemes
-  Uri? _getSocialAppUri(String platform, String username) {
-    final cleanUsername =
-        username.startsWith('@') ? username.substring(1) : username;
-
-    // Skip if already a full URL
-    if (username.startsWith('http')) return null;
-
-    try {
-      switch (platform.toLowerCase()) {
-        case 'instagram':
-          return Uri.parse('instagram://user?username=$cleanUsername');
-        case 'twitter':
-        case 'x':
-          return Uri.parse('twitter://user?screen_name=$cleanUsername');
-        case 'linkedin':
-          return Uri.parse('linkedin://profile/$cleanUsername');
-        case 'github':
-          return Uri.parse('github://$cleanUsername');
-        case 'tiktok':
-          return Uri.parse('tiktok://user?username=$cleanUsername');
-        case 'youtube':
-          return Uri.parse('youtube://user/$cleanUsername');
-        case 'facebook':
-          return Uri.parse('fb://profile/$cleanUsername');
-        case 'snapchat':
-          return Uri.parse('snapchat://add/$cleanUsername');
-        case 'behance':
-        case 'dribbble':
-        case 'discord':
-          // These don't have reliable user schemes
-          return null;
-        default:
-          return null;
-      }
-    } catch (e) {
-      return null;
-    }
-  }
-
-  String _getSocialUrl(String platform, String username) {
-    final cleanUsername =
-        username.startsWith('@') ? username.substring(1) : username;
-    switch (platform.toLowerCase()) {
-      case 'linkedin':
-        return 'https://linkedin.com/in/$cleanUsername';
-      case 'twitter':
-      case 'x':
-        return 'https://twitter.com/$cleanUsername';
-      case 'github':
-        return 'https://github.com/$cleanUsername';
-      case 'instagram':
-        return 'https://instagram.com/$cleanUsername';
-      case 'behance':
-        return 'https://behance.net/$cleanUsername';
-      case 'dribbble':
-        return 'https://dribbble.com/$cleanUsername';
-      case 'tiktok':
-        return 'https://tiktok.com/@$cleanUsername';
-      case 'youtube':
-        return 'https://youtube.com/@$cleanUsername';
-      default:
-        return username;
-    }
-  }
 
   @override
   void dispose() {
@@ -1432,9 +1297,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   _buildInsightsSection(),
                   const SizedBox(height: 32),
                   // 2) NFC share area (FAB + status/share options)
-                  _isPreviewMode ? _buildCardPreview() : _buildHeroNfcFab(),
+                  _isPreviewMode ? ProfilePreviewWidget(profileService: _profileService) : _buildHeroNfcFab(),
                   const SizedBox(height: 16),
-                  _isPreviewMode ? _buildPreviewText() : _buildTapToShareText(),
+                  _isPreviewMode ? const ProfilePreviewTextWidget() : _buildTapToShareText(),
                   const SizedBox(height: 24),
                   // 3) Unified Recent Activity (connections + activity)
                   _buildRecentHistoryStrip(),
@@ -1584,7 +1449,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             key: const Key('home_mode_toggle_icon'),
             color: _isPreviewMode
                 ? AppColors.primaryAction
-                : AppColors.textSecondary,
+                : Colors.white,
             size: 20,
           ),
         ),
@@ -1650,74 +1515,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildCardPreview() {
-    final activeProfile = _profileService.activeProfile;
-    if (activeProfile == null) {
-      return Container(
-        key: const Key('home_card_preview_loading'),
-        width: 300,
-        height: 180,
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Center(
-          child: Text(
-            'No Profile Found',
-            style: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
-          ),
-        ),
-      );
-    }
-
-    return Center(
-      key: const Key('home_card_preview_container'),
-      child: ProfileCardPreview(
-        profile: activeProfile,
-        width: 300,
-        height: 180,
-        borderRadius: 20,
-        onEmailTap: activeProfile.email != null
-            ? () => _launchEmail(activeProfile.email!)
-            : null,
-        onPhoneTap: activeProfile.phone != null
-            ? () => _launchPhone(activeProfile.phone!)
-            : null,
-        onWebsiteTap: activeProfile.website != null
-            ? () => _launchUrl(activeProfile.website!)
-            : null,
-        onSocialTap: (platform, url) => _launchSocialMedia(platform, url),
-        onCustomLinkTap: (title, url) => _launchUrl(url),
-      ),
-    );
-  }
-
-  Widget _buildPreviewText() {
-    return Column(
-      key: const Key('home_preview_text_column'),
-      children: [
-        Text(
-          'Card Preview',
-          key: const Key('home_preview_title'),
-          style: AppTextStyles.h3.copyWith(
-            color: AppColors.textSecondary,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(
-            key: Key('home_preview_subtitle_spacing'), height: 8),
-        Text(
-          'This is how your card will appear to others',
-          key: const Key('home_preview_subtitle'),
-          style: AppTextStyles.caption.copyWith(
-            color: AppColors.textTertiary,
-            fontWeight: FontWeight.w400,
-          ),
-          textAlign: TextAlign.center,
-        ),
-      ],
-    );
-  }
 
   Widget _buildInitialsCircle(String initials, Color color) {
     return Container(
@@ -2539,6 +2336,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     // Show empty state if no recent activity
     final hasRecentActivity = recentHistory.isNotEmpty;
 
+    // Get profile service for view counts
+    final profileService = ProfileService();
+    final profiles = profileService.profiles;
+
     return GestureDetector(
       onTap: () {
         HapticFeedback.lightImpact();
@@ -2609,11 +2410,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         color: Colors.white.withValues(alpha: 0.1),
                       ),
                       Expanded(
-                        child: _buildInsightStat(
-                          '---',
-                          'Views',
-                          CupertinoIcons.eye_fill,
-                          AppColors.highlight,
+                        child: FutureBuilder<int>(
+                          future: profiles.isEmpty
+                              ? Future.value(0)
+                              : ProfilePerformanceService.getTotalViewCount(profiles),
+                          builder: (context, snapshot) {
+                            final viewCount = snapshot.hasData ? snapshot.data! : 0;
+                            return _buildInsightStat(
+                              viewCount.toString(),
+                              'Views',
+                              CupertinoIcons.eye_fill,
+                              AppColors.highlight,
+                            );
+                          },
                         ),
                       ),
                     ],

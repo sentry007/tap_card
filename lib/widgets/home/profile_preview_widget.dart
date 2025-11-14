@@ -30,11 +30,11 @@ class ProfilePreviewWidget extends StatelessWidget {
       return _buildNoProfileState();
     }
 
-    return Center(
-      key: const Key('home_card_preview_container'),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
       child: ProfileCardPreview(
         profile: activeProfile,
-        width: 300,
+        width: double.infinity,
         height: 180,
         borderRadius: 20,
         showProfileTypeChip: true,

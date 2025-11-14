@@ -9,7 +9,7 @@ import 'dart:ui';
 
 import '../../theme/theme.dart';
 
-class AchievementsDetailView extends StatelessWidget {
+class AchievementsDetailView extends StatefulWidget {
   final List<Achievement> unlockedAchievements;
   final List<Achievement> allAchievements;
 
@@ -20,12 +20,25 @@ class AchievementsDetailView extends StatelessWidget {
   });
 
   @override
+  State<AchievementsDetailView> createState() => _AchievementsDetailViewState();
+}
+
+class _AchievementsDetailViewState extends State<AchievementsDetailView> {
+  int _selectedFilterIndex = 0;
+  final List<String> _filters = ['All', 'Sharing', 'Connect', 'Activity', 'Special'];
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
   Widget build(BuildContext context) {
     // Organize achievements by category
-    final sharingAchievements = allAchievements.where((a) => a.category == AchievementCategory.sharing).toList();
-    final connectionAchievements = allAchievements.where((a) => a.category == AchievementCategory.connections).toList();
-    final activityAchievements = allAchievements.where((a) => a.category == AchievementCategory.activity).toList();
-    final specialAchievements = allAchievements.where((a) => a.category == AchievementCategory.special).toList();
+    final sharingAchievements = widget.allAchievements.where((a) => a.category == AchievementCategory.sharing).toList();
+    final connectionAchievements = widget.allAchievements.where((a) => a.category == AchievementCategory.connections).toList();
+    final activityAchievements = widget.allAchievements.where((a) => a.category == AchievementCategory.activity).toList();
+    final specialAchievements = widget.allAchievements.where((a) => a.category == AchievementCategory.special).toList();
 
     return Scaffold(
       backgroundColor: AppColors.primaryBackground,
@@ -35,57 +48,175 @@ class AchievementsDetailView extends StatelessWidget {
             // Custom App Bar
             _buildAppBar(context),
 
-            // Scrollable Content
+            // Progress Summary
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: _buildProgressSummary(),
+            ),
+
+            // Filter Chips
+            _buildFilterChips(),
+
+            // Filtered Grid View
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(20),
-                children: [
-                  // Progress Summary
-                  _buildProgressSummary(),
-                  const SizedBox(height: 32),
-
-                  // Sharing Achievements
-                  _buildCategorySection(
-                    'Sharing Achievements',
-                    sharingAchievements,
-                    Icons.send_rounded,
-                    AppColors.primaryAction,
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Connection Achievements
-                  _buildCategorySection(
-                    'Connection Achievements',
-                    connectionAchievements,
-                    Icons.people_rounded,
-                    AppColors.success,
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Activity Achievements
-                  _buildCategorySection(
-                    'Activity Achievements',
-                    activityAchievements,
-                    Icons.trending_up_rounded,
-                    AppColors.info,
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Special Achievements
-                  _buildCategorySection(
-                    'Special Achievements',
-                    specialAchievements,
-                    Icons.star_rounded,
-                    AppColors.highlight,
-                  ),
-                  const SizedBox(height: 20),
-                ],
-              ),
+              child: _buildGridView(_getFilteredAchievements(
+                sharingAchievements,
+                connectionAchievements,
+                activityAchievements,
+                specialAchievements,
+              )),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildGridView(List<Achievement> achievements) {
+    return GridView.builder(
+      padding: const EdgeInsets.all(20),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 0.85,
+      ),
+      itemCount: achievements.length,
+      itemBuilder: (context, index) {
+        final achievement = achievements[index];
+        final isUnlocked = widget.unlockedAchievements.any((a) => a.title == achievement.title);
+        return _buildAchievementCard(achievement, isUnlocked);
+      },
+    );
+  }
+
+  Widget _buildFilterChips() {
+    return Container(
+      height: 36,
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: _filters.length,
+        itemBuilder: (context, index) {
+          final filter = _filters[index];
+          final isSelected = _selectedFilterIndex == index;
+          final filterColors = _getFilterColors(filter);
+
+          return Container(
+            margin: const EdgeInsets.only(right: 8),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  setState(() => _selectedFilterIndex = index);
+                },
+                borderRadius: BorderRadius.circular(18),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? filterColors['background']!.withValues(alpha: 0.2)
+                            : Colors.white.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: isSelected
+                              ? filterColors['border']!
+                              : Colors.white.withValues(alpha: 0.2),
+                          width: isSelected ? 1.5 : 1,
+                        ),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: filterColors['shadow']!
+                                      .withValues(alpha: 0.2),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ]
+                            : null,
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        filter,
+                        style: AppTextStyles.caption.copyWith(
+                          color: isSelected
+                              ? Colors.white
+                              : AppColors.textPrimary,
+                          fontWeight: isSelected
+                              ? FontWeight.w600
+                              : FontWeight.w500,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Map<String, Color> _getFilterColors(String filter) {
+    switch (filter) {
+      case 'Sharing':
+        return {
+          'background': AppColors.primaryAction,
+          'border': AppColors.primaryAction.withValues(alpha: 0.5),
+          'shadow': AppColors.primaryAction,
+        };
+      case 'Connect':
+        return {
+          'background': AppColors.success,
+          'border': AppColors.success.withValues(alpha: 0.5),
+          'shadow': AppColors.success,
+        };
+      case 'Activity':
+        return {
+          'background': AppColors.highlight,
+          'border': AppColors.highlight.withValues(alpha: 0.5),
+          'shadow': AppColors.highlight,
+        };
+      case 'Special':
+        return {
+          'background': AppColors.secondaryAction,
+          'border': AppColors.secondaryAction.withValues(alpha: 0.5),
+          'shadow': AppColors.secondaryAction,
+        };
+      default:
+        // 'All' filter
+        return {
+          'background': AppColors.textPrimary,
+          'border': AppColors.textPrimary.withValues(alpha: 0.5),
+          'shadow': AppColors.textPrimary,
+        };
+    }
+  }
+
+  List<Achievement> _getFilteredAchievements(
+    List<Achievement> sharingAchievements,
+    List<Achievement> connectionAchievements,
+    List<Achievement> activityAchievements,
+    List<Achievement> specialAchievements,
+  ) {
+    switch (_selectedFilterIndex) {
+      case 1: // Sharing
+        return sharingAchievements;
+      case 2: // Connect
+        return connectionAchievements;
+      case 3: // Activity
+        return activityAchievements;
+      case 4: // Special
+        return specialAchievements;
+      default: // All
+        return widget.allAchievements;
+    }
   }
 
   Widget _buildAppBar(BuildContext context) {
@@ -124,8 +255,8 @@ class AchievementsDetailView extends StatelessWidget {
   }
 
   Widget _buildProgressSummary() {
-    final unlockedCount = unlockedAchievements.length;
-    final totalCount = allAchievements.length;
+    final unlockedCount = widget.unlockedAchievements.length;
+    final totalCount = widget.allAchievements.length;
     final progress = totalCount > 0 ? unlockedCount / totalCount : 0.0;
 
     return ClipRRect(
@@ -213,67 +344,13 @@ class AchievementsDetailView extends StatelessWidget {
     );
   }
 
-  Widget _buildCategorySection(
-    String title,
-    List<Achievement> achievements,
-    IconData icon,
-    Color color,
-  ) {
-    final unlockedInCategory = achievements.where((a) =>
-      unlockedAchievements.any((unlocked) => unlocked.title == a.title)
-    ).length;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              title,
-              style: AppTextStyles.h2.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const Spacer(),
-            Text(
-              '$unlockedInCategory/${achievements.length}',
-              style: AppTextStyles.body.copyWith(
-                color: AppColors.textSecondary,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: achievements.map((achievement) {
-            final isUnlocked = unlockedAchievements.any((a) => a.title == achievement.title);
-            return _buildAchievementCard(achievement, isUnlocked);
-          }).toList(),
-        ),
-      ],
-    );
-  }
-
   Widget _buildAchievementCard(Achievement achievement, bool isUnlocked) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
-          width: 160,
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: isUnlocked
@@ -298,6 +375,7 @@ class AchievementsDetailView extends StatelessWidget {
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               // Icon
               Stack(
@@ -306,17 +384,17 @@ class AchievementsDetailView extends StatelessWidget {
                   Icon(
                     achievement.icon,
                     color: isUnlocked ? achievement.color : AppColors.textTertiary,
-                    size: 40,
+                    size: 36,
                   ),
                   if (!isUnlocked)
                     Positioned(
-                      right: 0,
-                      top: 0,
+                      right: -2,
+                      top: -2,
                       child: Container(
-                        padding: const EdgeInsets.all(4),
+                        padding: const EdgeInsets.all(3),
                         decoration: BoxDecoration(
                           color: AppColors.surfaceDark,
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(8),
                           border: Border.all(
                             color: AppColors.glassBorder,
                             width: 1,
@@ -324,21 +402,21 @@ class AchievementsDetailView extends StatelessWidget {
                         ),
                         child: const Icon(
                           Icons.lock,
-                          size: 12,
+                          size: 10,
                           color: AppColors.textTertiary,
                         ),
                       ),
                     ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               // Title
               Text(
                 achievement.title,
                 style: AppTextStyles.body.copyWith(
                   color: isUnlocked ? achievement.color : AppColors.textTertiary,
                   fontWeight: FontWeight.bold,
-                  fontSize: 13,
+                  fontSize: 12,
                 ),
                 textAlign: TextAlign.center,
                 maxLines: 2,
@@ -350,10 +428,10 @@ class AchievementsDetailView extends StatelessWidget {
                 achievement.description,
                 style: AppTextStyles.caption.copyWith(
                   color: isUnlocked ? AppColors.textSecondary : AppColors.textTertiary,
-                  fontSize: 11,
+                  fontSize: 10,
                 ),
                 textAlign: TextAlign.center,
-                maxLines: 2,
+                maxLines: 3,
                 overflow: TextOverflow.ellipsis,
               ),
             ],

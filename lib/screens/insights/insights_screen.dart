@@ -22,6 +22,10 @@ import '../../services/profile_performance_service.dart';
 import '../../core/services/profile_service.dart';
 import '../../widgets/history/method_chip.dart';
 import '../../widgets/common/glass_app_bar.dart';
+import '../../widgets/common/app_info_button.dart';
+import '../../widgets/insights/insight_stat_card.dart';
+import '../../widgets/insights/connection_trends_widget.dart';
+import '../../widgets/insights/activity_chart_widget.dart';
 import 'achievements_detail_view.dart';
 
 class InsightsScreen extends StatefulWidget {
@@ -42,130 +46,143 @@ class _InsightsScreenState extends State<InsightsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.primaryBackground,
-      body: SafeArea(
-        child: StreamBuilder<List<HistoryEntry>>(
-          stream: HistoryService.historyStream(),
-          builder: (context, snapshot) {
-            if (!snapshot.hasData) {
-              return const Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.info),
-                ),
-              );
-            }
+      body: StreamBuilder<List<HistoryEntry>>(
+        stream: HistoryService.historyStream(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.info),
+              ),
+            );
+          }
 
-            final historyEntries = snapshot.data!;
-            final analytics = _calculateAnalytics(historyEntries);
+          final historyEntries = snapshot.data!;
+          final analytics = _calculateAnalytics(historyEntries);
 
-            return Stack(
-              children: [
-                // Main content with scroll
-                CustomScrollView(
-                  slivers: [
-                    // Top padding for app bar
-                    SliverToBoxAdapter(
-                      child: SizedBox(
-                        height: MediaQuery.of(context).padding.top + 96,
-                      ),
+          return Stack(
+            children: [
+              // Main content with scroll
+              CustomScrollView(
+                slivers: [
+                  // Top padding for app bar
+                  SliverToBoxAdapter(
+                    child: SizedBox(
+                      height: MediaQuery.of(context).padding.top + 96,
                     ),
-
-                // Overview Stats
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: _buildOverviewStats(analytics),
                   ),
-                ),
 
-                const SliverToBoxAdapter(child: SizedBox(height: 32)),
-
-                // Activity Chart Section
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: _buildActivityChart(analytics),
+                  // Overview Stats
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: _buildOverviewStats(analytics),
+                    ),
                   ),
-                ),
 
-                const SliverToBoxAdapter(child: SizedBox(height: 32)),
+                  const SliverToBoxAdapter(child: SizedBox(height: 32)),
 
-                // Profile Views Section (from Firestore)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: _buildProfileViewsSection(),
-                  ),
-                ),
-
-                const SliverToBoxAdapter(child: SizedBox(height: 32)),
-
-                // Share Methods Breakdown
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: _buildShareMethodsBreakdown(analytics),
-                  ),
-                ),
-
-                const SliverToBoxAdapter(child: SizedBox(height: 32)),
-
-                // Top Connections
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: _buildTopConnections(analytics),
-                  ),
-                ),
-
-                const SliverToBoxAdapter(child: SizedBox(height: 32)),
-
-                // Milestones
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: _buildMilestones(analytics),
-                  ),
-                ),
-
-                const SliverToBoxAdapter(child: SizedBox(height: 32)),
-              ],
-            ),
-                // Glass App Bar overlay
-                GlassAppBar(
-                  leading: GlassIconButton(
-                    icon: CupertinoIcons.back,
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      context.pop();
-                    },
-                    semanticsLabel: 'Back',
-                  ),
-                  title: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: 28,
-                        height: 28,
-                        child: Image.asset(
-                          'assets/images/atlaslinq_logo.png',
-                          fit: BoxFit.contain,
+                  // Activity Chart Section
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: ActivityChartWidget(
+                        chartData: analytics.chartData.map(
+                          (key, value) => MapEntry(
+                            key,
+                            DayActivity(sent: value.sent, received: value.received, tags: value.tags),
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Insights',
-                        style: AppTextStyles.h3.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                    ],
+                    ),
                   ),
+
+                  const SliverToBoxAdapter(child: SizedBox(height: 32)),
+
+                  // Profile Views Section (from Firestore)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: _buildProfileViewsSection(),
+                    ),
+                  ),
+
+                  const SliverToBoxAdapter(child: SizedBox(height: 32)),
+
+                  // Share Methods Breakdown
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: _buildShareMethodsBreakdown(analytics),
+                    ),
+                  ),
+
+                  const SliverToBoxAdapter(child: SizedBox(height: 32)),
+
+                  // Connection Trends
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: _buildConnectionTrends(analytics),
+                    ),
+                  ),
+
+                  const SliverToBoxAdapter(child: SizedBox(height: 32)),
+
+                  // Milestones
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: _buildMilestones(analytics),
+                    ),
+                  ),
+
+                  const SliverToBoxAdapter(child: SizedBox(height: 32)),
+                ],
+              ),
+              // Glass App Bar overlay
+              GlassAppBar(
+                leading: GlassIconButton(
+                  icon: CupertinoIcons.back,
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    context.pop();
+                  },
+                  semanticsLabel: 'Back',
                 ),
-              ],
-        );
-      },
-    ),
-  ),
-);
-}
+                title: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 28,
+                      height: 28,
+                      child: Image.asset(
+                        'assets/images/atlaslinq_logo.png',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Insights',
+                      style: AppTextStyles.h3.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ),
+                trailing: GlassIconButton(
+                  icon: CupertinoIcons.settings,
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    context.push('/settings');
+                  },
+                  semanticsLabel: 'Settings',
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
 
   /// Calculate all analytics from history entries
   _Analytics _calculateAnalytics(List<HistoryEntry> entries) {
@@ -216,7 +233,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
     final chartData = <DateTime, _DayActivity>{};
     for (int i = 6; i >= 0; i--) {
       final day = DateTime(now.year, now.month, now.day).subtract(Duration(days: i));
-      chartData[day] = _DayActivity(sent: 0, received: 0);
+      chartData[day] = _DayActivity(sent: 0, received: 0, tags: 0);
     }
 
     for (final entry in entries) {
@@ -231,6 +248,8 @@ class _InsightsScreenState extends State<InsightsScreen> {
             chartData[entryDay]!.sent++;
           } else if (entry.type == HistoryEntryType.received) {
             chartData[entryDay]!.received++;
+          } else if (entry.type == HistoryEntryType.tag) {
+            chartData[entryDay]!.tags++;
           }
         }
       }
@@ -269,34 +288,53 @@ class _InsightsScreenState extends State<InsightsScreen> {
     );
   }
 
-  /// Overview stats cards
+  /// Overview stats cards with enhanced metrics
   Widget _buildOverviewStats(_Analytics analytics) {
+    // Calculate 7-day activity for comparison
+    final last7DaysSent = analytics.chartData.values
+        .fold<int>(0, (sum, day) => sum + day.sent);
+
+    // Calculate connections this week
+    final connectionsThisWeek = analytics.chartData.values
+        .fold<int>(0, (sum, day) => sum + day.received);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Overview',
-          style: AppTextStyles.h2.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Overview',
+              style: AppTextStyles.h2.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            AppInfoButton(
+              title: 'Overview Stats',
+              description: 'Your key metrics at a glance. Total Shares shows cards you\'ve sent, Connections shows cards received, This Month tracks monthly activity, Top Method shows your most used sharing method, and Profile Views shows total profile views across all your profiles.',
+            ),
+          ],
         ),
         const SizedBox(height: 16),
         Row(
           children: [
             Expanded(
-              child: _buildStatCard(
+              child: InsightStatCard(
                 icon: Icons.send,
                 label: 'Total Shares',
                 value: '${analytics.totalSent}',
+                subtitle: 'Last 7 days: $last7DaysSent',
                 color: AppColors.primaryAction,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _buildStatCard(
+              child: InsightStatCard(
                 icon: Icons.people,
                 label: 'Connections',
                 value: '${analytics.totalReceived}',
+                subtitle: connectionsThisWeek > 0 ? '+$connectionsThisWeek this week' : 'No new this week',
                 color: AppColors.success,
               ),
             ),
@@ -306,91 +344,141 @@ class _InsightsScreenState extends State<InsightsScreen> {
         Row(
           children: [
             Expanded(
-              child: _buildStatCard(
+              child: InsightStatCard(
                 icon: Icons.calendar_month,
                 label: 'This Month',
                 value: '${analytics.monthlyTotal}',
+                subtitle: _getMonthComparison(analytics),
                 color: AppColors.info,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _buildStatCard(
+              child: InsightStatCard(
                 icon: Icons.star,
                 label: 'Top Method',
                 value: analytics.topReceivedMethod?.label ?? 'N/A',
+                subtitle: _getTopMethodCount(analytics),
                 color: AppColors.highlight,
                 isSmallText: true,
               ),
             ),
           ],
         ),
+        const SizedBox(height: 12),
+        // Profile Views Card
+        _buildProfileViewsStatCard(),
       ],
     );
   }
 
-  Widget _buildStatCard({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color color,
-    bool isSmallText = false,
-  }) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                color.withValues(alpha: 0.15),
-                color.withValues(alpha: 0.05),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: color.withValues(alpha: 0.3),
-              width: 1,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                icon,
-                color: color,
-                size: 24,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                value,
-                style: isSmallText
-                    ? AppTextStyles.h3.copyWith(
-                        color: color,
-                        fontWeight: FontWeight.bold,
-                      )
-                    : AppTextStyles.h1.copyWith(
-                        color: color,
-                        fontWeight: FontWeight.bold,
-                      ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: AppTextStyles.caption.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+  String _getMonthComparison(_Analytics analytics) {
+    // Simple heuristic: compare to previous 30 days
+    // For now, just show active status
+    if (analytics.monthlyTotal == 0) return 'No activity';
+    if (analytics.monthlyTotal < 5) return 'Getting started';
+    if (analytics.monthlyTotal < 20) return 'Active user';
+    return 'Power user!';
+  }
+
+  String _getTopMethodCount(_Analytics analytics) {
+    if (analytics.topReceivedMethod == null) return 'None yet';
+    final count = analytics.methodCounts[analytics.topReceivedMethod] ?? 0;
+    return '($count uses)';
+  }
+
+  Widget _buildProfileViewsStatCard() {
+    final profileService = ProfileService();
+    final profiles = profileService.profiles;
+
+    if (profiles.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return FutureBuilder<int>(
+      future: ProfilePerformanceService.getTotalViewCount(profiles),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data == 0) {
+          return const SizedBox.shrink();
+        }
+
+        final totalViews = snapshot.data!;
+        return InsightStatCard(
+          icon: Icons.visibility,
+          label: 'Profile Views',
+          value: '$totalViews',
+          subtitle: 'Across ${profiles.length} ${profiles.length == 1 ? "profile" : "profiles"}',
+          color: AppColors.secondaryAction,
+        );
+      },
+    );
+  }
+
+  /// Connection Trends - Calculate and display growth analytics
+  Widget _buildConnectionTrends(_Analytics analytics) {
+    if (analytics.totalReceived == 0) {
+      return const SizedBox.shrink();
+    }
+
+    // Calculate trends
+    final trends = _calculateConnectionTrends(analytics);
+
+    return ConnectionTrendsWidget(trends: trends);
+  }
+
+  ConnectionTrends _calculateConnectionTrends(_Analytics analytics) {
+    // Find most active day
+    String mostActiveDay = 'None';
+    int mostActiveDayCount = 0;
+
+    analytics.chartData.forEach((date, activity) {
+      if (activity.received > mostActiveDayCount) {
+        mostActiveDayCount = activity.received;
+        mostActiveDay = _getDayLabel(date);
+      }
+    });
+
+    // Calculate average connections per week
+    final weeksOfData = analytics.totalReceived > 0 ? 1 : 1; // Simplified
+    final avgConnectionsPerWeek = analytics.totalReceived / weeksOfData;
+
+    // Calculate longest streak
+    int longestStreak = 0;
+    int currentStreak = 0;
+    final sortedDays = analytics.chartData.keys.toList()..sort();
+
+    for (var day in sortedDays) {
+      if (analytics.chartData[day]!.received > 0) {
+        currentStreak++;
+        if (currentStreak > longestStreak) {
+          longestStreak = currentStreak;
+        }
+      } else {
+        currentStreak = 0;
+      }
+    }
+
+    // Determine velocity trend
+    final firstHalf = analytics.chartData.values.take(3).fold<int>(
+      0, (sum, day) => sum + day.received
+    );
+    final secondHalf = analytics.chartData.values.skip(4).fold<int>(
+      0, (sum, day) => sum + day.received
+    );
+
+    String velocityTrend = 'steady';
+    if (secondHalf > firstHalf * 1.5) {
+      velocityTrend = 'up';
+    } else if (secondHalf < firstHalf * 0.5 && firstHalf > 0) {
+      velocityTrend = 'down';
+    }
+
+    return ConnectionTrends(
+      mostActiveDay: mostActiveDay,
+      mostActiveDayCount: mostActiveDayCount,
+      avgConnectionsPerWeek: avgConnectionsPerWeek,
+      longestStreak: longestStreak,
+      velocityTrend: velocityTrend,
     );
   }
 
@@ -1488,8 +1576,9 @@ class _Analytics {
 class _DayActivity {
   int sent;
   int received;
+  int tags;
 
-  _DayActivity({required this.sent, required this.received});
+  _DayActivity({required this.sent, required this.received, this.tags = 0});
 }
 
 class _ConnectionData {

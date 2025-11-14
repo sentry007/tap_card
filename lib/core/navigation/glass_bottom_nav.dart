@@ -170,9 +170,7 @@ class _GlassBottomNavState extends State<GlassBottomNav>
               ),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
-                color: isSelected
-                    ? AppColors.primaryAction.withValues(alpha: 0.2)
-                    : Colors.transparent,
+                color: Colors.transparent,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
