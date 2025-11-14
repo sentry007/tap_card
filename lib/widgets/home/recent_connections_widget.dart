@@ -96,10 +96,10 @@ class _ContactsLoadingState extends StatelessWidget {
               child: Container(
                 key: Key('home_contacts_loading_container_$index'),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
+                  color: Colors.white.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.1),
+                    color: Colors.white.withValues(alpha: 0.1),
                     width: 1,
                   ),
                 ),
@@ -112,7 +112,7 @@ class _ContactsLoadingState extends StatelessWidget {
                       width: 32, // 8px * 4
                       height: 32,
                       decoration: BoxDecoration(
-                        color: AppColors.textTertiary.withOpacity(0.3),
+                        color: AppColors.textTertiary.withValues(alpha: 0.3),
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
@@ -123,7 +123,7 @@ class _ContactsLoadingState extends StatelessWidget {
                       width: 40, // 8px * 5
                       height: 8,
                       decoration: BoxDecoration(
-                        color: AppColors.textTertiary.withOpacity(0.3),
+                        color: AppColors.textTertiary.withValues(alpha: 0.3),
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),
@@ -196,7 +196,7 @@ class _ConnectionsEmptyState extends StatelessWidget {
           Text(
             'Receive a card to see connections',
             style: AppTextStyles.caption.copyWith(
-              color: AppColors.textTertiary.withOpacity(0.7),
+              color: AppColors.textTertiary.withValues(alpha: 0.7),
               fontSize: 10,
             ),
           ),
@@ -263,18 +263,18 @@ class ConnectionCard extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  methodColor.withOpacity(0.15),
-                  methodColor.withOpacity(0.05),
+                  methodColor.withValues(alpha: 0.15),
+                  methodColor.withValues(alpha: 0.05),
                 ],
               ),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: methodColor.withOpacity(0.3),
+                color: methodColor.withValues(alpha: 0.3),
                 width: 1,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),

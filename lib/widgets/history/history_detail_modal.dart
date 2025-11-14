@@ -56,7 +56,7 @@ class HistoryDetailModal extends StatelessWidget {
           filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(AppRadius.xxl),
               border: Border.all(
                 color: _getModalBorderColor(item.type),
@@ -101,7 +101,7 @@ class HistoryDetailModal extends StatelessWidget {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: _getItemColor(item.type).withOpacity(0.6),
+                color: _getItemColor(item.type).withValues(alpha: 0.6),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -125,7 +125,7 @@ class HistoryDetailModal extends StatelessWidget {
                         Text(
                           'View Card',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.85),
+                            color: Colors.white.withValues(alpha: 0.85),
                             fontSize: 11,
                             fontWeight: FontWeight.w500,
                           ),
@@ -134,7 +134,7 @@ class HistoryDetailModal extends StatelessWidget {
                         Icon(
                           CupertinoIcons.arrow_up_right_square,
                           size: 12,
-                          color: Colors.white.withOpacity(0.85),
+                          color: Colors.white.withValues(alpha: 0.85),
                         ),
                       ],
                     ),
@@ -158,7 +158,7 @@ class HistoryDetailModal extends StatelessWidget {
             borderRadius: BorderRadius.circular(28),
             boxShadow: [
               BoxShadow(
-                color: _getItemColor(item.type).withOpacity(0.2),
+                color: _getItemColor(item.type).withValues(alpha: 0.2),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -216,10 +216,10 @@ class HistoryDetailModal extends StatelessWidget {
                 vertical: 6,
               ),
               decoration: BoxDecoration(
-                color: _getItemColor(item.type).withOpacity(0.15),
+                color: _getItemColor(item.type).withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(AppRadius.md),
                 border: Border.all(
-                  color: _getItemColor(item.type).withOpacity(0.3),
+                  color: _getItemColor(item.type).withValues(alpha: 0.3),
                   width: 1,
                 ),
               ),
@@ -246,10 +246,10 @@ class HistoryDetailModal extends StatelessWidget {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: _getProfileTypeColor(item.senderProfile!.type).withOpacity(0.15),
+                  color: _getProfileTypeColor(item.senderProfile!.type).withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(AppRadius.md),
                   border: Border.all(
-                    color: _getProfileTypeColor(item.senderProfile!.type).withOpacity(0.3),
+                    color: _getProfileTypeColor(item.senderProfile!.type).withValues(alpha: 0.3),
                     width: 1,
                   ),
                 ),
@@ -296,7 +296,7 @@ class HistoryDetailModal extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
             child: Text(
               '⚠️ Location tracking disabled or permission denied',
-              style: TextStyle(color: Colors.orange.withOpacity(0.7), fontSize: 10),
+              style: TextStyle(color: Colors.orange.withValues(alpha: 0.7), fontSize: 10),
             ),
           ),
         if (item.tagType != null)
@@ -313,7 +313,7 @@ class HistoryDetailModal extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
             child: Text(
               '⚠️ Estimated time (exact time not available)',
-              style: TextStyle(color: Colors.orange.withOpacity(0.7), fontSize: 10),
+              style: TextStyle(color: Colors.orange.withValues(alpha: 0.7), fontSize: 10),
             ),
           ),
       ],
@@ -441,7 +441,7 @@ class HistoryDetailModal extends StatelessWidget {
     // In the actual implementation, this would use the same logic as HistoryCard
     return Container(
       decoration: BoxDecoration(
-        color: _getItemColor(item.type).withOpacity(0.3),
+        color: _getItemColor(item.type).withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(28),
       ),
       child: Icon(
@@ -467,11 +467,11 @@ class HistoryDetailModal extends StatelessWidget {
   Color _getModalBorderColor(HistoryEntryType type) {
     switch (type) {
       case HistoryEntryType.sent:
-        return AppColors.primaryAction.withOpacity(0.5);
+        return AppColors.primaryAction.withValues(alpha: 0.5);
       case HistoryEntryType.received:
-        return AppColors.success.withOpacity(0.5);
+        return AppColors.success.withValues(alpha: 0.5);
       case HistoryEntryType.tag:
-        return AppColors.secondaryAction.withOpacity(0.5);
+        return AppColors.secondaryAction.withValues(alpha: 0.5);
     }
   }
 

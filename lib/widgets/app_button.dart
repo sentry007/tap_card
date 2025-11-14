@@ -147,7 +147,7 @@ class _AppButtonState extends State<AppButton>
               key: const Key('app_button_loading_indicator'),
               strokeWidth: 2,
               valueColor: AlwaysStoppedAnimation<Color>(
-                buttonConfig.textColor.withOpacity(0.8),
+                buttonConfig.textColor.withValues(alpha: 0.8),
               ),
             ),
           )
@@ -158,7 +158,7 @@ class _AppButtonState extends State<AppButton>
             style: buttonConfig.textStyle.copyWith(
               color: isEnabled
                   ? buttonConfig.textColor
-                  : buttonConfig.textColor.withOpacity(0.5),
+                  : buttonConfig.textColor.withValues(alpha: 0.5),
             ),
           ),
           if (widget.icon != null) ...[
@@ -234,7 +234,7 @@ class _AppButtonState extends State<AppButton>
           boxShadow: widget.type == AppButtonType.contained && isEnabled
               ? [
                   BoxShadow(
-                    color: config.backgroundColor!.withOpacity(0.3),
+                    color: config.backgroundColor!.withValues(alpha: 0.3),
                     blurRadius: 8,
                     offset: const Offset(0, 4),
                   ),
@@ -249,7 +249,7 @@ class _AppButtonState extends State<AppButton>
               ? LinearGradient(
                   colors: [
                     config.backgroundColor!,
-                    config.backgroundColor!.withOpacity(0.8),
+                    config.backgroundColor!.withValues(alpha: 0.8),
                   ],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,

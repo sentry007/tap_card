@@ -14,6 +14,7 @@ library;
 import 'dart:developer' as developer;
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../widgets/auth/google_sign_in_helper.dart';
+import '../../utils/logger.dart';
 
 /// Authentication service wrapping Firebase Auth
 ///
@@ -28,11 +29,14 @@ class AuthService {
   factory AuthService() => _instance;
 
   AuthService._internal() {
-    print('[AUTH] 🔐 AuthService initialized (wrapper only, no listener)');
-    print('[AUTH]    • Signed in: $isSignedIn');
-    print('[AUTH]    • Anonymous: $isAnonymous');
-    print('[AUTH]    • Provider: $authProviderName');
-    print('[AUTH]    • UID: ${uid ?? "none"}');
+    Logger.info(
+      'AuthService initialized (wrapper only, no listener)\n'
+      '  Signed in: $isSignedIn\n'
+      '  Anonymous: $isAnonymous\n'
+      '  Provider: $authProviderName\n'
+      '  UID: ${uid ?? "none"}',
+      name: 'AUTH',
+    );
   }
 
   // ========== Private State ==========

@@ -124,11 +124,11 @@ class _SocialLinksFieldsState extends State<SocialLinksFields> {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               decoration: BoxDecoration(
                 color: isSelected
-                    ? brandColor.withOpacity(0.15)
-                    : Colors.white.withOpacity(0.06),
+                    ? brandColor.withValues(alpha: 0.15)
+                    : Colors.white.withValues(alpha: 0.06),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: brandColor.withOpacity(isSelected ? 0.6 : 0.4),
+                  color: brandColor.withValues(alpha: isSelected ? 0.6 : 0.4),
                   width: isSelected ? 2 : 1.5,
                 ),
               ),

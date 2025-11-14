@@ -124,13 +124,13 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  AppColors.surfaceDark.withOpacity(0.8),
-                  AppColors.surfaceDark.withOpacity(0.5),
+                  AppColors.surfaceDark.withValues(alpha: 0.8),
+                  AppColors.surfaceDark.withValues(alpha: 0.5),
                 ],
               ),
               border: Border(
                 bottom: BorderSide(
-                  color: AppColors.glassBorder.withOpacity(0.2),
+                  color: AppColors.glassBorder.withValues(alpha: 0.2),
                   width: 1,
                 ),
               ),
@@ -205,7 +205,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.shadowMedium.withOpacity(0.2),
+                    color: AppColors.shadowMedium.withValues(alpha: 0.2),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -239,7 +239,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                 Container(
                   padding: const EdgeInsets.all(AppSpacing.sm),
                   decoration: BoxDecoration(
-                    color: AppColors.highlight.withOpacity(0.1),
+                    color: AppColors.highlight.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(AppRadius.sm),
                   ),
                   child: const Icon(
@@ -289,8 +289,8 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                     padding: const EdgeInsets.all(AppSpacing.sm),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? AppColors.primaryAction.withOpacity(0.2)
-                          : AppColors.glassBorder.withOpacity(0.1),
+                          ? AppColors.primaryAction.withValues(alpha: 0.2)
+                          : AppColors.glassBorder.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(AppRadius.sm),
                       border: Border.all(
                         color: isSelected
@@ -350,7 +350,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                 Container(
                   padding: const EdgeInsets.all(AppSpacing.sm),
                   decoration: BoxDecoration(
-                    color: AppColors.highlight.withOpacity(0.1),
+                    color: AppColors.highlight.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(AppRadius.sm),
                   ),
                   child: const Icon(
@@ -482,7 +482,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                 Container(
                   padding: const EdgeInsets.all(AppSpacing.sm),
                   decoration: BoxDecoration(
-                    color: AppColors.highlight.withOpacity(0.1),
+                    color: AppColors.highlight.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(AppRadius.sm),
                   ),
                   child: const Icon(
@@ -530,8 +530,8 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                       padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
                       decoration: BoxDecoration(
                         color: _colorMode == 0
-                            ? AppColors.primaryAction.withOpacity(0.2)
-                            : AppColors.glassBorder.withOpacity(0.1),
+                            ? AppColors.primaryAction.withValues(alpha: 0.2)
+                            : AppColors.glassBorder.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(AppRadius.sm),
                         border: Border.all(
                           color: _colorMode == 0
@@ -582,8 +582,8 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                       padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
                       decoration: BoxDecoration(
                         color: _colorMode == 1
-                            ? AppColors.primaryAction.withOpacity(0.2)
-                            : AppColors.glassBorder.withOpacity(0.1),
+                            ? AppColors.primaryAction.withValues(alpha: 0.2)
+                            : AppColors.glassBorder.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(AppRadius.sm),
                         border: Border.all(
                           color: _colorMode == 1
@@ -642,7 +642,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                     child: Container(
                       height: 50,
                       decoration: BoxDecoration(
-                        color: _borderColor.withOpacity(0.2),
+                        color: _borderColor.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(AppRadius.sm),
                         border: Border.all(
                           color: _borderColor,
@@ -660,7 +660,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                               shape: BoxShape.circle,
                               boxShadow: [
                                 BoxShadow(
-                                  color: _borderColor.withOpacity(0.4),
+                                  color: _borderColor.withValues(alpha: 0.4),
                                   blurRadius: 6,
                                   spreadRadius: 1,
                                 ),
@@ -716,8 +716,8 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: _includeLogo
-                      ? AppColors.primaryAction.withOpacity(0.1)
-                      : AppColors.glassBorder.withOpacity(0.1),
+                      ? AppColors.primaryAction.withValues(alpha: 0.1)
+                      : AppColors.glassBorder.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
@@ -874,7 +874,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
 
     showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.5),
+      barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: (context) => BackdropFilter(
         filter: ui.ImageFilter.blur(sigmaX: 15, sigmaY: 15),
         child: Dialog(
@@ -890,18 +890,18 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      Colors.white.withOpacity(0.2),
-                      Colors.white.withOpacity(0.1),
+                      Colors.white.withValues(alpha: 0.2),
+                      Colors.white.withValues(alpha: 0.1),
                     ],
                   ),
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.3),
+                    color: Colors.white.withValues(alpha: 0.3),
                     width: 1.5,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withValues(alpha: 0.1),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     ),
@@ -921,10 +921,10 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
+                        color: Colors.white.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: Colors.white.withOpacity(0.2),
+                          color: Colors.white.withValues(alpha: 0.2),
                           width: 1,
                         ),
                       ),

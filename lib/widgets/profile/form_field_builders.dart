@@ -57,12 +57,12 @@ class GlassTextField extends StatelessWidget {
             filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.06),
+                color: Colors.white.withValues(alpha: 0.06),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: hasFocus
-                      ? effectiveAccentColor.withOpacity(0.5)
-                      : Colors.white.withOpacity(0.25),
+                      ? effectiveAccentColor.withValues(alpha: 0.5)
+                      : Colors.white.withValues(alpha: 0.25),
                   width: 1.5,
                 ),
               ),

@@ -31,7 +31,7 @@ class ContactDetailModal extends StatefulWidget {
   }) {
     return showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.5),
+      barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: (context) => ContactDetailModal(
         contact: contact,
         onSaved: onSaved,
@@ -180,7 +180,7 @@ class _ContactDetailModalState extends State<ContactDetailModal>
         child: Container(
           key: const Key('contact_detail_glass_container'),
           decoration: BoxDecoration(
-            color: AppColors.glassBackground.withOpacity(0.9),
+            color: AppColors.glassBackground.withValues(alpha: 0.9),
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
               color: AppColors.glassBorder,
@@ -188,12 +188,12 @@ class _ContactDetailModalState extends State<ContactDetailModal>
             ),
             boxShadow: [
               BoxShadow(
-                color: AppColors.shadowDark.withOpacity(0.3),
+                color: AppColors.shadowDark.withValues(alpha: 0.3),
                 blurRadius: 30,
                 offset: const Offset(0, 8),
               ),
               BoxShadow(
-                color: AppColors.primaryAction.withOpacity(0.1),
+                color: AppColors.primaryAction.withValues(alpha: 0.1),
                 blurRadius: 40,
                 offset: const Offset(0, 12),
               ),
@@ -232,7 +232,7 @@ class _ContactDetailModalState extends State<ContactDetailModal>
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: AppColors.glassBackground.withOpacity(0.8),
+                  color: AppColors.glassBackground.withValues(alpha: 0.8),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: AppColors.glassBorder,
@@ -266,12 +266,12 @@ class _ContactDetailModalState extends State<ContactDetailModal>
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: AppColors.primaryAction.withOpacity(0.3),
+                  color: AppColors.primaryAction.withValues(alpha: 0.3),
                   width: 3,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.primaryAction.withOpacity(0.2),
+                    color: AppColors.primaryAction.withValues(alpha: 0.2),
                     blurRadius: 16,
                     offset: const Offset(0, 4),
                   ),
@@ -409,7 +409,7 @@ class _ContactDetailModalState extends State<ContactDetailModal>
                   width: 32,
                   height: 32,
                   decoration: BoxDecoration(
-                    color: AppColors.primaryAction.withOpacity(0.1),
+                    color: AppColors.primaryAction.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
@@ -481,10 +481,10 @@ class _ContactDetailModalState extends State<ContactDetailModal>
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: _getSocialColor(link.platform).withOpacity(0.1),
+            color: _getSocialColor(link.platform).withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: _getSocialColor(link.platform).withOpacity(0.3),
+              color: _getSocialColor(link.platform).withValues(alpha: 0.3),
               width: 1,
             ),
           ),
@@ -559,7 +559,7 @@ class _ContactDetailModalState extends State<ContactDetailModal>
   Widget _buildNoteEditor() {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.glassBorder.withOpacity(0.1),
+        color: AppColors.glassBorder.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: AppColors.glassBorder,
@@ -625,7 +625,7 @@ class _ContactDetailModalState extends State<ContactDetailModal>
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.glassBorder.withOpacity(0.1),
+        color: AppColors.glassBorder.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: AppColors.glassBorder,
@@ -701,12 +701,12 @@ class _ContactDetailModalState extends State<ContactDetailModal>
           padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
           decoration: BoxDecoration(
             color: isPrimary
-                ? AppColors.primaryAction.withOpacity(0.2)
-                : AppColors.glassBorder.withOpacity(0.1),
+                ? AppColors.primaryAction.withValues(alpha: 0.2)
+                : AppColors.glassBorder.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: isPrimary
-                  ? AppColors.primaryAction.withOpacity(0.5)
+                  ? AppColors.primaryAction.withValues(alpha: 0.5)
                   : AppColors.glassBorder,
               width: 1,
             ),
@@ -858,10 +858,10 @@ class _ContactDetailModalState extends State<ContactDetailModal>
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
               decoration: BoxDecoration(
-                color: AppColors.success.withOpacity(0.15),
+                color: AppColors.success.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: AppColors.success.withOpacity(0.3),
+                  color: AppColors.success.withValues(alpha: 0.3),
                   width: 1,
                 ),
               ),
@@ -894,10 +894,10 @@ class _ContactDetailModalState extends State<ContactDetailModal>
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
               decoration: BoxDecoration(
-                color: AppColors.error.withOpacity(0.15),
+                color: AppColors.error.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: AppColors.error.withOpacity(0.3),
+                  color: AppColors.error.withValues(alpha: 0.3),
                   width: 1,
                 ),
               ),

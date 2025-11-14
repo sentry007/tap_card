@@ -35,6 +35,7 @@ import '../constants/routes.dart';
 import '../constants/app_constants.dart';
 import '../providers/app_state.dart';
 import '../services/auth_service.dart';
+import '../../utils/logger.dart';
 import '../../screens/splash/splash_screen.dart';
 import '../../screens/onboarding/onboarding_screen.dart';
 import '../../screens/home/home_screen.dart';
@@ -58,8 +59,7 @@ class AppRouter {
   ///
   /// [appState] - The global app state that coordinates auth and profile state
   static GoRouter createRouter(AppState appState) {
-    print('[ROUTER] 🧭 Creating app router configuration');
-    print('[ROUTER]    • Router will listen to AppState for refresh events');
+    Logger.info('Creating app router configuration\n  Router will listen to AppState for refresh events', name: 'ROUTER');
 
     return GoRouter(
       initialLocation: AppRoutes.splash,
@@ -77,17 +77,12 @@ class AppRouter {
         final authService = AuthService();
         final currentRoute = state.uri.path;
 
-        print('[ROUTER] 🧭 Redirect check for route: $currentRoute');
-        print('[ROUTER]    isAuthAndProfilesReady: ${appState.isAuthAndProfilesReady}');
-        print('[ROUTER]    isAuthenticated: ${authService.isSignedIn}');
-        print('[ROUTER]    shouldShowOnboarding: ${appState.shouldShowOnboarding}');
-        print('[ROUTER]    canAccessMainApp: ${appState.canAccessMainApp}');
-        print('[ROUTER]    hasCompletedOnboarding: ${appState.hasCompletedOnboarding}');
+        Logger.debug('Redirect check for route: $currentRoute\n  isAuthAndProfilesReady: ${appState.isAuthAndProfilesReady}\n  isAuthenticated: ${authService.isSignedIn}\n  shouldShowOnboarding: ${appState.shouldShowOnboarding}\n  canAccessMainApp: ${appState.canAccessMainApp}\n  hasCompletedOnboarding: ${appState.hasCompletedOnboarding}', name: 'ROUTER');
 
         // Wait for both auth and profiles to be ready before making navigation decisions
         // This prevents race conditions where profiles haven't loaded yet
         if (!appState.isAuthAndProfilesReady) {
-          print('[ROUTER] ⏳ Auth and profiles not ready - waiting for initialization');
+          Logger.debug('Auth and profiles not ready - waiting for initialization', name: 'ROUTER');
           return null;
         }
 
@@ -96,7 +91,7 @@ class AppRouter {
 
         // If not authenticated, redirect to splash/auth screen
         if (!isAuthenticated && currentRoute != AppRoutes.splash) {
-          print('[ROUTER] 🔐 Not authenticated - redirecting to splash');
+          Logger.info('Not authenticated - redirecting to splash', name: 'ROUTER');
           return AppRoutes.splash;
         }
 
@@ -104,10 +99,10 @@ class AppRouter {
         if (isAuthenticated && currentRoute == AppRoutes.splash) {
           // Check if user needs onboarding
           if (appState.shouldShowOnboarding) {
-            print('[ROUTER] 📚 Authenticated but needs onboarding');
+            Logger.info('Authenticated but needs onboarding', name: 'ROUTER');
             return AppRoutes.onboarding;
           } else {
-            print('[ROUTER] 🏠 Authenticated and onboarded - redirecting to home');
+            Logger.info('Authenticated and onboarded - redirecting to home', name: 'ROUTER');
             return AppRoutes.home;
           }
         }
@@ -116,7 +111,7 @@ class AppRouter {
         if (isAuthenticated &&
             appState.shouldShowOnboarding &&
             currentRoute != AppRoutes.onboarding) {
-          print('[ROUTER] 📚 Redirecting to onboarding (new user)');
+          Logger.info('Redirecting to onboarding (new user)', name: 'ROUTER');
           return AppRoutes.onboarding;
         }
 
@@ -124,7 +119,7 @@ class AppRouter {
         if (isAuthenticated &&
             appState.canAccessMainApp &&
             currentRoute == AppRoutes.onboarding) {
-          print('[ROUTER] 🏠 Redirecting to home (onboarding complete)');
+          Logger.info('Redirecting to home (onboarding complete)', name: 'ROUTER');
           return AppRoutes.home;
         }
 
@@ -133,11 +128,11 @@ class AppRouter {
             !appState.hasCompletedOnboarding &&
             currentRoute != AppRoutes.onboarding &&
             currentRoute != AppRoutes.splash) {
-          print('[ROUTER] 🎯 User needs onboarding - redirecting from $currentRoute');
+          Logger.info('User needs onboarding - redirecting from $currentRoute', name: 'ROUTER');
           return AppRoutes.onboarding;
         }
 
-        print('[ROUTER] ✅ No redirect needed - staying on $currentRoute');
+        Logger.debug('No redirect needed - staying on $currentRoute', name: 'ROUTER');
         return null;
       },
       // ========== Route Definitions ==========

@@ -140,6 +140,7 @@ class FirestoreSyncService {
         'title': profile.title,
         'website': profile.website,
         'socialMedia': profile.socialMedia,
+        'customLinks': profile.customLinks.map((link) => link.toJson()).toList(),
         'profileImageUrl': imageUrl,
         'cardAesthetics': cardAestheticsMap,
         'lastUpdated': FieldValue.serverTimestamp(),
@@ -531,6 +532,14 @@ class FirestoreSyncService {
         );
       }
 
+      // Parse custom links with backward compatibility
+      List<CustomLink> customLinks = [];
+      if (data['customLinks'] != null) {
+        customLinks = (data['customLinks'] as List)
+            .map((linkJson) => CustomLink.fromJson(linkJson))
+            .toList();
+      }
+
       // Convert Firestore data back to ProfileData
       final profile = ProfileData(
         id: data['id'] ?? profileId,
@@ -543,6 +552,7 @@ class FirestoreSyncService {
         email: data['email'],
         website: data['website'],
         socialMedia: Map<String, String>.from(data['socialMedia'] ?? {}),
+        customLinks: customLinks,
         profileImagePath: data['profileImageUrl'], // Firestore uses 'profileImageUrl'
         cardAesthetics: data['cardAesthetics'] != null
             ? CardAesthetics.fromJson(

@@ -22,6 +22,7 @@ import 'core/constants/widget_keys.dart';
 import 'core/services/profile_service.dart';
 import 'services/tutorial_service.dart';
 import 'theme/theme.dart';
+import 'utils/logger.dart';
 
 /// Application entry point
 ///
@@ -119,11 +120,23 @@ void main() async {
     '🔧 Initializing ProfileService...',
     name: 'App.Main',
   );
-  await ProfileService().initialize();
-  developer.log(
-    '✅ ProfileService initialized',
-    name: 'App.Main',
-  );
+
+  try {
+    await ProfileService().initialize();
+    developer.log(
+      '✅ ProfileService initialized',
+      name: 'App.Main',
+    );
+  } catch (e, stackTrace) {
+    developer.log(
+      '❌ CRITICAL: ProfileService initialization failed - App may be unstable',
+      name: 'App.Main',
+      error: e,
+      stackTrace: stackTrace,
+    );
+    // Continue app launch - ProfileService will retry on auth events
+    // User may see errors until profiles are created
+  }
 
   // Initialize TutorialService for interactive onboarding
   developer.log(
@@ -165,7 +178,7 @@ class _AtlasLinqAppState extends State<AtlasLinqApp> {
   void initState() {
     super.initState();
 
-    print('[MAIN] 📱 Initializing app state and router');
+    Logger.info('Initializing app state and router', name: 'MAIN');
 
     // Initialize global state first
     _appState = AppState();
@@ -173,7 +186,7 @@ class _AtlasLinqAppState extends State<AtlasLinqApp> {
     // Create router with AppState so it can listen to auth/profile changes
     _router = AppRouter.createRouter(_appState);
 
-    print('[MAIN] ✅ Router created with AppState as refreshListenable');
+    Logger.info('Router created with AppState as refreshListenable', name: 'MAIN');
 
     // Load persisted state from storage
     _initializeAppState();

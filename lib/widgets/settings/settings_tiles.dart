@@ -36,7 +36,7 @@ class SettingsSwitchTile extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(AppSpacing.sm),
             decoration: BoxDecoration(
-              color: AppColors.highlight.withOpacity(0.1),
+              color: AppColors.highlight.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(AppRadius.sm),
             ),
             child: Icon(
@@ -73,7 +73,7 @@ class SettingsSwitchTile extends StatelessWidget {
                 HapticFeedback.selectionClick();
                 onChanged(newValue);
               },
-              activeTrackColor: AppColors.primaryAction.withOpacity(0.5),
+              activeTrackColor: AppColors.primaryAction.withValues(alpha: 0.5),
               thumbColor: WidgetStateProperty.resolveWith((states) {
                 if (states.contains(WidgetState.selected)) {
                   return AppColors.primaryAction;
@@ -129,7 +129,7 @@ class SettingsActionTile extends StatelessWidget {
                 onTap!();
               },
         borderRadius: BorderRadius.circular(AppRadius.sm),
-        splashColor: isDisabled ? Colors.transparent : iconColor.withOpacity(0.1),
+        splashColor: isDisabled ? Colors.transparent : iconColor.withValues(alpha: 0.1),
         child: Opacity(
           opacity: isDisabled ? 0.5 : 1.0,
           child: Container(
@@ -139,7 +139,7 @@ class SettingsActionTile extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(AppSpacing.sm),
                   decoration: BoxDecoration(
-                    color: iconColor.withOpacity(0.1),
+                    color: iconColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(AppRadius.sm),
                   ),
                   child: Icon(
@@ -170,10 +170,10 @@ class SettingsActionTile extends StatelessWidget {
                                 vertical: 4,
                               ),
                               decoration: BoxDecoration(
-                                color: AppColors.highlight.withOpacity(0.15),
+                                color: AppColors.highlight.withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(AppRadius.xs),
                                 border: Border.all(
-                                  color: AppColors.highlight.withOpacity(0.3),
+                                  color: AppColors.highlight.withValues(alpha: 0.3),
                                   width: 1,
                                 ),
                               ),
@@ -250,7 +250,7 @@ class SettingsSliderTile extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(AppSpacing.sm),
                 decoration: BoxDecoration(
-                  color: AppColors.highlight.withOpacity(0.1),
+                  color: AppColors.highlight.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(AppRadius.sm),
                 ),
                 child: Icon(
@@ -286,7 +286,7 @@ class SettingsSliderTile extends StatelessWidget {
               activeTrackColor: AppColors.primaryAction,
               inactiveTrackColor: AppColors.glassBorder,
               thumbColor: AppColors.primaryAction,
-              overlayColor: AppColors.primaryAction.withOpacity(0.2),
+              overlayColor: AppColors.primaryAction.withValues(alpha: 0.2),
               thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
               trackHeight: 4,
             ),
@@ -337,7 +337,7 @@ class SettingsSelectionTile extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(AppSpacing.sm),
                 decoration: BoxDecoration(
-                  color: AppColors.highlight.withOpacity(0.1),
+                  color: AppColors.highlight.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(AppRadius.sm),
                 ),
                 child: Icon(
@@ -388,8 +388,8 @@ class SettingsSelectionTile extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? AppColors.primaryAction.withOpacity(0.2)
-                          : AppColors.glassBorder.withOpacity(0.1),
+                          ? AppColors.primaryAction.withValues(alpha: 0.2)
+                          : AppColors.glassBorder.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(AppRadius.sm),
                       border: Border.all(
                         color: isSelected

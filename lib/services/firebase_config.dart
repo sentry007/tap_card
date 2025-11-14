@@ -1,3 +1,5 @@
+import '../utils/logger.dart';
+
 /// Firebase configuration and feature flags for seamless integration
 class FirebaseConfig {
   // Feature flags for gradual Firebase rollout
@@ -64,7 +66,7 @@ class FirebaseConfig {
     // }
 
     // For now, Firebase is disabled
-    print('🔄 Firebase disabled - using local storage');
+    Logger.info('Firebase disabled - using local storage', name: 'FirebaseConfig');
     return false;
   }
 
@@ -90,7 +92,7 @@ class FirebaseConfig {
     // }
 
     // For now, Firebase is disabled
-    print('🔄 Firebase connection check - using offline mode');
+    Logger.info('Firebase connection check - using offline mode', name: 'FirebaseConfig');
     return false;
   }
 
@@ -142,7 +144,7 @@ class FirebaseConfig {
       //   parameters: parameters,
       // );
     } else {
-      print('📊 Analytics Event: $event - $parameters');
+      Logger.info('Analytics Event: $event - $parameters', name: 'FirebaseConfig');
     }
   }
 

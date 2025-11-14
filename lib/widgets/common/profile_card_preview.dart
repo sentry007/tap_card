@@ -6,6 +6,7 @@ import 'dart:ui';
 import 'dart:io';
 import '../../theme/theme.dart';
 import '../../core/models/profile_models.dart';
+import '../../utils/logger.dart';
 
 /// Reusable profile card preview widget
 ///
@@ -23,6 +24,7 @@ class ProfileCardPreview extends StatelessWidget {
   final Function(String platform, String url)? onSocialTap;
   final Function(String title, String url)? onCustomLinkTap;
   final VoidCallback? onProfileImageTap;
+  final bool showProfileTypeChip;
 
   const ProfileCardPreview({
     super.key,
@@ -37,6 +39,7 @@ class ProfileCardPreview extends StatelessWidget {
     this.onSocialTap,
     this.onCustomLinkTap,
     this.onProfileImageTap,
+    this.showProfileTypeChip = false,
   });
 
   /// Helper method to build image from either local file or network URL
@@ -47,37 +50,36 @@ class ProfileCardPreview extends StatelessWidget {
     final isNetworkImage = imagePath.startsWith('http://') || imagePath.startsWith('https://');
 
     if (isNetworkImage) {
-      print('🌐 [ProfileCardPreview] Loading network image: $imagePath');
+      Logger.debug('Loading network image: $imagePath', name: 'ProfileCardPreview');
       return CachedNetworkImage(
         imageUrl: imagePath,
         fit: fit,
         placeholder: (context, url) {
-          print('⏳ [ProfileCardPreview] Loading image...');
+          Logger.debug('Loading image...', name: 'ProfileCardPreview');
           return Container(
-            color: Colors.grey.withOpacity(0.2),
+            color: Colors.grey.withValues(alpha: 0.2),
             child: const Center(
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
           );
         },
         errorWidget: (context, url, error) {
-          print('❌ [ProfileCardPreview] Image load failed: $error');
-          print('   • URL: $url');
+          Logger.error('Image load failed: $error\n  URL: $url', name: 'ProfileCardPreview', error: error);
           return Container(
-            color: Colors.grey.withOpacity(0.2),
+            color: Colors.grey.withValues(alpha: 0.2),
             child: const Icon(Icons.error_outline, color: Colors.red),
           );
         },
       );
     } else {
-      print('📁 [ProfileCardPreview] Loading local file: $imagePath');
+      Logger.debug('Loading local file: $imagePath', name: 'ProfileCardPreview');
       return Image.file(
         File(imagePath),
         fit: fit,
         errorBuilder: (context, error, stackTrace) {
-          print('❌ [ProfileCardPreview] Local file load failed: $error');
+          Logger.error('Local file load failed: $error', name: 'ProfileCardPreview', error: error);
           return Container(
-            color: Colors.grey.withOpacity(0.2),
+            color: Colors.grey.withValues(alpha: 0.2),
             child: const Icon(Icons.broken_image, color: Colors.red),
           );
         },
@@ -93,10 +95,12 @@ class ProfileCardPreview extends StatelessWidget {
       child: Container(
         width: width,
         constraints: BoxConstraints(minHeight: height),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(borderRadius),
-          child: Stack(
-            children: [
+        child: Stack(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(borderRadius),
+              child: Stack(
+                children: [
               // Background with profile colors
               Positioned.fill(
                 child: Container(
@@ -105,7 +109,7 @@ class ProfileCardPreview extends StatelessWidget {
                       ? LinearGradient(
                           colors: [
                             aesthetics.backgroundColor!,
-                            aesthetics.backgroundColor!.withOpacity(0.8),
+                            aesthetics.backgroundColor!.withValues(alpha: 0.8),
                           ],
                         )
                       : aesthetics.gradient,
@@ -139,20 +143,20 @@ class ProfileCardPreview extends StatelessWidget {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        Colors.white.withOpacity(aesthetics.hasBackgroundImage ? 0.1 : 0.2),
-                        Colors.white.withOpacity(aesthetics.hasBackgroundImage ? 0.05 : 0.1),
+                        Colors.white.withValues(alpha: aesthetics.hasBackgroundImage ? 0.1 : 0.2),
+                        Colors.white.withValues(alpha: aesthetics.hasBackgroundImage ? 0.05 : 0.1),
                       ],
                     ),
                     borderRadius: BorderRadius.circular(borderRadius),
                     border: showBorder && aesthetics.borderColor != Colors.transparent
                       ? Border.all(
-                          color: aesthetics.borderColor.withOpacity(0.8),
+                          color: aesthetics.borderColor.withValues(alpha: 0.8),
                           width: 1.5,
                         )
                       : null,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
+                        color: Colors.black.withValues(alpha: 0.1),
                         blurRadius: 20,
                         offset: const Offset(0, 10),
                       ),
@@ -171,8 +175,8 @@ class ProfileCardPreview extends StatelessWidget {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        Colors.black.withOpacity(0.2),
-                        Colors.black.withOpacity(0.3),
+                        Colors.black.withValues(alpha: 0.2),
+                        Colors.black.withValues(alpha: 0.3),
                       ],
                     ),
                     borderRadius: BorderRadius.circular(borderRadius),
@@ -208,9 +212,12 @@ class ProfileCardPreview extends StatelessWidget {
                                     borderRadius: BorderRadius.circular(height * 0.125),
                                     child: Builder(
                                       builder: (context) {
-                                        print('🖼️ [ProfileCardPreview] Rendering profile image');
-                                        print('   • Image path: ${profile.profileImagePath}');
-                                        print('   • Is network URL: ${profile.profileImagePath!.startsWith('http')}');
+                                        Logger.debug(
+                                          'Rendering profile image\n'
+                                          '  Image path: ${profile.profileImagePath}\n'
+                                          '  Is network URL: ${profile.profileImagePath!.startsWith('http')}',
+                                          name: 'ProfileCardPreview',
+                                        );
 
                                         return _buildImage(
                                           profile.profileImagePath!,
@@ -274,7 +281,7 @@ class ProfileCardPreview extends StatelessWidget {
                               Text(
                                 profile.title!,
                                 style: AppTextStyles.caption.copyWith(
-                                  color: Colors.white.withOpacity(0.7),
+                                  color: Colors.white.withValues(alpha: 0.7),
                                   fontSize: height * 0.067,
                                 ),
                                 overflow: TextOverflow.ellipsis,
@@ -331,9 +338,20 @@ class ProfileCardPreview extends StatelessWidget {
                 ],
               ),
             ),
+                ],
+              ),
+            ),
+
+            // Profile type chip (top right) - ONLY if showProfileTypeChip is true
+            // Positioned OUTSIDE ClipRRect to appear on top without being clipped
+            if (showProfileTypeChip)
+              Positioned(
+                top: 12,
+                right: 12,
+                child: _buildProfileTypeChip(height),
+              ),
           ],
         ),
-      ),
       ),
     );
   }
@@ -344,14 +362,14 @@ class ProfileCardPreview extends StatelessWidget {
         Icon(
           icon,
           size: height * 0.078,
-          color: Colors.white.withOpacity(0.7),
+          color: Colors.white.withValues(alpha: 0.7),
         ),
         SizedBox(width: height * 0.033),
         Expanded(
           child: Text(
             text,
             style: AppTextStyles.caption.copyWith(
-              color: Colors.white.withOpacity(0.9),
+              color: Colors.white.withValues(alpha: 0.9),
               fontSize: height * 0.061,
             ),
             overflow: TextOverflow.ellipsis,
@@ -362,7 +380,7 @@ class ProfileCardPreview extends StatelessWidget {
           Icon(
             CupertinoIcons.arrow_right,
             size: height * 0.056,
-            color: Colors.white.withOpacity(0.5),
+            color: Colors.white.withValues(alpha: 0.5),
           ),
       ],
     );
@@ -403,7 +421,7 @@ class ProfileCardPreview extends StatelessWidget {
             child: Text(
               '+${socialEntries.length - maxVisible}',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.6),
+                color: Colors.white.withValues(alpha: 0.6),
                 fontSize: iconSize * 0.75,
                 fontWeight: FontWeight.w600,
               ),
@@ -429,7 +447,7 @@ class ProfileCardPreview extends StatelessWidget {
           padding: const EdgeInsets.all(4),
           child: Icon(
             iconData['icon'],
-            color: iconColor.withOpacity(0.9),
+            color: iconColor.withValues(alpha: 0.9),
             size: size * 0.8,
           ),
         ),
@@ -498,11 +516,69 @@ class ProfileCardPreview extends StatelessWidget {
           padding: const EdgeInsets.all(4),
           child: Icon(
             CupertinoIcons.link,
-            color: iconColor.withOpacity(0.9),
+            color: iconColor.withValues(alpha: 0.9),
             size: size * 0.8,
           ),
         ),
       ),
     );
+  }
+
+  /// Build profile type chip for top-right corner
+  Widget _buildProfileTypeChip(double height) {
+    final chipData = _getProfileTypeData();
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+        child: Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: height * 0.055,
+            vertical: height * 0.03,
+          ),
+          decoration: BoxDecoration(
+            color: chipData['color'].withValues(alpha: 0.25),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: chipData['color'].withValues(alpha: 0.5),
+              width: 1.5,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                chipData['icon'] as IconData,
+                size: height * 0.067,
+                color: Colors.white,
+              ),
+              SizedBox(width: height * 0.028),
+              Text(
+                profile.type.label,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: height * 0.061,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Get profile type icon and color
+  Map<String, dynamic> _getProfileTypeData() {
+    switch (profile.type) {
+      case ProfileType.personal:
+        return {'icon': CupertinoIcons.person, 'color': Colors.blue};
+      case ProfileType.professional:
+        return {'icon': CupertinoIcons.briefcase, 'color': Colors.green};
+      case ProfileType.custom:
+        return {'icon': CupertinoIcons.star, 'color': Colors.purple};
+    }
   }
 }

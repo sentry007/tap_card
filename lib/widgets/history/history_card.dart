@@ -41,7 +41,7 @@ class HistoryCard extends StatelessWidget {
       direction: DismissDirection.endToStart,
       background: Container(
         decoration: BoxDecoration(
-          color: AppColors.error.withOpacity(0.1),
+          color: AppColors.error.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(AppRadius.card),
         ),
         alignment: Alignment.centerRight,
@@ -65,7 +65,7 @@ class HistoryCard extends StatelessWidget {
                   border: Border.all(color: colors['border']!, width: 1),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withValues(alpha: 0.1),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -87,7 +87,7 @@ class HistoryCard extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.all(AppSpacing.xs),
                             decoration: BoxDecoration(
-                              color: _getItemColor(item.type).withOpacity(0.2),
+                              color: _getItemColor(item.type).withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(AppRadius.sm),
                             ),
                             child: Icon(
@@ -207,7 +207,7 @@ class HistoryCard extends StatelessWidget {
             if (profile == null) {
               return Container(
                 decoration: BoxDecoration(
-                  color: AppColors.success.withOpacity(0.3),
+                  color: AppColors.success.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(radius),
                 ),
                 child: Icon(CupertinoIcons.person, color: AppColors.success, size: iconSize),
@@ -225,7 +225,7 @@ class HistoryCard extends StatelessWidget {
                         imageUrl: profile.profileImagePath!,
                         fit: BoxFit.cover,
                         placeholder: (context, url) => Container(
-                          color: Colors.grey.withOpacity(0.2),
+                          color: Colors.grey.withValues(alpha: 0.2),
                           child: const Center(
                             child: CircularProgressIndicator(strokeWidth: 2),
                           ),
@@ -324,18 +324,18 @@ class HistoryCard extends StatelessWidget {
     switch (type) {
       case HistoryEntryType.sent:
         return {
-          'background': AppColors.primaryAction.withOpacity(0.1),
-          'border': AppColors.primaryAction.withOpacity(0.3),
+          'background': AppColors.primaryAction.withValues(alpha: 0.1),
+          'border': AppColors.primaryAction.withValues(alpha: 0.3),
         };
       case HistoryEntryType.received:
         return {
-          'background': AppColors.success.withOpacity(0.1),
-          'border': AppColors.success.withOpacity(0.3),
+          'background': AppColors.success.withValues(alpha: 0.1),
+          'border': AppColors.success.withValues(alpha: 0.3),
         };
       case HistoryEntryType.tag:
         return {
-          'background': AppColors.secondaryAction.withOpacity(0.1),
-          'border': AppColors.secondaryAction.withOpacity(0.3),
+          'background': AppColors.secondaryAction.withValues(alpha: 0.1),
+          'border': AppColors.secondaryAction.withValues(alpha: 0.3),
         };
     }
   }

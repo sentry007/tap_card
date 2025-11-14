@@ -47,13 +47,13 @@ class ProfileDetailModal extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  AppColors.surfaceDark.withOpacity(0.95),
-                  AppColors.surfaceDark.withOpacity(0.85),
+                  AppColors.surfaceDark.withValues(alpha: 0.95),
+                  AppColors.surfaceDark.withValues(alpha: 0.85),
                 ],
               ),
               borderRadius: BorderRadius.circular(AppRadius.card),
               border: Border.all(
-                color: AppColors.glassBorder.withOpacity(0.3),
+                color: AppColors.glassBorder.withValues(alpha: 0.3),
                 width: 1,
               ),
             ),
@@ -66,7 +66,7 @@ class ProfileDetailModal extends StatelessWidget {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: AppColors.textTertiary.withOpacity(0.5),
+                    color: AppColors.textTertiary.withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -92,12 +92,12 @@ class ProfileDetailModal extends StatelessWidget {
                                   decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(50),
                                     border: Border.all(
-                                      color: profile.cardAesthetics.primaryColor.withOpacity(0.5),
+                                      color: profile.cardAesthetics.primaryColor.withValues(alpha: 0.5),
                                       width: 3,
                                     ),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: profile.cardAesthetics.primaryColor.withOpacity(0.3),
+                                        color: profile.cardAesthetics.primaryColor.withValues(alpha: 0.3),
                                         blurRadius: 20,
                                         offset: const Offset(0, 4),
                                       ),
@@ -134,10 +134,10 @@ class ProfileDetailModal extends StatelessWidget {
                                   vertical: 6,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: profile.cardAesthetics.primaryColor.withOpacity(0.15),
+                                  color: profile.cardAesthetics.primaryColor.withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(AppRadius.md),
                                   border: Border.all(
-                                    color: profile.cardAesthetics.primaryColor.withOpacity(0.3),
+                                    color: profile.cardAesthetics.primaryColor.withValues(alpha: 0.3),
                                     width: 1,
                                   ),
                                 ),
@@ -239,7 +239,7 @@ class ProfileDetailModal extends StatelessWidget {
                   decoration: BoxDecoration(
                     border: Border(
                       top: BorderSide(
-                        color: AppColors.glassBorder.withOpacity(0.2),
+                        color: AppColors.glassBorder.withValues(alpha: 0.2),
                         width: 1,
                       ),
                     ),
@@ -329,7 +329,7 @@ class ProfileDetailModal extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppColors.highlight.withOpacity(0.1),
+              color: AppColors.highlight.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(

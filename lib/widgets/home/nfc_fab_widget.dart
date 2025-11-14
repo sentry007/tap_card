@@ -88,7 +88,7 @@ class _NfcFabWidgetState extends State<NfcFabWidget> {
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
-                    color: nfcColors['primary']!.withOpacity(
+                    color: nfcColors['primary']!.withValues(alpha: 
                       (hasDevice ? widget.fabGlow.value * 1.5 : widget.fabGlow.value)
                           .clamp(0.0, 1.0),
                     ),
@@ -96,7 +96,7 @@ class _NfcFabWidgetState extends State<NfcFabWidget> {
                     spreadRadius: hasDevice ? 8 : 4,
                   ),
                   BoxShadow(
-                    color: nfcColors['secondary']!.withOpacity(
+                    color: nfcColors['secondary']!.withValues(alpha: 
                       (hasDevice ? widget.fabGlow.value : widget.fabGlow.value * 0.7)
                           .clamp(0.0, 1.0),
                     ),
@@ -135,7 +135,7 @@ class _NfcFabWidgetState extends State<NfcFabWidget> {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(borderRadius),
                     border: Border.all(
-                      color: nfcColors['primary']!.withOpacity(opacity),
+                      color: nfcColors['primary']!.withValues(alpha: opacity),
                       width: 1.5,
                     ),
                   ),
@@ -151,17 +151,17 @@ class _NfcFabWidgetState extends State<NfcFabWidget> {
                     BorderRadius.circular(20), // Smooth square corners
                 boxShadow: [
                   BoxShadow(
-                    color: nfcColors['primary']!.withOpacity(0.4),
+                    color: nfcColors['primary']!.withValues(alpha: 0.4),
                     blurRadius: 24,
                     offset: const Offset(0, 8),
                   ),
                   BoxShadow(
-                    color: nfcColors['secondary']!.withOpacity(0.3),
+                    color: nfcColors['secondary']!.withValues(alpha: 0.3),
                     blurRadius: 20,
                     offset: const Offset(0, 6),
                   ),
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
+                    color: Colors.black.withValues(alpha: 0.2),
                     blurRadius: 16,
                     offset: const Offset(0, 4),
                   ),
@@ -229,7 +229,7 @@ class _NfcFabWidgetState extends State<NfcFabWidget> {
         return Icon(
           modeIcon,
           key: const Key('home_nfc_fab_inactive'),
-          color: Colors.white.withOpacity(0.5), // Dull white
+          color: Colors.white.withValues(alpha: 0.5), // Dull white
           size: 56,
         );
 
@@ -411,8 +411,8 @@ class FlowingGradientPainter extends CustomPainter {
       ),
       radius: 1.5,
       colors: [
-        colors[0].withOpacity(0.6),
-        colors[0].withOpacity(0.0),
+        colors[0].withValues(alpha: 0.6),
+        colors[0].withValues(alpha: 0.0),
       ],
     );
 
@@ -435,8 +435,8 @@ class FlowingGradientPainter extends CustomPainter {
       ),
       radius: 1.5,
       colors: [
-        colors[1].withOpacity(0.6),
-        colors[1].withOpacity(0.0),
+        colors[1].withValues(alpha: 0.6),
+        colors[1].withValues(alpha: 0.0),
       ],
     );
 
@@ -485,7 +485,7 @@ class NfcFabStatusText extends StatelessWidget {
       switch (state) {
         case NfcFabState.inactive:
           text = 'Tap to activate • Long press to switch modes';
-          textColor = Colors.white.withOpacity(0.6); // Dull white
+          textColor = Colors.white.withValues(alpha: 0.6); // Dull white
           break;
 
         case NfcFabState.active:
@@ -559,15 +559,15 @@ class ShareOptionsButton extends StatelessWidget {
                 vertical: 14,
               ),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
+                color: Colors.white.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   width: 1,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withValues(alpha: 0.1),
                     blurRadius: 20,
                     offset: const Offset(0, 4),
                   ),

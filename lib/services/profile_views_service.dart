@@ -17,6 +17,9 @@ class ProfileViewsService {
   /// - 'total': Total all-time views
   /// - 'thisWeek': Views this week (placeholder - needs Cloud Function reset logic)
   /// - 'thisMonth': Views this month (placeholder - needs Cloud Function reset logic)
+  ///
+  /// Note: profileId should be in format "uuid_type" (e.g., "abc123_personal")
+  /// to match Firestore document IDs created by FirestoreSyncService
   static Future<Map<String, int>> getViewCounts(String profileId) async {
     final fetchStartTime = DateTime.now();
 
@@ -26,9 +29,37 @@ class ProfileViewsService {
         name: 'ProfileViews.Fetch',
       );
 
-      final doc = await _firestore.collection('profiles').doc(profileId).get();
+      // Try exact ID first, then try without type suffix, then try with all type suffixes
+      DocumentSnapshot? doc = await _firestore.collection('profiles').doc(profileId).get();
 
       if (!doc.exists) {
+        developer.log(
+          '⚠️ Profile not found with exact ID, trying alternative formats...',
+          name: 'ProfileViews.Fetch',
+        );
+
+        // Extract UUID if format is "uuid_type"
+        final uuidMatch = RegExp(r'^([0-9a-zA-Z]+)(?:_.*)?$').firstMatch(profileId);
+        if (uuidMatch != null) {
+          final baseId = uuidMatch.group(1)!;
+
+          // Try all possible type suffixes
+          for (final type in ['personal', 'professional', 'custom']) {
+            final idWithType = '${baseId}_$type';
+            doc = await _firestore.collection('profiles').doc(idWithType).get();
+
+            if (doc.exists) {
+              developer.log(
+                '✅ Found profile with ID: $idWithType',
+                name: 'ProfileViews.Fetch',
+              );
+              break;
+            }
+          }
+        }
+      }
+
+      if (doc == null || !doc.exists) {
         developer.log(
           '⚠️ Profile not found in Firestore, returning zero counts',
           name: 'ProfileViews.Fetch',
@@ -36,7 +67,7 @@ class ProfileViewsService {
         return {'total': 0, 'thisWeek': 0, 'thisMonth': 0};
       }
 
-      final data = doc.data()!;
+      final data = doc.data() as Map<String, dynamic>;
       final counts = <String, int>{
         'total': (data['viewCount'] ?? 0) as int,
         // Note: thisWeek and thisMonth need Cloud Function scheduled job to reset
@@ -79,15 +110,53 @@ class ProfileViewsService {
   ///
   /// Use this for real-time analytics dashboards
   /// Updates automatically when view count changes in Firestore
-  static Stream<Map<String, int>> viewCountsStream(String profileId) {
+  ///
+  /// Note: profileId should be in format "uuid_type" (e.g., "abc123_personal")
+  /// to match Firestore document IDs created by FirestoreSyncService
+  static Stream<Map<String, int>> viewCountsStream(String profileId) async* {
     developer.log(
       '📡 Starting real-time view counts stream for: $profileId',
       name: 'ProfileViews.Stream',
     );
 
-    return _firestore
+    // First, find the correct document ID
+    String? correctDocId = profileId;
+
+    // Try exact ID first
+    var doc = await _firestore.collection('profiles').doc(profileId).get();
+
+    if (!doc.exists) {
+      developer.log(
+        '⚠️ Profile not found with exact ID, trying alternative formats...',
+        name: 'ProfileViews.Stream',
+      );
+
+      // Extract UUID if format is "uuid_type"
+      final uuidMatch = RegExp(r'^([0-9a-zA-Z]+)(?:_.*)?$').firstMatch(profileId);
+      if (uuidMatch != null) {
+        final baseId = uuidMatch.group(1)!;
+
+        // Try all possible type suffixes
+        for (final type in ['personal', 'professional', 'custom']) {
+          final idWithType = '${baseId}_$type';
+          doc = await _firestore.collection('profiles').doc(idWithType).get();
+
+          if (doc.exists) {
+            correctDocId = idWithType;
+            developer.log(
+              '✅ Found profile with ID: $idWithType',
+              name: 'ProfileViews.Stream',
+            );
+            break;
+          }
+        }
+      }
+    }
+
+    // Now stream from the correct document
+    yield* _firestore
         .collection('profiles')
-        .doc(profileId)
+        .doc(correctDocId)
         .snapshots()
         .map((doc) {
       if (!doc.exists) {
@@ -98,12 +167,12 @@ class ProfileViewsService {
         return {'total': 0, 'thisWeek': 0, 'thisMonth': 0};
       }
 
-      final data = doc.data()!;
+      final data = doc.data();
       final counts = <String, int>{
-        'total': (data['viewCount'] ?? 0) as int,
+        'total': (data?['viewCount'] ?? 0) as int,
         // Note: thisWeek and thisMonth need Cloud Function scheduled job to reset
-        'thisWeek': (data['viewCount'] ?? 0) as int,
-        'thisMonth': (data['viewCount'] ?? 0) as int,
+        'thisWeek': (data?['viewCount'] ?? 0) as int,
+        'thisMonth': (data?['viewCount'] ?? 0) as int,
       };
 
       developer.log(

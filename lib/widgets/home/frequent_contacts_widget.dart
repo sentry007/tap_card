@@ -98,7 +98,7 @@ class FrequentContactsWidget extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: AppColors.secondaryAction.withOpacity(0.2),
+                          color: AppColors.secondaryAction.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
@@ -170,13 +170,13 @@ class _SyncButton extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              AppColors.info.withOpacity(0.2),
-              AppColors.info.withOpacity(0.1),
+              AppColors.info.withValues(alpha: 0.2),
+              AppColors.info.withValues(alpha: 0.1),
             ],
           ),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: AppColors.info.withOpacity(0.3),
+            color: AppColors.info.withValues(alpha: 0.3),
             width: 1,
           ),
         ),
@@ -246,18 +246,18 @@ class _FrequentContactCard extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  AppColors.secondaryAction.withOpacity(0.15),
-                  AppColors.secondaryAction.withOpacity(0.05),
+                  AppColors.secondaryAction.withValues(alpha: 0.15),
+                  AppColors.secondaryAction.withValues(alpha: 0.05),
                 ],
               ),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: AppColors.secondaryAction.withOpacity(0.3),
+                color: AppColors.secondaryAction.withValues(alpha: 0.3),
                 width: 1,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),

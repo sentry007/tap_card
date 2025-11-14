@@ -18,12 +18,11 @@ import 'dart:developer' as developer;
 import '../../theme/theme.dart';
 import '../../models/unified_models.dart';
 import '../../services/history_service.dart';
-import '../../services/profile_views_service.dart';
+import '../../services/profile_performance_service.dart';
 import '../../core/services/profile_service.dart';
 import '../../widgets/history/method_chip.dart';
 import '../../widgets/common/glass_app_bar.dart';
 import 'achievements_detail_view.dart';
-import 'package:fl_chart/fl_chart.dart';
 
 class InsightsScreen extends StatefulWidget {
   const InsightsScreen({super.key});
@@ -346,15 +345,15 @@ class _InsightsScreenState extends State<InsightsScreen> {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                color.withOpacity(0.15),
-                color.withOpacity(0.05),
+                color.withValues(alpha: 0.15),
+                color.withValues(alpha: 0.05),
               ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: color.withOpacity(0.3),
+              color: color.withValues(alpha: 0.3),
               width: 1,
             ),
           ),
@@ -501,7 +500,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
                         gradient: LinearGradient(
                           colors: [
                             AppColors.success,
-                            AppColors.success.withOpacity(0.7),
+                            AppColors.success.withValues(alpha: 0.7),
                           ],
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
@@ -513,7 +512,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
                               ),
                         boxShadow: [
                           BoxShadow(
-                            color: AppColors.success.withOpacity(0.3),
+                            color: AppColors.success.withValues(alpha: 0.3),
                             blurRadius: 4,
                             offset: const Offset(0, 2),
                           ),
@@ -528,7 +527,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
                         gradient: LinearGradient(
                           colors: [
                             AppColors.primaryAction,
-                            AppColors.primaryAction.withOpacity(0.7),
+                            AppColors.primaryAction.withValues(alpha: 0.7),
                           ],
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
@@ -540,7 +539,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
                               ),
                         boxShadow: [
                           BoxShadow(
-                            color: AppColors.primaryAction.withOpacity(0.3),
+                            color: AppColors.primaryAction.withValues(alpha: 0.3),
                             blurRadius: 4,
                             offset: const Offset(0, 2),
                           ),
@@ -602,150 +601,208 @@ class _InsightsScreenState extends State<InsightsScreen> {
     return days[day.weekday % 7];
   }
 
-  /// Profile Views Section with Pie Chart
+  /// Profile Performance Section - View counts per profile
   Widget _buildProfileViewsSection() {
     final profileService = ProfileService();
-    final activeProfile = profileService.activeProfile;
+    final profiles = profileService.profiles;
 
-    if (activeProfile == null) {
+    if (profiles.isEmpty) {
       return const SizedBox.shrink();
     }
 
-    return StreamBuilder<Map<String, int>>(
-      stream: ProfileViewsService.viewCountsStream(activeProfile.id),
+    return FutureBuilder<List<ProfileViewStats>>(
+      future: ProfilePerformanceService.getAllProfileStats(profiles),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
-          return const SizedBox.shrink();
+          return const Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.info),
+            ),
+          );
         }
 
-        final viewCounts = snapshot.data!;
-        final totalViews = viewCounts['total'] ?? 0;
-        final thisWeek = viewCounts['thisWeek'] ?? 0;
-        final thisMonth = viewCounts['thisMonth'] ?? 0;
-        final allTime = viewCounts['allTime'] ?? 0;
+        final stats = snapshot.data!;
+        final totalViews = stats.fold<int>(0, (total, stat) => total + stat.viewCount);
+
+        if (totalViews == 0) {
+          return const SizedBox.shrink();
+        }
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Profile Views',
-              style: AppTextStyles.h2.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    gradient: AppColors.glassGradient,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: AppColors.glassBorder,
-                      width: 1,
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      // Pie Chart
-                      if (totalViews > 0)
-                        SizedBox(
-                          height: 200,
-                          child: PieChart(
-                            PieChartData(
-                              sections: [
-                                PieChartSectionData(
-                                  value: thisWeek.toDouble(),
-                                  title: '$thisWeek',
-                                  color: AppColors.info,
-                                  radius: 60,
-                                  titleStyle: AppTextStyles.body.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                PieChartSectionData(
-                                  value: (thisMonth - thisWeek).toDouble(),
-                                  title: '${thisMonth - thisWeek}',
-                                  color: AppColors.secondaryAction,
-                                  radius: 60,
-                                  titleStyle: AppTextStyles.body.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                PieChartSectionData(
-                                  value: (allTime - thisMonth).toDouble(),
-                                  title: '${allTime - thisMonth}',
-                                  color: AppColors.highlight,
-                                  radius: 60,
-                                  titleStyle: AppTextStyles.body.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                              sectionsSpace: 2,
-                              centerSpaceRadius: 40,
-                            ),
-                          ),
-                        ),
-                      const SizedBox(height: 24),
-                      // Legend
-                      Column(
-                        children: [
-                          _buildViewsLegendItem('This Week', thisWeek, AppColors.info),
-                          const SizedBox(height: 12),
-                          _buildViewsLegendItem('This Month', thisMonth - thisWeek, AppColors.secondaryAction),
-                          const SizedBox(height: 12),
-                          _buildViewsLegendItem('All Time', allTime - thisMonth, AppColors.highlight),
-                        ],
-                      ),
-                    ],
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Profile Performance',
+                  style: AppTextStyles.h2.copyWith(
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-              ),
+                Text(
+                  '$totalViews total views',
+                  style: AppTextStyles.body.copyWith(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
+            const SizedBox(height: 16),
+            ...stats.map((stat) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _buildProfilePerformanceCard(stat),
+            )),
           ],
         );
       },
     );
   }
 
-  Widget _buildViewsLegendItem(String label, int count, Color color) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
-          children: [
-            Container(
-              width: 12,
-              height: 12,
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(2),
-              ),
+  Widget _buildProfilePerformanceCard(ProfileViewStats stat) {
+    final profileIcon = stat.type == ProfileType.personal
+        ? Icons.person
+        : stat.type == ProfileType.professional
+            ? Icons.business_center
+            : Icons.settings;
+
+    final profileColor = stat.type == ProfileType.personal
+        ? AppColors.info
+        : stat.type == ProfileType.professional
+            ? AppColors.primaryAction
+            : AppColors.secondaryAction;
+
+    // Format last viewed
+    String lastViewedText = 'Never viewed';
+    if (stat.lastViewedAt != null) {
+      final now = DateTime.now();
+      final difference = now.difference(stat.lastViewedAt!);
+      if (difference.inMinutes < 1) {
+        lastViewedText = 'Just now';
+      } else if (difference.inHours < 1) {
+        lastViewedText = '${difference.inMinutes}m ago';
+      } else if (difference.inDays < 1) {
+        lastViewedText = '${difference.inHours}h ago';
+      } else if (difference.inDays < 7) {
+        lastViewedText = '${difference.inDays}d ago';
+      } else if (difference.inDays < 30) {
+        lastViewedText = '${(difference.inDays / 7).floor()}w ago';
+      } else {
+        lastViewedText = '${(difference.inDays / 30).floor()}mo ago';
+      }
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                profileColor.withValues(alpha: 0.15),
+                profileColor.withValues(alpha: 0.05),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: AppTextStyles.body.copyWith(
-                color: AppColors.textSecondary,
-              ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: profileColor.withValues(alpha: 0.3),
+              width: 1,
             ),
-          ],
-        ),
-        Text(
-          '$count views',
-          style: AppTextStyles.body.copyWith(
-            color: color,
-            fontWeight: FontWeight.bold,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Profile header
+              Row(
+                children: [
+                  Icon(
+                    profileIcon,
+                    color: profileColor,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    stat.type.label,
+                    style: AppTextStyles.body.copyWith(
+                      color: profileColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${stat.viewCount} views',
+                    style: AppTextStyles.h3.copyWith(
+                      color: profileColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // Progress bar
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: Container(
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceDark,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: FractionallySizedBox(
+                    alignment: Alignment.centerLeft,
+                    widthFactor: stat.percentageOfTotal / 100,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            profileColor,
+                            profileColor.withValues(alpha: 0.6),
+                          ],
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                        ),
+                        borderRadius: BorderRadius.circular(6),
+                        boxShadow: [
+                          BoxShadow(
+                            color: profileColor.withValues(alpha: 0.4),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              // Stats row
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    lastViewedText,
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.textTertiary,
+                    ),
+                  ),
+                  Text(
+                    '${stat.percentageOfTotal.toStringAsFixed(0)}% of total',
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 
@@ -843,7 +900,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
                   gradient: LinearGradient(
                     colors: [
                       color,
-                      color.withOpacity(0.6),
+                      color.withValues(alpha: 0.6),
                     ],
                     begin: Alignment.centerLeft,
                     end: Alignment.centerRight,
@@ -851,7 +908,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
                   borderRadius: BorderRadius.circular(6),
                   boxShadow: [
                     BoxShadow(
-                      color: color.withOpacity(0.4),
+                      color: color.withValues(alpha: 0.4),
                       blurRadius: 4,
                       offset: const Offset(0, 2),
                     ),
@@ -954,10 +1011,10 @@ class _InsightsScreenState extends State<InsightsScreen> {
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            color: AppColors.success.withOpacity(0.2),
+            color: AppColors.success.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(22),
             border: Border.all(
-              color: AppColors.success.withOpacity(0.3),
+              color: AppColors.success.withValues(alpha: 0.3),
               width: 2,
             ),
           ),
@@ -1298,13 +1355,13 @@ class _InsightsScreenState extends State<InsightsScreen> {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      AppColors.highlight.withOpacity(0.2),
-                      AppColors.primaryAction.withOpacity(0.2),
+                      AppColors.highlight.withValues(alpha: 0.2),
+                      AppColors.primaryAction.withValues(alpha: 0.2),
                     ],
                   ),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: AppColors.highlight.withOpacity(0.3),
+                    color: AppColors.highlight.withValues(alpha: 0.3),
                     width: 1,
                   ),
                 ),
@@ -1353,15 +1410,15 @@ class _InsightsScreenState extends State<InsightsScreen> {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                achievement.color.withOpacity(0.15),
-                achievement.color.withOpacity(0.05),
+                achievement.color.withValues(alpha: 0.15),
+                achievement.color.withValues(alpha: 0.05),
               ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: achievement.color.withOpacity(0.3),
+              color: achievement.color.withValues(alpha: 0.3),
               width: 1,
             ),
           ),

@@ -26,10 +26,10 @@ class GlassSnackBar {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
               decoration: BoxDecoration(
-                color: baseColor.withOpacity(0.15),
+                color: baseColor.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: baseColor.withOpacity(0.3),
+                  color: baseColor.withValues(alpha: 0.3),
                   width: 1,
                 ),
               ),
@@ -82,6 +82,8 @@ class GlassSnackBar {
     }
   }
 }
+
+
 
 
 

@@ -26,10 +26,10 @@ class MethodChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: config['color'].withOpacity(0.15),
+        color: config['color'].withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
-          color: config['color'].withOpacity(0.3),
+          color: config['color'].withValues(alpha: 0.3),
           width: 1,
         ),
       ),

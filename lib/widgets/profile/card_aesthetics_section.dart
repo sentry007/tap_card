@@ -151,10 +151,10 @@ class CardAestheticsSection extends StatelessWidget {
               filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
               child: Container(
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.05),
+                  color: Colors.white.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.3),
+                    color: Colors.white.withValues(alpha: 0.3),
                     width: 1,
                   ),
                 ),
@@ -218,7 +218,7 @@ class CardAestheticsSection extends StatelessWidget {
             decoration: BoxDecoration(
               gradient: bgColor != null
                 ? LinearGradient(
-                    colors: [bgColor, bgColor.withOpacity(0.8)],
+                    colors: [bgColor, bgColor.withValues(alpha: 0.8)],
                   )
                 : LinearGradient(
                     colors: [
@@ -281,10 +281,10 @@ class CardAestheticsSection extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: cardAesthetics.borderColor.withOpacity(0.5),
+                color: cardAesthetics.borderColor.withValues(alpha: 0.5),
                 width: 2,
                 strokeAlign: BorderSide.strokeAlignInside,
               ),
@@ -299,7 +299,7 @@ class CardAestheticsSection extends StatelessWidget {
                     color: cardAesthetics.borderColor,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.3),
+                      color: Colors.white.withValues(alpha: 0.3),
                       width: 1,
                     ),
                   ),
@@ -340,7 +340,7 @@ class CardAestheticsSection extends StatelessWidget {
           child: Container(
             decoration: BoxDecoration(
               gradient: cardAesthetics.backgroundColor != null
-                ? LinearGradient(colors: [cardAesthetics.backgroundColor!, cardAesthetics.backgroundColor!.withOpacity(0.8)])
+                ? LinearGradient(colors: [cardAesthetics.backgroundColor!, cardAesthetics.backgroundColor!.withValues(alpha: 0.8)])
                 : LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -348,7 +348,7 @@ class CardAestheticsSection extends StatelessWidget {
                   ),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: Colors.white.withOpacity(0.5),
+                color: Colors.white.withValues(alpha: 0.5),
                 width: 2,
                 strokeAlign: BorderSide.strokeAlignInside,
               ),
@@ -361,7 +361,7 @@ class CardAestheticsSection extends StatelessWidget {
                   height: 24,
                   decoration: BoxDecoration(
                     gradient: cardAesthetics.backgroundColor != null
-                      ? LinearGradient(colors: [cardAesthetics.backgroundColor!, cardAesthetics.backgroundColor!.withOpacity(0.8)])
+                      ? LinearGradient(colors: [cardAesthetics.backgroundColor!, cardAesthetics.backgroundColor!.withValues(alpha: 0.8)])
                       : LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
@@ -369,7 +369,7 @@ class CardAestheticsSection extends StatelessWidget {
                         ),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.3),
+                      color: Colors.white.withValues(alpha: 0.3),
                       width: 1,
                     ),
                   ),
@@ -411,12 +411,12 @@ class CardAestheticsSection extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: hasBackground
-                    ? AppColors.primaryAction.withOpacity(0.5)
-                    : Colors.white.withOpacity(0.3),
+                    ? AppColors.primaryAction.withValues(alpha: 0.5)
+                    : Colors.white.withValues(alpha: 0.3),
                 width: hasBackground ? 2 : 1,
                 strokeAlign: BorderSide.strokeAlignInside,
               ),
@@ -428,7 +428,7 @@ class CardAestheticsSection extends StatelessWidget {
                   width: 24,
                   height: 24,
                   decoration: BoxDecoration(
-                    color: AppColors.primaryAction.withOpacity(0.2),
+                    color: AppColors.primaryAction.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
@@ -461,7 +461,7 @@ class CardAestheticsSection extends StatelessWidget {
 
     showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.5),
+      barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: (context) => BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
         child: Dialog(
@@ -477,18 +477,18 @@ class CardAestheticsSection extends StatelessWidget {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      Colors.white.withOpacity(0.2),
-                      Colors.white.withOpacity(0.1),
+                      Colors.white.withValues(alpha: 0.2),
+                      Colors.white.withValues(alpha: 0.1),
                     ],
                   ),
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.3),
+                    color: Colors.white.withValues(alpha: 0.3),
                     width: 1.5,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withValues(alpha: 0.1),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     ),
@@ -528,10 +528,10 @@ class CardAestheticsSection extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(12),
                                 child: Container(
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.1),
+                                    color: Colors.white.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(12),
                                     border: Border.all(
-                                      color: Colors.white.withOpacity(0.2),
+                                      color: Colors.white.withValues(alpha: 0.2),
                                       width: 1,
                                     ),
                                   ),
@@ -613,12 +613,12 @@ class CardAestheticsSection extends StatelessWidget {
                 color: pickerColor,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.3),
+                  color: Colors.white.withValues(alpha: 0.3),
                   width: 2,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: pickerColor.withOpacity(0.3),
+                    color: pickerColor.withValues(alpha: 0.3),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -664,7 +664,7 @@ class CardAestheticsSection extends StatelessWidget {
 
     showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.5),
+      barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
@@ -682,13 +682,13 @@ class CardAestheticsSection extends StatelessWidget {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        Colors.white.withOpacity(0.2),
-                        Colors.white.withOpacity(0.1),
+                        Colors.white.withValues(alpha: 0.2),
+                        Colors.white.withValues(alpha: 0.1),
                       ],
                     ),
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.3),
+                      color: Colors.white.withValues(alpha: 0.3),
                       width: 1.5,
                     ),
                   ),
@@ -708,10 +708,10 @@ class CardAestheticsSection extends StatelessWidget {
                       // Toggle Switch
                       Container(
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
+                          color: Colors.white.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: Colors.white.withOpacity(0.2),
+                            color: Colors.white.withValues(alpha: 0.2),
                             width: 1,
                           ),
                         ),
@@ -833,10 +833,10 @@ class CardAestheticsSection extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(12),
                                   child: Container(
                                     decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.1),
+                                      color: Colors.white.withValues(alpha: 0.1),
                                       borderRadius: BorderRadius.circular(12),
                                       border: Border.all(
-                                        color: Colors.white.withOpacity(0.2),
+                                        color: Colors.white.withValues(alpha: 0.2),
                                         width: 1,
                                       ),
                                     ),
@@ -931,12 +931,12 @@ class CardAestheticsSection extends StatelessWidget {
                 color: pickerColor,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.3),
+                  color: Colors.white.withValues(alpha: 0.3),
                   width: 2,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: pickerColor.withOpacity(0.3),
+                    color: pickerColor.withValues(alpha: 0.3),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -998,7 +998,7 @@ class CardAestheticsSection extends StatelessWidget {
                 ),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.3),
+                  color: Colors.white.withValues(alpha: 0.3),
                   width: 2,
                 ),
               ),
@@ -1019,7 +1019,7 @@ class CardAestheticsSection extends StatelessWidget {
                         border: Border.all(
                           color: selectedTab == 0
                               ? AppColors.primaryAction
-                              : Colors.white.withOpacity(0.3),
+                              : Colors.white.withValues(alpha: 0.3),
                           width: selectedTab == 0 ? 3 : 2,
                         ),
                       ),
@@ -1038,7 +1038,7 @@ class CardAestheticsSection extends StatelessWidget {
                         border: Border.all(
                           color: selectedTab == 1
                               ? AppColors.primaryAction
-                              : Colors.white.withOpacity(0.3),
+                              : Colors.white.withValues(alpha: 0.3),
                           width: selectedTab == 1 ? 3 : 2,
                         ),
                       ),

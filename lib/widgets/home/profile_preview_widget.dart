@@ -37,6 +37,7 @@ class ProfilePreviewWidget extends StatelessWidget {
         width: 300,
         height: 180,
         borderRadius: 20,
+        showProfileTypeChip: true,
         onEmailTap: activeProfile.email != null
             ? () => _launchEmail(activeProfile.email!)
             : null,
@@ -58,7 +59,7 @@ class ProfilePreviewWidget extends StatelessWidget {
       width: 300,
       height: 180,
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
+        color: Colors.white.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Center(

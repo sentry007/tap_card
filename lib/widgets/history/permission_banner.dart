@@ -34,10 +34,10 @@ class ContactPermissionBanner extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.all(AppSpacing.lg),
             decoration: BoxDecoration(
-              color: AppColors.surfaceLight.withOpacity(0.15),
+              color: AppColors.surfaceLight.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(AppRadius.card),
               border: Border.all(
-                color: AppColors.primaryAction.withOpacity(0.3),
+                color: AppColors.primaryAction.withValues(alpha: 0.3),
                 width: 1,
               ),
             ),
@@ -69,7 +69,7 @@ class ContactPermissionBanner extends StatelessWidget {
                 Text(
                   'Atlas Linq can detect contacts you\'ve received by scanning your device contacts for Atlas Linq URLs.',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.7),
+                    color: Colors.white.withValues(alpha: 0.7),
                     fontSize: 14,
                     height: 1.4,
                   ),

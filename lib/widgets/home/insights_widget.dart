@@ -6,7 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../theme/theme.dart';
 import '../../models/history_models.dart';
 import '../../services/history_service.dart';
-import '../../services/profile_views_service.dart';
+import '../../services/profile_performance_service.dart';
 import '../../core/services/profile_service.dart';
 import '../../core/constants/routes.dart';
 
@@ -15,23 +15,37 @@ import '../../core/constants/routes.dart';
 /// Displays a summary card of recent activity including:
 /// - Cards sent in the last 7 days
 /// - Cards received in the last 7 days
-/// - Profile views this week (from Firestore)
-/// - Total profile views
+/// - Total profile views across all profiles
+/// - Most viewed profile type
 ///
 /// Tappable to navigate to the full insights screen.
 class ActivityInsightsWidget extends StatelessWidget {
   const ActivityInsightsWidget({super.key});
 
-  @override
-  Widget build(BuildContext context) {
-    // Get active profile ID
+  Future<Map<String, dynamic>> _getViewStats() async {
     final profileService = ProfileService();
-    final activeProfile = profileService.activeProfile;
+    final profiles = profileService.profiles;
 
-    if (activeProfile == null) {
-      return const SizedBox.shrink();
+    if (profiles.isEmpty) {
+      return {'totalViews': 0, 'topProfile': '---'};
     }
 
+    try {
+      final stats = await ProfilePerformanceService.getAllProfileStats(profiles);
+      final totalViews = stats.fold<int>(0, (total, stat) => total + stat.viewCount);
+      final topStat = stats.isNotEmpty && stats.first.viewCount > 0 ? stats.first : null;
+
+      return {
+        'totalViews': totalViews,
+        'topProfile': topStat?.type.label ?? '---',
+      };
+    } catch (e) {
+      return {'totalViews': 0, 'topProfile': '---'};
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return StreamBuilder<List<HistoryEntry>>(
       stream: HistoryService.historyStream(),
       builder: (context, historySnapshot) {
@@ -39,15 +53,17 @@ class ActivityInsightsWidget extends StatelessWidget {
           return const SizedBox.shrink();
         }
 
-        // Stream view counts from Firestore (real-time)
-        return StreamBuilder<Map<String, int>>(
-          stream: ProfileViewsService.viewCountsStream(activeProfile.id),
+        return FutureBuilder<Map<String, dynamic>>(
+          future: _getViewStats(),
           builder: (context, viewsSnapshot) {
-            final viewCounts = viewsSnapshot.data ?? {'total': 0, 'thisWeek': 0};
+            final viewsData = viewsSnapshot.data ?? {'totalViews': 0, 'topProfile': '---'};
+            final isLoadingViews = !viewsSnapshot.hasData;
+
             return _ActivityInsightsCard(
               history: historySnapshot.data!,
-              viewsThisWeek: viewCounts['thisWeek'] ?? 0,
-              viewsTotal: viewCounts['total'] ?? 0,
+              totalViews: viewsData['totalViews'] as int,
+              topProfile: viewsData['topProfile'] as String,
+              isLoadingViews: isLoadingViews,
             );
           },
         );
@@ -59,13 +75,15 @@ class ActivityInsightsWidget extends StatelessWidget {
 /// Internal widget that displays the insights card
 class _ActivityInsightsCard extends StatelessWidget {
   final List<HistoryEntry> history;
-  final int viewsThisWeek;
-  final int viewsTotal;
+  final int totalViews;
+  final String topProfile;
+  final bool isLoadingViews;
 
   const _ActivityInsightsCard({
     required this.history,
-    required this.viewsThisWeek,
-    required this.viewsTotal,
+    required this.totalViews,
+    required this.topProfile,
+    required this.isLoadingViews,
   });
 
   @override
@@ -81,8 +99,8 @@ class _ActivityInsightsCard extends StatelessWidget {
     final sentCount =
         recentHistory.where((e) => e.type == HistoryEntryType.sent).length;
 
-    // Show empty state if no recent activity
-    final hasRecentActivity = recentHistory.isNotEmpty;
+    // Show stats if there's recent activity OR profile views
+    final hasActivity = recentHistory.isNotEmpty || totalViews > 0;
 
     return GestureDetector(
       onTap: () {
@@ -97,24 +115,24 @@ class _ActivityInsightsCard extends StatelessWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              AppColors.primaryAction.withOpacity(0.08),
-              AppColors.secondaryAction.withOpacity(0.08),
+              AppColors.primaryAction.withValues(alpha: 0.08),
+              AppColors.secondaryAction.withValues(alpha: 0.08),
             ],
           ),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: AppColors.primaryAction.withOpacity(0.2),
+            color: AppColors.primaryAction.withValues(alpha: 0.2),
             width: 1,
           ),
         ),
-        child: hasRecentActivity
-            ? _buildActivityStats(sentCount, receivedCount, viewsThisWeek, viewsTotal)
+        child: hasActivity
+            ? _buildActivityStats(sentCount, receivedCount)
             : _buildEmptyState(),
       ),
     );
   }
 
-  Widget _buildActivityStats(int sentCount, int receivedCount, int viewsThisWeek, int viewsTotal) {
+  Widget _buildActivityStats(int sentCount, int receivedCount) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -132,7 +150,7 @@ class _ActivityInsightsCard extends StatelessWidget {
             Container(
               width: 1,
               height: 40,
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withValues(alpha: 0.1),
             ),
             Expanded(
               child: _InsightStat(
@@ -145,11 +163,11 @@ class _ActivityInsightsCard extends StatelessWidget {
             Container(
               width: 1,
               height: 40,
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withValues(alpha: 0.1),
             ),
             Expanded(
               child: _InsightStat(
-                value: viewsThisWeek.toString(),
+                value: isLoadingViews ? '...' : _formatLargeNumber(totalViews),
                 label: 'Views',
                 icon: CupertinoIcons.eye_fill,
                 color: AppColors.info,
@@ -158,13 +176,13 @@ class _ActivityInsightsCard extends StatelessWidget {
             Container(
               width: 1,
               height: 40,
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withValues(alpha: 0.1),
             ),
             Expanded(
               child: _InsightStat(
-                value: _formatLargeNumber(viewsTotal),
-                label: 'Total',
-                icon: CupertinoIcons.chart_bar_circle_fill,
+                value: isLoadingViews ? '...' : topProfile,
+                label: 'Top',
+                icon: CupertinoIcons.star_fill,
                 color: AppColors.highlight,
               ),
             ),
@@ -212,7 +230,7 @@ class _ActivityInsightsCard extends StatelessWidget {
         Icon(
           CupertinoIcons.chart_bar,
           size: 40,
-          color: AppColors.textTertiary.withOpacity(0.6),
+          color: AppColors.textTertiary.withValues(alpha: 0.6),
         ),
         const SizedBox(height: 12),
         Text(
@@ -284,7 +302,7 @@ class _InsightStat extends StatelessWidget {
         Text(
           label,
           style: AppTextStyles.caption.copyWith(
-            color: Colors.white.withOpacity(0.6),
+            color: Colors.white.withValues(alpha: 0.6),
             fontSize: 11,
           ),
         ),

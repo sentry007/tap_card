@@ -28,10 +28,10 @@ class NfcHelpers {
             child: Container(
               padding: const EdgeInsets.all(AppSpacing.lg),
               decoration: BoxDecoration(
-                color: AppColors.surfaceLight.withOpacity(0.15),
+                color: AppColors.surfaceLight.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(AppRadius.card),
                 border: Border.all(
-                  color: AppColors.primaryAction.withOpacity(0.3),
+                  color: AppColors.primaryAction.withValues(alpha: 0.3),
                   width: 1,
                 ),
               ),
@@ -63,7 +63,7 @@ class NfcHelpers {
                   Text(
                     'NFC is required to share your contact card. Please enable NFC in your device settings to continue.',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.7),
+                      color: Colors.white.withValues(alpha: 0.7),
                       fontSize: 14,
                       height: 1.4,
                     ),
@@ -109,7 +109,7 @@ class NfcHelpers {
       icon: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: AppColors.primaryAction.withOpacity(0.2),
+          color: AppColors.primaryAction.withValues(alpha: 0.2),
           borderRadius: BorderRadius.circular(12),
         ),
         child: const Icon(
@@ -144,7 +144,7 @@ class NfcHelpers {
       icon: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: AppColors.primaryAction.withOpacity(0.2),
+          color: AppColors.primaryAction.withValues(alpha: 0.2),
           borderRadius: BorderRadius.circular(12),
         ),
         child: const Icon(
@@ -238,10 +238,10 @@ class NfcHelpers {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                   decoration: BoxDecoration(
-                    color: AppColors.primaryAction.withOpacity(0.15),
+                    color: AppColors.primaryAction.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: AppColors.primaryAction.withOpacity(0.3),
+                      color: AppColors.primaryAction.withValues(alpha: 0.3),
                       width: 1,
                     ),
                   ),
@@ -307,10 +307,10 @@ class NfcHelpers {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
               decoration: BoxDecoration(
-                color: AppColors.success.withOpacity(0.15),
+                color: AppColors.success.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: AppColors.success.withOpacity(0.3),
+                  color: AppColors.success.withValues(alpha: 0.3),
                   width: 1,
                 ),
               ),
@@ -344,10 +344,10 @@ class NfcHelpers {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
               decoration: BoxDecoration(
-                color: AppColors.error.withOpacity(0.15),
+                color: AppColors.error.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: AppColors.error.withOpacity(0.3),
+                  color: AppColors.error.withValues(alpha: 0.3),
                   width: 1,
                 ),
               ),
@@ -381,10 +381,10 @@ class NfcHelpers {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.blueAccent.withOpacity(0.15),
+                color: Colors.blueAccent.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: Colors.blueAccent.withOpacity(0.3),
+                  color: Colors.blueAccent.withValues(alpha: 0.3),
                   width: 1,
                 ),
               ),

@@ -114,20 +114,20 @@ class _GlassBottomNavState extends State<GlassBottomNav>
           child: Container(
             height: 70,
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.3),
+              color: Colors.black.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 width: 1,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
+                  color: Colors.black.withValues(alpha: 0.3),
                   blurRadius: 20,
                   offset: const Offset(0, 10),
                 ),
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 40,
                   offset: const Offset(0, 20),
                 ),
@@ -171,7 +171,7 @@ class _GlassBottomNavState extends State<GlassBottomNav>
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
                 color: isSelected
-                    ? AppColors.primaryAction.withOpacity(0.2)
+                    ? AppColors.primaryAction.withValues(alpha: 0.2)
                     : Colors.transparent,
               ),
               child: Column(
@@ -250,7 +250,7 @@ class GlassNavIndicator extends StatelessWidget {
         borderRadius: BorderRadius.circular(2),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primaryAction.withOpacity(0.4),
+            color: AppColors.primaryAction.withValues(alpha: 0.4),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),

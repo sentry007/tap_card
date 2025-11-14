@@ -11,6 +11,7 @@
 /// TODO: Firebase - Real-time profile updates across devices
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
@@ -19,6 +20,7 @@ import '../models/profile_models.dart';
 import '../constants/app_constants.dart';
 import '../../services/firestore_sync_service.dart';
 import '../../services/firebase_config.dart';
+import '../../utils/logger.dart';
 import 'auth_service.dart';
 
 /// Manages user profiles with local storage and future cloud sync
@@ -45,6 +47,10 @@ class ProfileService extends ChangeNotifier {
   /// Whether profiles have been loaded from storage
   /// This flag prevents race conditions in router redirect logic
   bool _isLoaded = false;
+
+  /// Initialization lock to prevent concurrent initialization calls
+  static bool _initInProgress = false;
+  static Future<void>? _initFuture;
 
   // ========== Public Getters ==========
 
@@ -110,6 +116,7 @@ class ProfileService extends ChangeNotifier {
   /// Loads profiles and settings from storage, creates defaults if needed
   /// TODO: Firebase - Also load profiles from Firestore if authenticated
   Future<void> initialize() async {
+    // Already initialized - skip
     if (_isInitialized) {
       developer.log(
         'ℹ️  ProfileService already initialized, skipping',
@@ -117,6 +124,21 @@ class ProfileService extends ChangeNotifier {
       );
       return;
     }
+
+    // Initialization already in progress - wait for it to complete
+    if (_initInProgress && _initFuture != null) {
+      developer.log(
+        'ℹ️  Initialization already in progress, waiting...',
+        name: 'ProfileService.Init',
+      );
+      await _initFuture;
+      return;
+    }
+
+    // Start initialization
+    _initInProgress = true;
+    final completer = Completer<void>();
+    _initFuture = completer.future;
 
     final startTime = DateTime.now();
 
@@ -183,6 +205,9 @@ class ProfileService extends ChangeNotifier {
 
       notifyListeners();
 
+      // Complete the initialization future successfully
+      completer.complete();
+
     } catch (e, stackTrace) {
       developer.log(
         '❌ Error initializing ProfileService',
@@ -190,6 +215,14 @@ class ProfileService extends ChangeNotifier {
         error: e,
         stackTrace: stackTrace,
       );
+
+      // Complete with error so waiting callers can handle it
+      completer.completeError(e, stackTrace);
+      rethrow;
+    } finally {
+      // Reset initialization state
+      _initInProgress = false;
+      _initFuture = null;
     }
   }
 
@@ -403,42 +436,59 @@ class ProfileService extends ChangeNotifier {
   /// Call this after any authentication event (guest, Google, phone)
   /// Handles profile creation and UID migration
   Future<void> ensureProfilesExist() async {
-    print('[PROFILE] 🔄 ensureProfilesExist() called');
+    Logger.info('ensureProfilesExist() called', name: 'PROFILE');
 
-    final authService = AuthService();
-    final currentUid = authService.uid;
+    try {
+      final authService = AuthService();
+      final currentUid = authService.uid;
 
-    print('[PROFILE] Current UID from AuthService: ${currentUid ?? "null"}');
-    print('[PROFILE] Existing profiles count: ${_profiles.length}');
-    print('[PROFILE] isLoaded before: $_isLoaded');
+      Logger.debug('Current UID from AuthService: ${currentUid ?? "null"}\n  Existing profiles count: ${_profiles.length}\n  isLoaded before: $_isLoaded', name: 'PROFILE');
 
-    if (currentUid == null) {
-      print('[PROFILE] ⚠️  No Firebase UID available - cannot ensure profiles');
-      return;
+      if (currentUid == null) {
+        Logger.warning('No Firebase UID available - cannot ensure profiles', name: 'PROFILE');
+        // Still mark as loaded to prevent infinite waiting
+        _isLoaded = true;
+        notifyListeners();
+        return;
+      }
+
+      if (_profiles.isEmpty) {
+        // No profiles at all - create them with current UID
+        Logger.info('No profiles found - creating default profiles with UID: $currentUid', name: 'PROFILE');
+        await _createDefaultProfile();
+        Logger.info('Default profiles created successfully', name: 'PROFILE');
+      } else if (_profiles.first.id != currentUid) {
+        // UID mismatch - profiles were created with different UID
+        // This happens when user had anonymous account and upgraded to Google
+        Logger.warning('UID mismatch detected!\n  Old UID: ${_profiles.first.id}\n  New UID: $currentUid', name: 'PROFILE');
+        Logger.info('Migrating profiles to new UID...', name: 'PROFILE');
+        await _migrateProfilesToNewUid(currentUid);
+        Logger.info('Profile migration complete', name: 'PROFILE');
+      } else {
+        Logger.info('Profiles already exist and match current UID', name: 'PROFILE');
+      }
+
+      _isLoaded = true; // Mark profiles as loaded after ensuring they exist
+      Logger.debug('isLoaded set to: $_isLoaded', name: 'PROFILE');
+      notifyListeners();
+      Logger.info('ensureProfilesExist() complete - notified listeners', name: 'PROFILE');
+
+    } catch (e, stackTrace) {
+      Logger.error(
+        'CRITICAL: ensureProfilesExist() failed: $e',
+        name: 'PROFILE',
+        error: e,
+        stackTrace: stackTrace,
+      );
+
+      // IMPORTANT: Still mark as loaded to prevent app from getting stuck
+      // App can recover by recreating profiles on next auth event
+      _isLoaded = true;
+      notifyListeners();
+
+      // Don't rethrow - log and continue to keep app functional
+      // User will be prompted to recreate profiles if needed
     }
-
-    if (_profiles.isEmpty) {
-      // No profiles at all - create them with current UID
-      print('[PROFILE] 📝 No profiles found - creating default profiles with UID: $currentUid');
-      await _createDefaultProfile();
-      print('[PROFILE] ✅ Default profiles created successfully');
-    } else if (_profiles.first.id != currentUid) {
-      // UID mismatch - profiles were created with different UID
-      // This happens when user had anonymous account and upgraded to Google
-      print('[PROFILE] ⚠️  UID mismatch detected!');
-      print('[PROFILE]    Old UID: ${_profiles.first.id}');
-      print('[PROFILE]    New UID: $currentUid');
-      print('[PROFILE] 🔄 Migrating profiles to new UID...');
-      await _migrateProfilesToNewUid(currentUid);
-      print('[PROFILE] ✅ Profile migration complete');
-    } else {
-      print('[PROFILE] ✅ Profiles already exist and match current UID');
-    }
-
-    _isLoaded = true; // Mark profiles as loaded after ensuring they exist
-    print('[PROFILE] isLoaded set to: $_isLoaded');
-    notifyListeners();
-    print('[PROFILE] ✅ ensureProfilesExist() complete - notified listeners');
   }
 
   /// Migrate all profiles to a new UID

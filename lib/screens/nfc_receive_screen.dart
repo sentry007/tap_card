@@ -319,7 +319,7 @@ class _NFCReceiveScreenState extends State<NFCReceiveScreen>
                         width: 80,
                         height: 80,
                         decoration: BoxDecoration(
-                          color: AppColors.primaryAction.withOpacity(0.2),
+                          color: AppColors.primaryAction.withValues(alpha: 0.2),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
@@ -379,7 +379,7 @@ class _NFCReceiveScreenState extends State<NFCReceiveScreen>
                   width: 80,
                   height: 80,
                   decoration: BoxDecoration(
-                    color: AppColors.success.withOpacity(0.2),
+                    color: AppColors.success.withValues(alpha: 0.2),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
@@ -414,10 +414,10 @@ class _NFCReceiveScreenState extends State<NFCReceiveScreen>
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceMedium.withOpacity(0.3),
+                    color: AppColors.surfaceMedium.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: AppColors.glassBorder.withOpacity(0.2),
+                      color: AppColors.glassBorder.withValues(alpha: 0.2),
                     ),
                   ),
                   child: Row(
@@ -425,7 +425,7 @@ class _NFCReceiveScreenState extends State<NFCReceiveScreen>
                       // Avatar
                       CircleAvatar(
                         radius: 24,
-                        backgroundColor: AppColors.primaryAction.withOpacity(0.2),
+                        backgroundColor: AppColors.primaryAction.withValues(alpha: 0.2),
                         child: Text(
                           _receivedContact!.contact.name.isNotEmpty
                               ? _receivedContact!.contact.name[0].toUpperCase()
@@ -495,7 +495,7 @@ class _NFCReceiveScreenState extends State<NFCReceiveScreen>
                   width: 80,
                   height: 80,
                   decoration: BoxDecoration(
-                    color: AppColors.error.withOpacity(0.2),
+                    color: AppColors.error.withValues(alpha: 0.2),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(

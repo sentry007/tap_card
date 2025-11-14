@@ -39,7 +39,7 @@ class GlassCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final effectiveBackgroundColor = backgroundColor ??
-        AppColors.glassBackground.withOpacity(opacity);
+        AppColors.glassBackground.withValues(alpha: opacity);
     final effectiveBorderColor = borderColor ?? AppColors.glassBorder;
     final borderRad = BorderRadius.circular(borderRadius);
 
@@ -57,8 +57,8 @@ class GlassCard extends StatelessWidget {
           key: const Key('glass_card_inkwell'),
           onTap: enabled ? onTap : null,
           borderRadius: borderRad,
-          splashColor: AppColors.primaryAction.withOpacity(0.1),
-          highlightColor: AppColors.primaryAction.withOpacity(0.05),
+          splashColor: AppColors.primaryAction.withValues(alpha: 0.1),
+          highlightColor: AppColors.primaryAction.withValues(alpha: 0.05),
           child: content,
         ),
       );
@@ -103,8 +103,8 @@ class GlassCard extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  Colors.white.withOpacity(0.2),
-                  Colors.white.withOpacity(0.05),
+                  Colors.white.withValues(alpha: 0.2),
+                  Colors.white.withValues(alpha: 0.05),
                 ],
                 stops: const [0.0, 1.0],
               ),
@@ -207,11 +207,11 @@ class GlassCardVariant extends StatelessWidget {
           margin: margin,
           onTap: onTap,
           enabled: enabled,
-          borderColor: AppColors.primaryAction.withOpacity(0.3),
+          borderColor: AppColors.primaryAction.withValues(alpha: 0.3),
           borderWidth: 1.5,
           shadows: [
             BoxShadow(
-              color: AppColors.primaryAction.withOpacity(0.2),
+              color: AppColors.primaryAction.withValues(alpha: 0.2),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),
@@ -278,10 +278,10 @@ class GlassContainer extends StatelessWidget {
             key: const Key('glass_container_inner'),
             padding: padding,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(opacity),
+              color: Colors.white.withValues(alpha: opacity),
               borderRadius: borderRad,
               border: Border.all(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 width: 1,
               ),
             ),

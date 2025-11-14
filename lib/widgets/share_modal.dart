@@ -191,10 +191,10 @@ class _ShareModalState extends State<ShareModal>
           child: Container(
             key: const Key('share_modal_content_container'),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.05),
+              color: Colors.white.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
-                color: Colors.white.withOpacity(0.3),
+                color: Colors.white.withValues(alpha: 0.3),
                 width: 1.5,
               ),
             ),
@@ -251,7 +251,7 @@ class _ShareModalState extends State<ShareModal>
                 gradient: AppColors.primaryGradient,
                 borderRadius: BorderRadius.circular(28),
                 border: Border.all(
-                  color: AppColors.primaryAction.withOpacity(0.3),
+                  color: AppColors.primaryAction.withValues(alpha: 0.3),
                   width: 2,
                 ),
               ),
@@ -309,7 +309,7 @@ class _ShareModalState extends State<ShareModal>
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: AppColors.glassBorder.withOpacity(0.3),
+                  color: AppColors.glassBorder.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: const Icon(
@@ -364,7 +364,7 @@ class _ShareModalState extends State<ShareModal>
     return Divider(
       height: 1,
       thickness: 1,
-      color: AppColors.glassBorder.withOpacity(0.3),
+      color: AppColors.glassBorder.withValues(alpha: 0.3),
     );
   }
 
@@ -383,7 +383,7 @@ class _ShareModalState extends State<ShareModal>
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: AppColors.primaryAction.withOpacity(0.3),
+                color: AppColors.primaryAction.withValues(alpha: 0.3),
                 blurRadius: 12,
                 offset: const Offset(0, 6),
               ),
@@ -395,7 +395,7 @@ class _ShareModalState extends State<ShareModal>
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -421,7 +421,7 @@ class _ShareModalState extends State<ShareModal>
                     Text(
                       'Choose AirDrop, Nearby Share & more',
                       style: AppTextStyles.caption.copyWith(
-                        color: Colors.white.withOpacity(0.85),
+                        color: Colors.white.withValues(alpha: 0.85),
                       ),
                     ),
                   ],
@@ -430,7 +430,7 @@ class _ShareModalState extends State<ShareModal>
               // Arrow
               Icon(
                 CupertinoIcons.chevron_right,
-                color: Colors.white.withOpacity(0.7),
+                color: Colors.white.withValues(alpha: 0.7),
                 size: 20,
               ),
             ],
@@ -457,7 +457,7 @@ class _ShareModalState extends State<ShareModal>
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: AppColors.shadowMedium.withOpacity(0.2),
+                color: AppColors.shadowMedium.withValues(alpha: 0.2),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
@@ -541,7 +541,7 @@ class _ShareModalState extends State<ShareModal>
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: AppColors.surfaceDark.withOpacity(0.5),
+            color: AppColors.surfaceDark.withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: AppColors.glassBorder,
@@ -661,7 +661,7 @@ class _ShareModalState extends State<ShareModal>
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Icon(
@@ -831,10 +831,10 @@ class _ShareModalState extends State<ShareModal>
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
               decoration: BoxDecoration(
-                color: AppColors.success.withOpacity(0.15),
+                color: AppColors.success.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: AppColors.success.withOpacity(0.3),
+                  color: AppColors.success.withValues(alpha: 0.3),
                   width: 1,
                 ),
               ),
@@ -866,10 +866,10 @@ class _ShareModalState extends State<ShareModal>
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
               decoration: BoxDecoration(
-                color: AppColors.error.withOpacity(0.15),
+                color: AppColors.error.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: AppColors.error.withOpacity(0.3),
+                  color: AppColors.error.withValues(alpha: 0.3),
                   width: 1,
                 ),
               ),

@@ -53,10 +53,10 @@ class GlassmorphicDialog extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.8),
+                color: Colors.black.withValues(alpha: 0.8),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   width: 1,
                 ),
               ),
@@ -131,12 +131,12 @@ class GlassmorphicDialog extends StatelessWidget {
           decoration: BoxDecoration(
             color: action.isPrimary
                 ? (action.isDestructive ? AppColors.error : AppColors.primaryAction)
-                : Colors.white.withOpacity(0.1),
+                : Colors.white.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: action.isPrimary
                   ? (action.isDestructive ? AppColors.error : AppColors.primaryAction)
-                  : Colors.white.withOpacity(0.3),
+                  : Colors.white.withValues(alpha: 0.3),
               width: 1,
             ),
           ),

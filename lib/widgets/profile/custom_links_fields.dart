@@ -142,10 +142,10 @@ class _CustomLinksFieldsState extends State<CustomLinksFields> {
                     width: 48,
                     height: 56,
                     decoration: BoxDecoration(
-                      color: AppColors.error.withOpacity(0.1),
+                      color: AppColors.error.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: AppColors.error.withOpacity(0.3),
+                        color: AppColors.error.withValues(alpha: 0.3),
                         width: 1.5,
                       ),
                     ),
@@ -219,11 +219,11 @@ class _CustomLinksFieldsState extends State<CustomLinksFields> {
               height: 54,
               decoration: BoxDecoration(
                 color: isSelected
-                    ? linkColor.withOpacity(0.15)
-                    : Colors.white.withOpacity(0.06),
+                    ? linkColor.withValues(alpha: 0.15)
+                    : Colors.white.withValues(alpha: 0.06),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: linkColor.withOpacity(isSelected ? 0.6 : 0.4),
+                  color: linkColor.withValues(alpha: isSelected ? 0.6 : 0.4),
                   width: isSelected ? 2 : 1.5,
                 ),
               ),
@@ -312,10 +312,10 @@ class _CustomLinksFieldsState extends State<CustomLinksFields> {
               width: 60,
               height: 54,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.06),
+                color: Colors.white.withValues(alpha: 0.06),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: AppColors.primaryAction.withOpacity(0.4),
+                  color: AppColors.primaryAction.withValues(alpha: 0.4),
                   width: 1.5,
                 ),
               ),

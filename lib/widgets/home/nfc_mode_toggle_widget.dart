@@ -36,10 +36,10 @@ class NfcModeToggleWidget extends StatelessWidget {
         key: const Key('home_mode_toggle_container'),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: AppColors.surfaceDark.withOpacity(0.7),
+          color: AppColors.surfaceDark.withValues(alpha: 0.7),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: AppColors.glassBorder.withOpacity(0.3),
+            color: AppColors.glassBorder.withValues(alpha: 0.3),
             width: 1,
           ),
         ),
@@ -83,7 +83,7 @@ class NfcModeToggleWidget extends StatelessWidget {
       builder: (context) => Container(
         margin: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.surfaceDark.withOpacity(0.95),
+          color: AppColors.surfaceDark.withValues(alpha: 0.95),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: AppColors.glassBorder, width: 1),
         ),
@@ -103,10 +103,10 @@ class NfcModeToggleWidget extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Container(
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceDark.withOpacity(0.5),
+                  color: AppColors.surfaceDark.withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: AppColors.glassBorder.withOpacity(0.2),
+                    color: AppColors.glassBorder.withValues(alpha: 0.2),
                     width: 0.5,
                   ),
                 ),
@@ -177,7 +177,7 @@ class NfcModeToggleWidget extends StatelessWidget {
             Expanded(child: Text(message)),
           ],
         ),
-        backgroundColor: AppColors.error.withOpacity(0.9),
+        backgroundColor: AppColors.error.withValues(alpha: 0.9),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -193,7 +193,7 @@ class NfcModeToggleWidget extends StatelessWidget {
             Expanded(child: Text(message)),
           ],
         ),
-        backgroundColor: AppColors.info.withOpacity(0.9),
+        backgroundColor: AppColors.info.withValues(alpha: 0.9),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -237,8 +237,8 @@ class _ModeToggleOption extends StatelessWidget {
               height: 36,
               decoration: BoxDecoration(
                 color: isSelected
-                    ? Colors.white.withOpacity(0.2)
-                    : AppColors.surfaceMedium.withOpacity(0.3),
+                    ? Colors.white.withValues(alpha: 0.2)
+                    : AppColors.surfaceMedium.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
@@ -271,7 +271,7 @@ class _ModeToggleOption extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 11,
                       color: isSelected
-                          ? Colors.white.withOpacity(0.8)
+                          ? Colors.white.withValues(alpha: 0.8)
                           : AppColors.textTertiary,
                     ),
                     maxLines: 1,

@@ -14,6 +14,7 @@ library;
 import 'dart:developer' as developer;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import '../../utils/logger.dart';
 
 /// Helper class for Google Sign-In authentication
 class GoogleSignInHelper {
@@ -32,7 +33,7 @@ class GoogleSignInHelper {
   /// Throws FirebaseAuthException for Firebase-specific errors.
   static Future<UserCredential?> signInWithGoogle() async {
     try {
-      print('[GOOGLE] 🔵 Starting Google Sign-In flow...');
+      Logger.info('Starting Google Sign-In flow...', name: 'GOOGLE');
 
       // Initialize Google Sign-In with required scopes
       final googleSignIn = GoogleSignIn(
@@ -40,26 +41,24 @@ class GoogleSignInHelper {
       );
 
       // Trigger the Google account picker
-      print('[GOOGLE] 📱 Showing Google account picker...');
+      Logger.debug('Showing Google account picker...', name: 'GOOGLE');
 
       final googleUser = await googleSignIn.signIn();
 
       // User cancelled the sign-in
       if (googleUser == null) {
-        print('[GOOGLE] ❌ Google Sign-In cancelled by user');
+        Logger.info('Google Sign-In cancelled by user', name: 'GOOGLE');
         return null;
       }
 
-      print('[GOOGLE] ✅ Google account selected: ${googleUser.email}');
+      Logger.info('Google account selected: ${googleUser.email}', name: 'GOOGLE');
 
       // Obtain Google authentication tokens
-      print('[GOOGLE] 🔑 Retrieving Google authentication tokens...');
+      Logger.debug('Retrieving Google authentication tokens...', name: 'GOOGLE');
 
       final googleAuth = await googleUser.authentication;
 
-      print('[GOOGLE] ✅ Google tokens retrieved');
-      print('[GOOGLE]    • Access Token: ${googleAuth.accessToken != null ? "present" : "null"}');
-      print('[GOOGLE]    • ID Token: ${googleAuth.idToken != null ? "present" : "null"}');
+      Logger.debug('Google tokens retrieved\n  Access Token: ${googleAuth.accessToken != null ? "present" : "null"}\n  ID Token: ${googleAuth.idToken != null ? "present" : "null"}', name: 'GOOGLE');
 
       // Create Firebase credential from Google tokens
       final credential = GoogleAuthProvider.credential(
@@ -67,29 +66,22 @@ class GoogleSignInHelper {
         idToken: googleAuth.idToken,
       );
 
-      print('[GOOGLE] 🔐 Signing in to Firebase with Google credential...');
+      Logger.info('Signing in to Firebase with Google credential...', name: 'GOOGLE');
 
       // Sign in to Firebase with the Google credential
       final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
 
-      print('[GOOGLE] ✅ Firebase sign-in successful');
-      print('[GOOGLE]    • Email: ${userCredential.user?.email}');
-      print('[GOOGLE]    • UID: ${userCredential.user?.uid}');
-      print('[GOOGLE]    • Display Name: ${userCredential.user?.displayName}');
+      Logger.info('Firebase sign-in successful\n  Email: ${userCredential.user?.email}\n  UID: ${userCredential.user?.uid}\n  Display Name: ${userCredential.user?.displayName}', name: 'GOOGLE');
 
       return userCredential;
 
     } on FirebaseAuthException catch (e, stackTrace) {
-      print('[GOOGLE] ❌ Firebase authentication error: ${e.code}');
-      print('[GOOGLE]    Message: ${e.message}');
-      print('[GOOGLE]    Stack trace: $stackTrace');
+      Logger.error('Firebase authentication error: ${e.code}\n  Message: ${e.message}', name: 'GOOGLE', error: e, stackTrace: stackTrace);
 
       rethrow; // Let the UI handle Firebase-specific errors
 
     } catch (e, stackTrace) {
-      print('[GOOGLE] ❌ Google Sign-In error: $e');
-      print('[GOOGLE]    Type: ${e.runtimeType}');
-      print('[GOOGLE]    Stack trace: $stackTrace');
+      Logger.error('Google Sign-In error: $e\n  Type: ${e.runtimeType}', name: 'GOOGLE', error: e, stackTrace: stackTrace);
 
       return null;
     }

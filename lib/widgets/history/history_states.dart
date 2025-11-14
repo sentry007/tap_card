@@ -32,10 +32,10 @@ class HistoryLoadingGrid extends StatelessWidget {
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(AppRadius.card),
               border:
-                  Border.all(color: Colors.white.withOpacity(0.1), width: 1),
+                  Border.all(color: Colors.white.withValues(alpha: 0.1), width: 1),
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -44,7 +44,7 @@ class HistoryLoadingGrid extends StatelessWidget {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: AppColors.textTertiary.withOpacity(0.3),
+                    color: AppColors.textTertiary.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(20),
                   ),
                 ),
@@ -53,7 +53,7 @@ class HistoryLoadingGrid extends StatelessWidget {
                   width: 80,
                   height: 12,
                   decoration: BoxDecoration(
-                    color: AppColors.textTertiary.withOpacity(0.3),
+                    color: AppColors.textTertiary.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(6),
                   ),
                 ),
@@ -120,10 +120,10 @@ class HistoryEmptyState extends StatelessWidget {
                 filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
+                    color: Colors.white.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(30),
                     border: Border.all(
-                        color: Colors.white.withOpacity(0.2), width: 1),
+                        color: Colors.white.withValues(alpha: 0.2), width: 1),
                   ),
                   child: const Icon(
                     CupertinoIcons.person_2,

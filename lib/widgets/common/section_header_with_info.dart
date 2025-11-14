@@ -72,7 +72,7 @@ class _InfoButton extends StatelessWidget {
       child: Icon(
         CupertinoIcons.info_circle,
         size: 18,
-        color: Colors.white.withOpacity(0.6),
+        color: Colors.white.withValues(alpha: 0.6),
       ),
     );
   }
@@ -80,7 +80,7 @@ class _InfoButton extends StatelessWidget {
   void _showInfoDialog(BuildContext context) {
     showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.5),
+      barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: (context) => Dialog(
         backgroundColor: Colors.transparent,
         insetPadding: const EdgeInsets.symmetric(horizontal: 32),
@@ -95,18 +95,18 @@ class _InfoButton extends StatelessWidget {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    Colors.white.withOpacity(0.15),
-                    Colors.white.withOpacity(0.05),
+                    Colors.white.withValues(alpha: 0.15),
+                    Colors.white.withValues(alpha: 0.05),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   width: 1.5,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
+                    color: Colors.black.withValues(alpha: 0.2),
                     blurRadius: 20,
                     offset: const Offset(0, 10),
                   ),
@@ -124,7 +124,7 @@ class _InfoButton extends StatelessWidget {
                       gradient: AppColors.primaryGradient,
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.primaryAction.withOpacity(0.3),
+                          color: AppColors.primaryAction.withValues(alpha: 0.3),
                           blurRadius: 12,
                           offset: const Offset(0, 4),
                         ),
@@ -141,7 +141,7 @@ class _InfoButton extends StatelessWidget {
                   Text(
                     infoText,
                     style: AppTextStyles.body.copyWith(
-                      color: Colors.white.withOpacity(0.95),
+                      color: Colors.white.withValues(alpha: 0.95),
                       height: 1.5,
                     ),
                     textAlign: TextAlign.center,
@@ -165,13 +165,13 @@ class _InfoButton extends StatelessWidget {
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                               colors: [
-                                AppColors.primaryAction.withOpacity(0.3),
-                                AppColors.secondaryAction.withOpacity(0.3),
+                                AppColors.primaryAction.withValues(alpha: 0.3),
+                                AppColors.secondaryAction.withValues(alpha: 0.3),
                               ],
                             ),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: AppColors.primaryAction.withOpacity(0.5),
+                              color: AppColors.primaryAction.withValues(alpha: 0.5),
                               width: 1,
                             ),
                           ),

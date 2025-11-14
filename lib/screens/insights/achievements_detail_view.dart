@@ -137,15 +137,15 @@ class AchievementsDetailView extends StatelessWidget {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                AppColors.highlight.withOpacity(0.2),
-                AppColors.primaryAction.withOpacity(0.2),
+                AppColors.highlight.withValues(alpha: 0.2),
+                AppColors.primaryAction.withValues(alpha: 0.2),
               ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: AppColors.highlight.withOpacity(0.3),
+              color: AppColors.highlight.withValues(alpha: 0.3),
               width: 1,
             ),
           ),
@@ -176,7 +176,7 @@ class AchievementsDetailView extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: AppColors.highlight.withOpacity(0.2),
+                      color: AppColors.highlight.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: Icon(
@@ -231,7 +231,7 @@ class AchievementsDetailView extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.2),
+                color: color.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(icon, color: color, size: 20),
@@ -278,12 +278,12 @@ class AchievementsDetailView extends StatelessWidget {
             gradient: LinearGradient(
               colors: isUnlocked
                   ? [
-                      achievement.color.withOpacity(0.15),
-                      achievement.color.withOpacity(0.05),
+                      achievement.color.withValues(alpha: 0.15),
+                      achievement.color.withValues(alpha: 0.05),
                     ]
                   : [
-                      AppColors.surfaceDark.withOpacity(0.3),
-                      AppColors.surfaceDark.withOpacity(0.1),
+                      AppColors.surfaceDark.withValues(alpha: 0.3),
+                      AppColors.surfaceDark.withValues(alpha: 0.1),
                     ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
@@ -291,8 +291,8 @@ class AchievementsDetailView extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isUnlocked
-                  ? achievement.color.withOpacity(0.3)
-                  : AppColors.glassBorder.withOpacity(0.3),
+                  ? achievement.color.withValues(alpha: 0.3)
+                  : AppColors.glassBorder.withValues(alpha: 0.3),
               width: 1,
             ),
           ),
