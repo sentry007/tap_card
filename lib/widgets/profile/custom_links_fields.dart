@@ -135,6 +135,8 @@ class _CustomLinksFieldsState extends State<CustomLinksFields> {
                       _removeCustomLinkAt(_selectedCustomLinkIndex!);
                       _selectedCustomLinkIndex = null;
                     });
+                    // Notify parent that form has changed (link deleted)
+                    widget.onFormChanged?.call();
                     HapticFeedback.lightImpact();
                   },
                   borderRadius: BorderRadius.circular(12),
