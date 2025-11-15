@@ -280,6 +280,26 @@ class _ProfileScreenState extends State<ProfileScreen>
       if (currentValue != initialValue) return true;
     }
 
+    // Check custom links
+    final initialLinks = _initialProfile!.customLinks;
+    // First check if the number of links has changed
+    if (_customLinkTitleControllers.length != initialLinks.length) return true;
+
+    // Check each custom link for changes
+    for (int i = 0; i < _customLinkTitleControllers.length; i++) {
+      final currentTitle = _customLinkTitleControllers[i].text.trim();
+      final currentUrl = _customLinkUrlControllers[i].text.trim();
+
+      // Compare with initial link at same index
+      if (i < initialLinks.length) {
+        if (currentTitle != initialLinks[i].title) return true;
+        if (currentUrl != initialLinks[i].url) return true;
+      } else {
+        // New link added (shouldn't happen given length check above, but safe)
+        if (currentTitle.isNotEmpty || currentUrl.isNotEmpty) return true;
+      }
+    }
+
     return false;
   }
 
@@ -1223,10 +1243,13 @@ class _ProfileScreenState extends State<ProfileScreen>
           data: SliderTheme.of(context).copyWith(
             activeTrackColor: AppColors.primaryAction,
             inactiveTrackColor: AppColors.textSecondary.withValues(alpha: 0.3),
-            thumbColor: AppColors.primaryAction,
+            thumbColor: Colors.white,
             overlayColor: AppColors.primaryAction.withValues(alpha: 0.2),
-            trackHeight: 4,
-            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+            trackHeight: 6,
+            thumbShape: const _GlassmorphicSliderThumb(
+              enabledThumbRadius: 12,
+            ),
+            trackShape: const _GlassmorphicSliderTrack(),
           ),
           child: Slider(
             value: _blurLevel,
@@ -1506,5 +1529,168 @@ class _ProfileScreenState extends State<ProfileScreen>
         behavior: SnackBarBehavior.floating,
       ),
     );
+  }
+}
+
+/// Custom glassmorphic slider thumb shape with shadow and glass effect
+class _GlassmorphicSliderThumb extends SliderComponentShape {
+  final double enabledThumbRadius;
+
+  const _GlassmorphicSliderThumb({
+    required this.enabledThumbRadius,
+  });
+
+  @override
+  Size getPreferredSize(bool isEnabled, bool isDiscrete) {
+    return Size.fromRadius(enabledThumbRadius);
+  }
+
+  @override
+  void paint(
+    PaintingContext context,
+    Offset center, {
+    required Animation<double> activationAnimation,
+    required Animation<double> enableAnimation,
+    required bool isDiscrete,
+    required TextPainter labelPainter,
+    required RenderBox parentBox,
+    required SliderThemeData sliderTheme,
+    required TextDirection textDirection,
+    required double value,
+    required double textScaleFactor,
+    required Size sizeWithOverflow,
+  }) {
+    final Canvas canvas = context.canvas;
+
+    // Draw outer glow shadow
+    final glowPaint = Paint()
+      ..color = AppColors.primaryAction.withValues(alpha: 0.4)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+    canvas.drawCircle(center, enabledThumbRadius + 4, glowPaint);
+
+    // Draw thumb shadow
+    final shadowPaint = Paint()
+      ..color = Colors.black.withValues(alpha: 0.3)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+    canvas.drawCircle(center.translate(0, 2), enabledThumbRadius, shadowPaint);
+
+    // Draw glassmorphic thumb
+    final thumbPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(center, enabledThumbRadius, thumbPaint);
+
+    // Draw subtle border
+    final borderPaint = Paint()
+      ..color = AppColors.primaryAction.withValues(alpha: 0.5)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0;
+    canvas.drawCircle(center, enabledThumbRadius - 1, borderPaint);
+
+    // Draw inner highlight for glass effect
+    final highlightPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.6)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(
+      center.translate(-enabledThumbRadius / 3, -enabledThumbRadius / 3),
+      enabledThumbRadius / 3,
+      highlightPaint,
+    );
+  }
+}
+
+/// Custom glassmorphic slider track shape with enhanced visuals
+class _GlassmorphicSliderTrack extends SliderTrackShape {
+  const _GlassmorphicSliderTrack();
+
+  @override
+  Rect getPreferredRect({
+    required RenderBox parentBox,
+    Offset offset = Offset.zero,
+    required SliderThemeData sliderTheme,
+    bool isEnabled = false,
+    bool isDiscrete = false,
+  }) {
+    final double trackHeight = sliderTheme.trackHeight ?? 6;
+    final double trackLeft = offset.dx;
+    final double trackTop = offset.dy + (parentBox.size.height - trackHeight) / 2;
+    final double trackWidth = parentBox.size.width;
+    return Rect.fromLTWH(trackLeft, trackTop, trackWidth, trackHeight);
+  }
+
+  @override
+  void paint(
+    PaintingContext context,
+    Offset offset, {
+    required RenderBox parentBox,
+    required SliderThemeData sliderTheme,
+    required Animation<double> enableAnimation,
+    required TextDirection textDirection,
+    required Offset thumbCenter,
+    Offset? secondaryOffset,
+    bool isDiscrete = false,
+    bool isEnabled = false,
+  }) {
+    if (sliderTheme.trackHeight == null || sliderTheme.trackHeight! <= 0) {
+      return;
+    }
+
+    final Rect trackRect = getPreferredRect(
+      parentBox: parentBox,
+      offset: offset,
+      sliderTheme: sliderTheme,
+      isEnabled: isEnabled,
+      isDiscrete: isDiscrete,
+    );
+
+    final Canvas canvas = context.canvas;
+    final double trackHeight = sliderTheme.trackHeight!;
+    final BorderRadius borderRadius = BorderRadius.circular(trackHeight / 2);
+
+    // Draw inactive track with glassmorphic effect
+    final inactiveTrackPaint = Paint()
+      ..color = sliderTheme.inactiveTrackColor ?? AppColors.textSecondary.withValues(alpha: 0.2)
+      ..style = PaintingStyle.fill;
+
+    final RRect inactiveTrackRRect = RRect.fromRectAndCorners(
+      trackRect,
+      topLeft: borderRadius.topLeft,
+      topRight: borderRadius.topRight,
+      bottomLeft: borderRadius.bottomLeft,
+      bottomRight: borderRadius.bottomRight,
+    );
+    canvas.drawRRect(inactiveTrackRRect, inactiveTrackPaint);
+
+    // Draw active track with gradient and glow
+    final Rect activeTrackRect = Rect.fromLTRB(
+      trackRect.left,
+      trackRect.top,
+      thumbCenter.dx,
+      trackRect.bottom,
+    );
+
+    final activeTrackPaint = Paint()
+      ..shader = LinearGradient(
+        colors: [
+          sliderTheme.activeTrackColor ?? AppColors.primaryAction,
+          (sliderTheme.activeTrackColor ?? AppColors.primaryAction).withValues(alpha: 0.8),
+        ],
+      ).createShader(activeTrackRect)
+      ..style = PaintingStyle.fill;
+
+    final RRect activeTrackRRect = RRect.fromRectAndCorners(
+      activeTrackRect,
+      topLeft: borderRadius.topLeft,
+      bottomLeft: borderRadius.bottomLeft,
+      topRight: Radius.circular(trackHeight / 2),
+      bottomRight: Radius.circular(trackHeight / 2),
+    );
+    canvas.drawRRect(activeTrackRRect, activeTrackPaint);
+
+    // Draw glow effect on active track
+    final glowPaint = Paint()
+      ..color = (sliderTheme.activeTrackColor ?? AppColors.primaryAction).withValues(alpha: 0.3)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+    canvas.drawRRect(activeTrackRRect, glowPaint);
   }
 }
