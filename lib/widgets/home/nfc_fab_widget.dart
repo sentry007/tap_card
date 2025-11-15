@@ -42,6 +42,9 @@ class NfcFabWidget extends StatefulWidget {
   final Animation<double> successScale;
   final Animation<double> gradientAnimation;
 
+  // Tutorial targeting key (separate from widget key to avoid conflicts)
+  final GlobalKey? tutorialKey;
+
   const NfcFabWidget({
     super.key,
     required this.state,
@@ -57,6 +60,7 @@ class NfcFabWidget extends StatefulWidget {
     required this.rippleWave,
     required this.successScale,
     required this.gradientAnimation,
+    this.tutorialKey,
   });
 
   @override
@@ -141,62 +145,65 @@ class _NfcFabWidgetState extends State<NfcFabWidget> {
                   ),
                 );
               }),
-            // Main FAB with flowing gradient
-            Container(
-              key: const Key('home_nfc_fab_main'),
-              width: 192, // 8px * 24 (doubled width)
-              height: 96,
-              decoration: BoxDecoration(
-                borderRadius:
-                    BorderRadius.circular(20), // Smooth square corners
-                boxShadow: [
-                  BoxShadow(
-                    color: nfcColors['primary']!.withValues(alpha: 0.4),
-                    blurRadius: 24,
-                    offset: const Offset(0, 8),
-                  ),
-                  BoxShadow(
-                    color: nfcColors['secondary']!.withValues(alpha: 0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 6),
-                  ),
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.2),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: Stack(
-                  children: [
-                    // Flowing gradient background
-                    Positioned.fill(
-                      child: CustomPaint(
-                        painter: FlowingGradientPainter(
-                          colors: _getGradientColors(),
-                          animationValue: widget.gradientAnimation.value,
-                        ),
-                      ),
+            // Main FAB with flowing gradient (wrapped in KeyedSubtree for tutorial targeting)
+            KeyedSubtree(
+              key: widget.tutorialKey,
+              child: Container(
+                key: const Key('home_nfc_fab_main'),
+                width: 192, // 8px * 24 (doubled width)
+                height: 96,
+                decoration: BoxDecoration(
+                  borderRadius:
+                      BorderRadius.circular(20), // Smooth square corners
+                  boxShadow: [
+                    BoxShadow(
+                      color: nfcColors['primary']!.withValues(alpha: 0.4),
+                      blurRadius: 24,
+                      offset: const Offset(0, 8),
                     ),
-                    // Interactive overlay
-                    Material(
-                      key: const Key('home_nfc_fab_material'),
-                      color: Colors.transparent,
-                      child: InkWell(
-                        key: const Key('home_nfc_fab_inkwell'),
-                        onTap: widget.isLoading ? null : widget.onTap,
-                        onLongPress: widget.isLoading ? null : widget.onLongPress,
-                        borderRadius:
-                            BorderRadius.circular(20), // Match container radius
-                        child: Center(
-                          key: const Key('home_nfc_fab_center'),
-                          child: _buildFabContent(),
-                        ),
-                      ),
+                    BoxShadow(
+                      color: nfcColors['secondary']!.withValues(alpha: 0.3),
+                      blurRadius: 20,
+                      offset: const Offset(0, 6),
+                    ),
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.2),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
                     ),
                   ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: Stack(
+                    children: [
+                      // Flowing gradient background
+                      Positioned.fill(
+                        child: CustomPaint(
+                          painter: FlowingGradientPainter(
+                            colors: _getGradientColors(),
+                            animationValue: widget.gradientAnimation.value,
+                          ),
+                        ),
+                      ),
+                      // Interactive overlay
+                      Material(
+                        key: const Key('home_nfc_fab_material'),
+                        color: Colors.transparent,
+                        child: InkWell(
+                          key: const Key('home_nfc_fab_inkwell'),
+                          onTap: widget.isLoading ? null : widget.onTap,
+                          onLongPress: widget.isLoading ? null : widget.onLongPress,
+                          borderRadius:
+                              BorderRadius.circular(20), // Match container radius
+                          child: Center(
+                            key: const Key('home_nfc_fab_center'),
+                            child: _buildFabContent(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

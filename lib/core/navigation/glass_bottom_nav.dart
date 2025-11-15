@@ -157,13 +157,13 @@ class _GlassBottomNavState extends State<GlassBottomNav>
       child: GestureDetector(
         onTap: () => _onItemTapped(index),
         child: AnimatedBuilder(
-        key: item.key,
         animation: _scaleAnimation,
         builder: (context, child) {
           final scale = isSelected ? _scaleAnimation.value : 1.0;
           return Transform.scale(
             scale: scale,
             child: Container(
+              key: item.key,
               padding: const EdgeInsets.symmetric(
                 horizontal: 16,
                 vertical: 8,

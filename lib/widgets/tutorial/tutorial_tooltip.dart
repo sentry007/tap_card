@@ -100,7 +100,7 @@ class _TutorialTooltipState extends State<TutorialTooltip>
 
   Widget _buildTooltipBody() {
     return Container(
-      constraints: const BoxConstraints(maxWidth: 200), // Compact
+      constraints: const BoxConstraints(maxWidth: 280), // Increased from 200 to 280
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
@@ -132,7 +132,7 @@ class _TutorialTooltipState extends State<TutorialTooltip>
                 width: 1.5,
               ),
             ),
-            padding: const EdgeInsets.all(12), // Compact
+            padding: const EdgeInsets.all(18), // Increased from 12 to 18
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -141,23 +141,23 @@ class _TutorialTooltipState extends State<TutorialTooltip>
                 Text(
                   widget.step.title,
                   style: const TextStyle(
-                    fontSize: 15,
+                    fontSize: 19, // Increased from 15 to 19
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                     letterSpacing: -0.4,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6), // Increased from 4 to 6
                 // Description
                 Text(
                   widget.step.description,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 15, // Increased from 12 to 15
                     height: 1.4,
                     color: Colors.white.withValues(alpha: 0.94),
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 14), // Increased from 10 to 14
                 // Button
                 Align(
                   alignment: Alignment.centerRight,
@@ -165,8 +165,8 @@ class _TutorialTooltipState extends State<TutorialTooltip>
                     onTap: widget.onDismiss,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 7,
+                        horizontal: 18, // Increased from 14 to 18
+                        vertical: 12, // Increased from 7 to 12 (44px min touch target)
                       ),
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
@@ -188,7 +188,7 @@ class _TutorialTooltipState extends State<TutorialTooltip>
                         'Got it',
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 12,
+                          fontSize: 14, // Increased from 12 to 14
                           fontWeight: FontWeight.w600,
                           letterSpacing: -0.2,
                         ),
@@ -245,7 +245,7 @@ class _ArrowPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-/// Pulsing indicator on target
+/// Pulsing indicator on target with multi-ring glassmorphic effect
 class PulsingIndicator extends StatefulWidget {
   final Offset position;
 
@@ -258,8 +258,6 @@ class PulsingIndicator extends StatefulWidget {
 class _PulsingIndicatorState extends State<PulsingIndicator>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  late Animation<double> _scaleAnimation;
-  late Animation<double> _opacityAnimation;
 
   @override
   void initState() {
@@ -268,14 +266,6 @@ class _PulsingIndicatorState extends State<PulsingIndicator>
       duration: const Duration(milliseconds: 1500),
       vsync: this,
     )..repeat();
-
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 2.8).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
-
-    _opacityAnimation = Tween<double>(begin: 0.8, end: 0.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
   }
 
   @override
@@ -286,47 +276,85 @@ class _PulsingIndicatorState extends State<PulsingIndicator>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return Stack(
-          alignment: Alignment.center,
-          children: [
-            // Pulsing ring
-            Transform.scale(
-              scale: _scaleAnimation.value,
-              child: Container(
-                width: 20,
-                height: 20,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: const Color(0xFF00D1FF)
-                        .withValues(alpha: _opacityAnimation.value),
-                    width: 2.5,
+    return IgnorePointer(
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return Stack(
+            alignment: Alignment.center,
+            children: [
+              // Multi-ring pulsing effect (3 rings with staggered animation)
+              ...List.generate(3, (index) {
+                // Stagger the rings with progressive delay
+                final delay = index * 0.25;
+                final progress = (_controller.value - delay).clamp(0.0, 1.0);
+
+                // Ease out curve for natural expansion
+                final easedProgress = Curves.easeOut.transform(progress);
+
+                // Scale from 1.0 to 2.8 with stagger
+                final scale = 1.0 + (easedProgress * 1.8);
+
+                // Fade out as rings expand (reduced opacity for glassmorphic look)
+                final opacity = ((1.0 - easedProgress) * 0.5).clamp(0.0, 0.5);
+
+                return Transform.scale(
+                  scale: scale,
+                  child: Container(
+                    width: 20,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: const Color(0xFF00D1FF).withValues(alpha: opacity),
+                        width: 2.0,
+                      ),
+                    ),
+                  ),
+                );
+              }),
+
+              // Center dot with glassmorphic styling
+              ClipOval(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
+                  child: Container(
+                    width: 20,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          const Color(0xFF00D1FF).withValues(alpha: 0.6),
+                          const Color(0xFF0099FF).withValues(alpha: 0.5),
+                        ],
+                      ),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.4),
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF00D1FF).withValues(alpha: 0.5),
+                          blurRadius: 14,
+                          spreadRadius: 3,
+                        ),
+                        BoxShadow(
+                          color: const Color(0xFF00D1FF).withValues(alpha: 0.3),
+                          blurRadius: 8,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-            // Center dot
-            Container(
-              width: 20,
-              height: 20,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFF00D1FF),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF00D1FF).withValues(alpha: 0.7),
-                    blurRadius: 14,
-                    spreadRadius: 3,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        );
-      },
+            ],
+          );
+        },
+      ),
     );
   }
 }

@@ -36,6 +36,7 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
   bool _showingTutorial = false;
   int _currentStepIndex = 0;
   List<TutorialStep> _steps = [];
+  OverlayEntry? _indicatorOverlayEntry; // For rendering pulsing indicator above everything
 
   @override
   void initState() {
@@ -56,14 +57,64 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
       _showingTutorial = true;
       _currentStepIndex = savedStep;
     });
+    _showIndicatorOverlay(); // Show pulsing indicator in root overlay
   }
 
   void _closeTutorial() async {
     developer.log('❌ Closing tutorial', name: 'TutorialOverlay');
+    _removeIndicatorOverlay(); // Remove pulsing indicator overlay
     setState(() {
       _showingTutorial = false;
     });
     widget.onTutorialComplete?.call();
+  }
+
+  @override
+  void dispose() {
+    _removeIndicatorOverlay();
+    super.dispose();
+  }
+
+  /// Show pulsing indicator in root overlay (above all Scaffold elements)
+  void _showIndicatorOverlay() {
+    _removeIndicatorOverlay(); // Remove any existing overlay first
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      final currentStep = _steps[_currentStepIndex];
+      final targetKey = currentStep.targetKey;
+
+      if (targetKey?.currentContext == null) {
+        developer.log('⚠️  Target not found for indicator: ${currentStep.id}', name: 'TutorialOverlay');
+        return;
+      }
+
+      final renderBox = targetKey!.currentContext!.findRenderObject() as RenderBox;
+      final targetSize = renderBox.size;
+      final targetPosition = renderBox.localToGlobal(Offset.zero);
+
+      final targetCenter = Offset(
+        targetPosition.dx + targetSize.width / 2,
+        targetPosition.dy + targetSize.height / 2,
+      );
+
+      _indicatorOverlayEntry = OverlayEntry(
+        builder: (context) => Positioned(
+          left: targetCenter.dx - 10, // Center the 20px indicator
+          top: targetCenter.dy - 10,
+          child: PulsingIndicator(position: targetCenter),
+        ),
+      );
+
+      Overlay.of(context).insert(_indicatorOverlayEntry!);
+    });
+  }
+
+  /// Remove pulsing indicator from root overlay
+  void _removeIndicatorOverlay() {
+    _indicatorOverlayEntry?.remove();
+    _indicatorOverlayEntry = null;
   }
 
   void _nextStep() async {
@@ -73,6 +124,7 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
       });
       await TutorialService.saveCurrentStep(_currentStepIndex);
       developer.log('➡️  Step $_currentStepIndex', name: 'TutorialOverlay');
+      _showIndicatorOverlay(); // Update indicator position for new step
     } else {
       _completeTutorial();
     }
@@ -129,39 +181,20 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
       name: 'Tutorial',
     );
 
-    // Target center for pulsing indicator
-    final targetCenter = Offset(
-      targetPosition.dx + targetSize.width / 2,
-      targetPosition.dy + targetSize.height / 2,
-    );
-
     // Get positioning based on step ID
     final pos = _getPositioning(step.id, targetPosition, targetSize, screenSize);
 
-    // Use Stack with explicit z-index ordering via order of children
-    // Later children in Stack render on top, ensuring tutorial content is above nav bars
-    return Stack(
-      children: [
-        // Tooltip positioned first (renders below indicator)
-        Positioned(
-          left: pos.left,
-          right: pos.right,
-          top: pos.top,
-          bottom: pos.bottom,
-          child: TutorialTooltip(
-            step: step,
-            onDismiss: _nextStep,
-            arrowPointsUp: pos.arrowPointsUp,
-          ),
-        ),
-
-        // Pulsing indicator on top (renders above everything including nav bars)
-        Positioned(
-          left: targetCenter.dx - 10, // Center the 20px indicator
-          top: targetCenter.dy - 10,
-          child: PulsingIndicator(position: targetCenter),
-        ),
-      ],
+    // Tooltip only - pulsing indicator is now rendered in root overlay for proper z-index
+    return Positioned(
+      left: pos.left,
+      right: pos.right,
+      top: pos.top,
+      bottom: pos.bottom,
+      child: TutorialTooltip(
+        step: step,
+        onDismiss: _nextStep,
+        arrowPointsUp: pos.arrowPointsUp,
+      ),
     );
   }
 
@@ -170,11 +203,11 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
 
     switch (stepId) {
       case 'nfc_fab':
-        // FAB in center - tooltip ABOVE with proper spacing (40px to clear FAB)
+        // FAB in center - tooltip ABOVE with reduced spacing (16px to clear FAB)
         return _TooltipPos(
           left: sidePadding,
           right: sidePadding,
-          bottom: screenSize.height - targetPos.dy + 40,
+          bottom: screenSize.height - targetPos.dy + 16,
           arrowPointsUp: false, // Arrow points DOWN to target
         );
 

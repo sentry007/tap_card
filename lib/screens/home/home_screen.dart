@@ -1459,11 +1459,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _buildHeroNfcFab() {
     return AnimatedBuilder(
-      key: TutorialKeys.homeNfcFabKey,
       animation: Listenable.merge(
           [_fabController, _pulseController, _rippleController, _successController, _gradientController]),
       builder: (context, child) {
         return NfcFabWidget(
+          tutorialKey: TutorialKeys.homeNfcFabKey,  // Separate parameter to target the visible FAB
           state: _nfcFabState,
           mode: _nfcMode,
           nfcAvailable: _nfcAvailable,
