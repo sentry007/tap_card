@@ -1,6 +1,10 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:intl_phone_field/intl_phone_field.dart';
+import 'dart:ui';
 
 import '../../core/models/profile_models.dart';
+import '../../theme/theme.dart';
 import 'form_field_builders.dart';
 
 /// Widget that builds the basic profile information fields
@@ -104,17 +108,75 @@ class ProfileBasicFields extends StatelessWidget {
       ]);
     }
 
-    // Phone field (all profiles)
+    // Phone field (all profiles) - with international formatting
     fields.addAll([
-      GlassTextField(
-        controller: phoneController,
-        focusNode: phoneFocus,
-        nextFocusNode: getNextFocus('phone'),
-        label: 'Phone Number',
-        icon: CupertinoIcons.phone,
-        keyboardType: TextInputType.phone,
-        onChanged: onFormChanged,
-        validator: FormValidators.validatePhone,
+      ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.25),
+                width: 1.5,
+              ),
+            ),
+            child: IntlPhoneField(
+              controller: phoneController,
+              focusNode: phoneFocus,
+              decoration: InputDecoration(
+                labelText: 'Phone Number',
+                labelStyle: AppTextStyles.body.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+                border: InputBorder.none,
+                errorBorder: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                errorStyle: AppTextStyles.caption.copyWith(
+                  color: AppColors.error,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+              ),
+              style: AppTextStyles.body,
+              dropdownTextStyle: AppTextStyles.body,
+              initialCountryCode: 'US',
+              showCountryFlag: true,
+              showDropdownIcon: true,
+              dropdownIcon: Icon(
+                CupertinoIcons.chevron_down,
+                color: AppColors.textSecondary,
+                size: 20,
+              ),
+              flagsButtonPadding: const EdgeInsets.only(left: 12),
+              onChanged: (phone) {
+                // Update controller with full international number
+                phoneController.text = phone.completeNumber;
+                onFormChanged?.call();
+              },
+              onSubmitted: (value) {
+                final nextFocus = getNextFocus('phone');
+                if (nextFocus != null) {
+                  nextFocus.requestFocus();
+                } else {
+                  phoneFocus.unfocus();
+                }
+              },
+              validator: (phone) {
+                if (phone == null || phone.number.isEmpty) {
+                  return null; // Optional field
+                }
+                // IntlPhoneField handles validation internally
+                return null;
+              },
+            ),
+          ),
+        ),
       ),
       const SizedBox(height: 16),
     ]);
