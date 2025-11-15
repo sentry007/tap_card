@@ -7,6 +7,7 @@ import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 
 import '../../core/models/profile_models.dart';
 import '../../theme/theme.dart';
+import '../common/section_header_with_info.dart';
 
 /// Background mode enum for background picker dialog
 enum BackgroundMode { solid, gradient }
@@ -72,16 +73,9 @@ class CardAestheticsSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Text(
-              'Card Template',
-              style: AppTextStyles.h3.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const Spacer(),
-          ],
+        const SectionHeaderWithInfo(
+          title: 'Card Template',
+          infoText: 'Choose from preset color combinations or customize your own border and background colors. You can also add a background image. Recent combinations you create are saved for quick access.',
         ),
         const SizedBox(height: 16),
         SizedBox(
@@ -970,19 +964,19 @@ class CardAestheticsSection extends StatelessWidget {
     );
   }
 
-  /// Build gradient color picker content with tabbed interface for two colors
+  /// Build gradient color picker content - original working approach
+  /// Shows two tappable color boxes that each open their own color picker dialog
   Widget _buildGradientColorContent(
     BuildContext context,
     Color startColor,
     Color endColor,
     Function(Color, Color) onColorsSelected,
   ) {
-    Color currentStartColor = startColor;
-    Color currentEndColor = endColor;
-    int selectedTab = 0; // 0 = Start Color, 1 = End Color
-
     return StatefulBuilder(
       builder: (context, setState) {
+        Color currentStartColor = startColor;
+        Color currentEndColor = endColor;
+
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1005,41 +999,54 @@ class CardAestheticsSection extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // Tab Selector - Color Tiles
-            Row(
+            // Start color section
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => setState(() => selectedTab = 0),
+                Text(
+                  'Start Color',
+                  style: AppTextStyles.body.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () async {
+                      final color = await _showColorPickerForGradient(
+                        context: context,
+                        initialColor: currentStartColor,
+                        title: 'Start Color',
+                      );
+                      if (color != null) {
+                        setState(() {
+                          currentStartColor = color;
+                        });
+                        onColorsSelected(currentStartColor, currentEndColor);
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(12),
                     child: Container(
                       height: 50,
                       decoration: BoxDecoration(
                         color: currentStartColor,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: selectedTab == 0
-                              ? AppColors.primaryAction
-                              : Colors.white.withValues(alpha: 0.3),
-                          width: selectedTab == 0 ? 3 : 2,
+                          color: Colors.white.withValues(alpha: 0.3),
+                          width: 1.5,
                         ),
                       ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => setState(() => selectedTab = 1),
-                    child: Container(
-                      height: 50,
-                      decoration: BoxDecoration(
-                        color: currentEndColor,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: selectedTab == 1
-                              ? AppColors.primaryAction
-                              : Colors.white.withValues(alpha: 0.3),
-                          width: selectedTab == 1 ? 3 : 2,
+                      child: Center(
+                        child: Text(
+                          'Tap to change',
+                          style: AppTextStyles.body.copyWith(
+                            color: currentStartColor.computeLuminance() > 0.5
+                                ? Colors.black
+                                : Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),
@@ -1047,34 +1054,252 @@ class CardAestheticsSection extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
 
-            // Color Picker (switches based on selected tab)
-            ColorPicker(
-              pickerColor: selectedTab == 0 ? currentStartColor : currentEndColor,
-              onColorChanged: (color) {
-                setState(() {
-                  if (selectedTab == 0) {
-                    currentStartColor = color;
-                  } else {
-                    currentEndColor = color;
-                  }
-                });
-                onColorsSelected(currentStartColor, currentEndColor);
-              },
-              colorPickerWidth: 250,
-              pickerAreaHeightPercent: 0.7,
-              enableAlpha: false,
-              displayThumbColor: true,
-              paletteType: PaletteType.hsvWithHue,
-              labelTypes: const [],
-              pickerAreaBorderRadius: BorderRadius.circular(12),
-              hexInputBar: false,
-              portraitOnly: true,
+            // End color section
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'End Color',
+                  style: AppTextStyles.body.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () async {
+                      final color = await _showColorPickerForGradient(
+                        context: context,
+                        initialColor: currentEndColor,
+                        title: 'End Color',
+                      );
+                      if (color != null) {
+                        setState(() {
+                          currentEndColor = color;
+                        });
+                        onColorsSelected(currentStartColor, currentEndColor);
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: currentEndColor,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.3),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          'Tap to change',
+                          style: AppTextStyles.body.copyWith(
+                            color: currentEndColor.computeLuminance() > 0.5
+                                ? Colors.black
+                                : Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         );
       },
+    );
+  }
+
+  /// Show a separate color picker dialog for gradient colors
+  /// Returns the selected color or null if cancelled
+  Future<Color?> _showColorPickerForGradient({
+    required BuildContext context,
+    required Color initialColor,
+    required String title,
+  }) async {
+    Color selectedColor = initialColor;
+
+    return showDialog<Color>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.5),
+      builder: (dialogContext) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+        child: Dialog(
+          backgroundColor: Colors.transparent,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.white.withValues(alpha: 0.2),
+                      Colors.white.withValues(alpha: 0.1),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.3),
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      style: AppTextStyles.h3.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // ColorPicker widget
+                    StatefulBuilder(
+                      builder: (context, setState) {
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Preview Box
+                            Container(
+                              height: 60,
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                color: selectedColor,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.3),
+                                  width: 2,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: selectedColor.withValues(alpha: 0.3),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+
+                            // ColorPicker
+                            ColorPicker(
+                              pickerColor: selectedColor,
+                              onColorChanged: (color) {
+                                setState(() {
+                                  selectedColor = color;
+                                });
+                              },
+                              colorPickerWidth: 250,
+                              pickerAreaHeightPercent: 0.7,
+                              enableAlpha: false,
+                              displayThumbColor: true,
+                              paletteType: PaletteType.hsvWithHue,
+                              labelTypes: const [],
+                              pickerAreaBorderRadius: BorderRadius.circular(12),
+                              hexInputBar: false,
+                              portraitOnly: true,
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Action Buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SizedBox(
+                            height: 48,
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () => Navigator.pop(dialogContext, null),
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: Colors.white.withValues(alpha: 0.2),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      'Cancel',
+                                      style: AppTextStyles.body.copyWith(
+                                        color: AppColors.textSecondary,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: SizedBox(
+                            height: 48,
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () {
+                                  Navigator.pop(dialogContext, selectedColor);
+                                  HapticFeedback.lightImpact();
+                                },
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    gradient: AppColors.primaryGradient,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      'Apply',
+                                      style: AppTextStyles.body.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
