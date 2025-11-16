@@ -830,13 +830,12 @@ class ProfileService extends ChangeNotifier {
     }
   }
 
-  /// Add received card to active profile and ReceivedCardsRepository
+  /// Add received card to ReceivedCardsRepository
   ///
-  /// **Two-layer tracking:**
-  /// 1. ProfileData.receivedCardUuids - User's personal list
-  /// 2. ReceivedCardsRepository - App-wide persistent storage
+  /// **Single source of truth:**
+  /// ReceivedCardsRepository - App-wide persistent storage
   ///
-  /// Prevents duplicates - only adds if UUID not already in list
+  /// The repository handles duplicate detection internally
   Future<void> addReceivedCard(
     String receivedProfileUuid, {
     required ProfileData receivedProfile,
@@ -851,32 +850,15 @@ class ProfileService extends ChangeNotifier {
       return;
     }
 
-    // Don't add duplicates to ProfileData list
-    final alreadyInProfile = active.receivedCardUuids.contains(receivedProfileUuid);
+    developer.log(
+      '📇 Adding received card to repository\n'
+      '   • Received UUID: $receivedProfileUuid\n'
+      '   • Profile: ${receivedProfile.name}\n'
+      '   • Share method: ${shareMethod.label}',
+      name: 'ProfileService.ReceivedCards',
+    );
 
-    if (!alreadyInProfile) {
-      // Add to active profile's list
-      final updatedUuids = [...active.receivedCardUuids, receivedProfileUuid];
-      final updatedProfile = active.copyWith(receivedCardUuids: updatedUuids);
-
-      developer.log(
-        '📇 Added received card to active profile\n'
-        '   • Received UUID: $receivedProfileUuid\n'
-        '   • Profile: ${receivedProfile.name}\n'
-        '   • Total received: ${updatedUuids.length}',
-        name: 'ProfileService.ReceivedCards',
-      );
-
-      await updateProfile(updatedProfile);
-    } else {
-      developer.log(
-        'ℹ️ Card already in profile list: $receivedProfileUuid',
-        name: 'ProfileService.ReceivedCards',
-      );
-    }
-
-    // ✅ ALWAYS sync to ReceivedCardsRepository (handles duplicates internally)
-    // This ensures repository stays in sync even if profile list already had it
+    // Add to ReceivedCardsRepository (single source of truth)
     final repository = ReceivedCardsRepository();
     await repository.addReceivedCard(
       receivedProfileUuid,
@@ -896,7 +878,8 @@ class ProfileService extends ChangeNotifier {
     FirestoreSyncService.syncProfileToFirestore(profile).then((urls) {
       if (urls != null) {
         // Update local profile with Firebase URLs
-        final index = _profiles.indexWhere((p) => p.id == profile.id);
+        // Match by both ID and TYPE to prevent cross-contamination between profile types
+        final index = _profiles.indexWhere((p) => p.id == profile.id && p.type == profile.type);
         if (index != -1) {
           var updatedProfile = _profiles[index];
           bool needsUpdate = false;

@@ -37,6 +37,9 @@ class FirestoreSyncService {
         name: 'FirestoreSync.Start',
       );
 
+      // Use full profileId with type suffix for unique file naming
+      final profileIdWithType = '${profile.id}_${profile.type.name}';
+
       // Upload profile image first (if exists and is local path)
       String? imageUrl;
       if (profile.profileImagePath != null &&
@@ -45,10 +48,10 @@ class FirestoreSyncService {
         if (profile.profileImagePath!.startsWith('http')) {
           imageUrl = profile.profileImagePath;
         } else {
-          // Upload local file to Storage
+          // Upload local file to Storage with type suffix
           imageUrl = await uploadProfileImage(
             profile.profileImagePath!,
-            profile.id
+            profileIdWithType
           );
         }
       }
@@ -70,14 +73,14 @@ class FirestoreSyncService {
             name: 'FirestoreSync.BackgroundCheck',
           );
         } else {
-          // Upload local file to Storage
+          // Upload local file to Storage with type suffix
           developer.log(
             '📤 Triggering background image upload...',
             name: 'FirestoreSync.BackgroundCheck',
           );
           backgroundImageUrl = await uploadBackgroundImage(
             profile.cardAesthetics.backgroundImagePath!,
-            profile.id
+            profileIdWithType
           );
 
           if (backgroundImageUrl != null) {
@@ -100,7 +103,7 @@ class FirestoreSyncService {
 
         // If there was a previous background, delete it from Storage
         // This happens when user removes background image
-        deleteBackgroundImage(profile.id); // Non-blocking cleanup
+        deleteBackgroundImage(profileIdWithType); // Non-blocking cleanup
       }
 
       // Build cardAesthetics map without null values
@@ -224,6 +227,7 @@ class FirestoreSyncService {
   ///
   /// Takes local file path and uploads to Storage bucket
   /// Returns download URL or null if upload fails
+  /// NOTE: profileId should be in format {uuid}_{type} for proper identification
   static Future<String?> uploadProfileImage(
     String localPath,
     String profileId,
@@ -247,6 +251,7 @@ class FirestoreSyncService {
 
       // Get file extension
       final extension = localPath.split('.').last.toLowerCase();
+      // Use full profileId (with type) to ensure unique files per profile type
       final fileName = '$profileId.$extension';
 
       // Upload to Storage
