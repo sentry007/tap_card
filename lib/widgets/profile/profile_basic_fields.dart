@@ -155,8 +155,9 @@ class ProfileBasicFields extends StatelessWidget {
               ),
               flagsButtonPadding: const EdgeInsets.only(left: 12),
               onChanged: (phone) {
-                // Update controller with full international number
-                phoneController.text = phone.completeNumber;
+                // Let IntlPhoneField manage its own state
+                // The controller will automatically get updated by the widget
+                // We don't manually set it here to avoid infinite loops
                 onFormChanged?.call();
               },
               onSubmitted: (value) {
@@ -196,22 +197,11 @@ class ProfileBasicFields extends StatelessWidget {
       const SizedBox(height: 16),
     ]);
 
-    // Website field for Professional and Custom
-    if (profileType == ProfileType.professional || profileType == ProfileType.custom) {
-      fields.addAll([
-        GlassTextField(
-          controller: websiteController,
-          focusNode: websiteFocus,
-          nextFocusNode: getNextFocus('website'),
-          label: 'Website',
-          icon: CupertinoIcons.globe,
-          keyboardType: TextInputType.url,
-          onChanged: onFormChanged,
-          validator: FormValidators.validateUrl,
-        ),
-        const SizedBox(height: 16),
-      ]);
-    }
+    // Website field removed - users should add websites via custom links section
+    // This aligns with the requirement that basic info should only contain:
+    // - All profiles: name, phone, email
+    // - Professional/Custom: also title and company
+    // Websites are handled through the custom links feature
 
     return fields;
   }
