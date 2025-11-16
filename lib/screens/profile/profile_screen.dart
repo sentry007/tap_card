@@ -19,6 +19,7 @@ import '../../core/constants/routes.dart';
 import '../../core/models/profile_models.dart';
 import '../../core/services/profile_service.dart';
 import '../../utils/logger.dart';
+import '../../utils/snackbar_helper.dart';
 
 /// Enum for background color picker mode
 enum BackgroundMode { solid, gradient }
@@ -430,36 +431,10 @@ class _ProfileScreenState extends State<ProfileScreen>
       });
 
       // Show success feedback
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-                decoration: BoxDecoration(
-                  color: AppColors.success.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: AppColors.success.withValues(alpha: 0.3),
-                    width: 1,
-                  ),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(CupertinoIcons.check_mark_circled_solid, color: AppColors.success),
-                    SizedBox(width: 12),
-                    Expanded(child: Text('Profile saved successfully!')),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          behavior: SnackBarBehavior.floating,
-        ),
+      SnackbarHelper.showSuccess(
+        context,
+        message: 'Profile saved successfully!',
+        icon: CupertinoIcons.check_mark_circled_solid,
       );
     }
   }
@@ -545,12 +520,9 @@ class _ProfileScreenState extends State<ProfileScreen>
     } catch (e) {
       // Show error only if launchUrl actually fails
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not open link: $url'),
-            backgroundColor: AppColors.error,
-            duration: const Duration(seconds: 3),
-          ),
+        SnackbarHelper.showError(
+          context,
+          message: 'Could not open link: $url',
         );
       }
     }
@@ -574,12 +546,9 @@ class _ProfileScreenState extends State<ProfileScreen>
     } catch (e) {
       // If all fails, show error
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not open $platform link'),
-            backgroundColor: AppColors.error,
-            duration: const Duration(seconds: 3),
-          ),
+        SnackbarHelper.showError(
+          context,
+          message: 'Could not open $platform link',
         );
       }
     }
@@ -992,6 +961,7 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Widget _buildProfileTypeCard(ProfileType profileType, bool isSelected) {
     final profile = _profileService.getProfileByType(profileType);
+    final typeColor = _getProfileTypeColor(profileType);
 
     return GestureDetector(
       onTap: () => _switchToProfileType(profileType),
@@ -1007,14 +977,14 @@ class _ProfileScreenState extends State<ProfileScreen>
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: isSelected
-                      ? AppColors.primaryAction
+                      ? typeColor
                       : Colors.white.withValues(alpha: 0.2),
                   width: isSelected ? 2 : 1,
                 ),
                 boxShadow: isSelected
                     ? [
                         BoxShadow(
-                          color: AppColors.primaryAction.withValues(alpha: 0.3),
+                          color: typeColor.withValues(alpha: 0.3),
                           blurRadius: 12,
                           offset: const Offset(0, 4),
                         ),
@@ -1029,7 +999,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                     Icon(
                       _getProfileTypeIcon(profileType),
                       color: isSelected
-                          ? AppColors.primaryAction
+                          ? typeColor
                           : AppColors.textSecondary,
                       size: 32,
                     ),
@@ -1038,11 +1008,14 @@ class _ProfileScreenState extends State<ProfileScreen>
                       profileType.label,
                       style: AppTextStyles.caption.copyWith(
                         fontWeight: FontWeight.w600,
+                        fontSize: 11,
                         color: isSelected
-                            ? AppColors.primaryAction
+                            ? typeColor
                             : AppColors.textPrimary,
                       ),
                       textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -1073,6 +1046,18 @@ class _ProfileScreenState extends State<ProfileScreen>
         return CupertinoIcons.briefcase;
       case ProfileType.custom:
         return CupertinoIcons.slider_horizontal_3;
+    }
+  }
+
+  /// Get color for profile type (matches CardAesthetics.defaultForType)
+  Color _getProfileTypeColor(ProfileType type) {
+    switch (type) {
+      case ProfileType.personal:
+        return const Color(0xFFFF6B35);   // Orange
+      case ProfileType.professional:
+        return const Color(0xFF2196F3);   // Blue
+      case ProfileType.custom:
+        return const Color(0xFF9C27B0);   // Purple
     }
   }
 
@@ -1498,36 +1483,10 @@ class _ProfileScreenState extends State<ProfileScreen>
 
     HapticFeedback.mediumImpact();
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.error.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppColors.error.withValues(alpha: 0.3),
-                  width: 1,
-                ),
-              ),
-              child: const Row(
-                children: [
-                  Icon(CupertinoIcons.exclamationmark_circle_fill, color: AppColors.error),
-                  SizedBox(width: 12),
-                  Expanded(child: Text('All content cleared')),
-                ],
-              ),
-            ),
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        behavior: SnackBarBehavior.floating,
-      ),
+    SnackbarHelper.showError(
+      context,
+      message: 'All content cleared',
+      icon: CupertinoIcons.exclamationmark_circle_fill,
     );
   }
 }
