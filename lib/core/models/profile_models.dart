@@ -232,7 +232,7 @@ class ProfileData {
   final String? _cachedVCard; // Pre-computed vCard for dual-payload NFC
   final String? _cachedCardUrl; // Pre-computed URL for dual-payload NFC
   final DateTime? _dualPayloadCacheTime; // When dual payload was last generated
-  final List<String> receivedCardUuids; // UUIDs of cards received from others (for history/sharing tracking)
+  // NOTE: receivedCardUuids removed - ReceivedCardsRepository is now the single source of truth
 
   ProfileData({
     required this.id,
@@ -254,7 +254,6 @@ class ProfileData {
     String? cachedVCard,
     String? cachedCardUrl,
     DateTime? dualPayloadCacheTime,
-    this.receivedCardUuids = const [],
   }) : cardAesthetics = cardAesthetics ?? CardAesthetics.defaultForType(type),
        _cachedNfcPayload = cachedNfcPayload,
        _cachedVCard = cachedVCard,
@@ -281,7 +280,6 @@ class ProfileData {
     String? cachedVCard,
     String? cachedCardUrl,
     DateTime? dualPayloadCacheTime,
-    List<String>? receivedCardUuids,
   }) {
     return ProfileData(
       id: id ?? this.id,
@@ -303,7 +301,6 @@ class ProfileData {
       cachedVCard: cachedVCard ?? _cachedVCard,
       cachedCardUrl: cachedCardUrl ?? _cachedCardUrl,
       dualPayloadCacheTime: dualPayloadCacheTime ?? _dualPayloadCacheTime,
-      receivedCardUuids: receivedCardUuids ?? this.receivedCardUuids,
     );
   }
 
@@ -328,7 +325,7 @@ class ProfileData {
       'cachedVCard': _cachedVCard,
       'cachedCardUrl': _cachedCardUrl,
       'dualPayloadCacheTime': _dualPayloadCacheTime?.toIso8601String(),
-      'receivedCardUuids': receivedCardUuids,
+      // receivedCardUuids removed - use ReceivedCardsRepository instead
     };
   }
 
@@ -367,9 +364,7 @@ class ProfileData {
       dualPayloadCacheTime: json['dualPayloadCacheTime'] != null
         ? DateTime.parse(json['dualPayloadCacheTime'])
         : null,
-      receivedCardUuids: (json['receivedCardUuids'] as List<dynamic>?)
-          ?.map((e) => e as String)
-          .toList() ?? [],
+      // receivedCardUuids removed - use ReceivedCardsRepository instead
     );
   }
 
@@ -611,14 +606,20 @@ class ProfileData {
       buffer.write('EMAIL:$email\n');
     }
 
+    // ALWAYS write AtlasLinq URL as primary URL field
+    // This ensures receivers can always access the full digital card
+    buffer.write('URL:${_generateCardUrl()}\n');
+
+    // If user has custom website, add it as secondary URL
+    if (website != null && website!.isNotEmpty) {
+      buffer.write('URL;TYPE=WORK:$website\n');
+    }
+
     // Build NOTE field with embedded metadata
     // flutter_contacts properly parses NOTE field, so we embed X-AL metadata here
     final noteLines = <String>[];
 
-    // Add primary note text
-    if (website != null && website!.isNotEmpty) {
-      noteLines.add('View full digital card: ${_generateCardUrl()}');
-    }
+    // Add primary note text (no longer includes AtlasLinq URL since it's in URL field)
     noteLines.add('Shared via Atlas Linq');
 
     // Embed X-AL metadata in NOTE field (~40 bytes overhead)
@@ -627,13 +628,6 @@ class ProfileData {
       noteLines.add('X-AL-M:${shareContext.methodCode}');  // Method code (N/Q/W/T)
       noteLines.add('X-AL-T:${shareContext.unixTimestamp}');  // Unix timestamp
       noteLines.add('X-AL-P:${type.code}');  // Profile type (1/2/3)
-    }
-
-    // Write URL (user's website OR Atlas Linq URL)
-    if (website != null && website!.isNotEmpty) {
-      buffer.write('URL:$website\n');
-    } else {
-      buffer.write('URL:${_generateCardUrl()}\n');
     }
 
     // Write combined NOTE field with embedded metadata

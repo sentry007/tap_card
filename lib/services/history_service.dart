@@ -610,6 +610,9 @@ class HistoryService {
       final hasPermission = await FlutterContacts.requestPermission();
       if (!hasPermission) {
         developer.log('⚠️ Permission denied for contact deletion', name: 'History.DeleteScanned');
+        // Still try to cleanup from ReceivedCardsRepository even if permission denied
+        final repository = ReceivedCardsRepository();
+        await repository.removeReceivedCard(profileId);
         return false;
       }
 
@@ -627,25 +630,34 @@ class HistoryService {
         if (contactToDelete != null) break;
       }
 
+      // Always cleanup from ReceivedCardsRepository first
+      final repository = ReceivedCardsRepository();
+      await repository.removeReceivedCard(profileId);
+
       // Delete from device contacts
       if (contactToDelete != null) {
         await FlutterContacts.deleteContact(contactToDelete);
         developer.log('🗑️ Deleted scanned contact from device: ${contactToDelete.displayName}', name: 'History.DeleteScanned');
-
-        // ✅ NEW: Also remove from ReceivedCardsRepository
-        final repository = ReceivedCardsRepository();
-        await repository.removeReceivedCard(profileId);
 
         // Rescan contacts to update cache
         await scanDeviceContacts();
 
         return true;
       } else {
-        developer.log('⚠️ Scanned contact not found in device (may have been already deleted)', name: 'History.DeleteScanned');
+        developer.log('⚠️ Contact not found in device contacts (vCard may have been manually deleted)', name: 'History.DeleteScanned');
+        // Return false since actual vCard deletion failed (only repository cleanup succeeded)
+        await scanDeviceContacts();
         return false;
       }
     } catch (e) {
       developer.log('❌ Failed to delete scanned contact: $e', name: 'History.DeleteScanned', error: e);
+      // Try to cleanup repository even if device deletion fails
+      try {
+        final repository = ReceivedCardsRepository();
+        await repository.removeReceivedCard(profileId);
+      } catch (repoError) {
+        developer.log('❌ Also failed to cleanup repository: $repoError', name: 'History.DeleteScanned');
+      }
       return false;
     }
   }
