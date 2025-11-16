@@ -31,6 +31,7 @@ import '../../services/history_service.dart';
 import '../../services/contact_service.dart';
 import '../../services/firebase_analytics_service.dart';
 import '../../utils/logger.dart';
+import '../../utils/snackbar_helper.dart';
 import '../../widgets/history/method_chip.dart';
 import '../../widgets/history/history_card.dart';
 import '../../widgets/history/history_detail_modal.dart';
@@ -285,43 +286,25 @@ class _HistoryScreenState extends State<HistoryScreen>
     // Show appropriate feedback
     HapticFeedback.mediumImpact();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-                decoration: BoxDecoration(
-                  color: success
-                      ? AppColors.success.withValues(alpha: 0.15)
-                      : AppColors.error.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: success
-                        ? AppColors.success.withValues(alpha: 0.3)
-                        : AppColors.error.withValues(alpha: 0.3),
-                    width: 1,
-                  ),
-                ),
-                child: Text(
-                  isScannedContact
-                      ? (success
-                          ? 'Contact deleted from device and history'
-                          : 'Failed to delete contact - permission may be required')
-                      : (isReceivedEntry
-                          ? 'Contact and history deleted'
-                          : 'Item deleted'),
-                ),
-              ),
-            ),
-          ),
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      if (success) {
+        // Show success message
+        SnackbarHelper.showSuccess(
+          context,
+          message: isScannedContact
+              ? 'Contact deleted from device and history'
+              : (isReceivedEntry
+                  ? 'Contact and history deleted'
+                  : 'Item deleted'),
+        );
+      } else {
+        // Show error message
+        SnackbarHelper.showError(
+          context,
+          message: isScannedContact
+              ? 'Failed to delete contact - it may have been manually removed'
+              : 'Failed to delete item - permission may be required',
+        );
+      }
     }
   }
 
@@ -329,34 +312,14 @@ class _HistoryScreenState extends State<HistoryScreen>
     await HistoryService.softDeleteEntry(itemId);
     HapticFeedback.mediumImpact();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryAction.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: AppColors.primaryAction.withValues(alpha: 0.3),
-                    width: 1,
-                  ),
-                ),
-                child: const Text('Moved to archive'),
-              ),
-            ),
-          ),
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          behavior: SnackBarBehavior.floating,
-          action: SnackBarAction(
-            label: 'Undo',
-            textColor: AppColors.primaryAction,
-            onPressed: () => HistoryService.restoreEntry(itemId),
-          ),
+      SnackbarHelper.show(
+        context,
+        message: 'Moved to archive',
+        type: SnackbarType.info,
+        action: SnackBarAction(
+          label: 'Undo',
+          textColor: AppColors.primaryAction,
+          onPressed: () => HistoryService.restoreEntry(itemId),
         ),
       );
     }
@@ -721,78 +684,16 @@ class _HistoryScreenState extends State<HistoryScreen>
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: AppColors.success.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: AppColors.success.withValues(alpha: 0.3),
-                      width: 1,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(CupertinoIcons.checkmark_circle,
-                          color: AppColors.success),
-                      SizedBox(width: 12),
-                      Expanded(
-                          child:
-                              Text('Opening contact card for ${profile.name}')),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
-          ),
+        SnackbarHelper.showSuccess(
+          context,
+          message: 'Opening contact card for ${profile.name}',
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: AppColors.error.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: AppColors.error.withValues(alpha: 0.3),
-                      width: 1,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(CupertinoIcons.exclamationmark_circle,
-                          color: AppColors.error),
-                      SizedBox(width: 12),
-                      Expanded(child: Text('Failed to save contact: $e')),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 3),
-          ),
+        SnackbarHelper.showError(
+          context,
+          message: 'Failed to save contact: $e',
         );
       }
     }
@@ -961,39 +862,7 @@ class _HistoryScreenState extends State<HistoryScreen>
 
   void _showErrorSnackbar(String message) {
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-                decoration: BoxDecoration(
-                  color: AppColors.error.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: AppColors.error.withValues(alpha: 0.3),
-                    width: 1,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(CupertinoIcons.exclamationmark_circle,
-                        color: AppColors.error),
-                    SizedBox(width: 12),
-                    Expanded(child: Text(message)),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      SnackbarHelper.showError(context, message: message);
     }
   }
 

@@ -20,6 +20,7 @@ import '../../models/unified_models.dart';
 import '../../services/history_service.dart';
 import '../../services/contact_service.dart';
 import '../../services/profile_performance_service.dart';
+import '../../utils/snackbar_helper.dart';
 import '../../widgets/history/method_chip.dart';
 import '../../widgets/home/nfc_fab_widget.dart';
 import '../../widgets/home/recent_connections_widget.dart';
@@ -342,39 +343,38 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _showPermissionDeniedSnackbar() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Contacts permission required to sync'),
-        backgroundColor: AppColors.error,
-        action: SnackBarAction(
-          label: 'Settings',
-          textColor: AppColors.textPrimary,
-          onPressed: () => AppSettings.openAppSettings(),
-        ),
+    SnackbarHelper.show(
+      context,
+      message: 'Contacts permission required to sync',
+      type: SnackbarType.error,
+      action: SnackBarAction(
+        label: 'Settings',
+        textColor: AppColors.textPrimary,
+        onPressed: () => AppSettings.openAppSettings(),
       ),
     );
   }
 
   void _showSyncSuccessSnackbar(int count) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          count > 0
-              ? 'Found $count Atlas Linq contact${count == 1 ? '' : 's'}'
-              : 'No Atlas Linq contacts found in device',
-        ),
-        backgroundColor: count > 0 ? AppColors.success : AppColors.info,
+    if (count > 0) {
+      SnackbarHelper.showSuccess(
+        context,
+        message: 'Found $count Atlas Linq contact${count == 1 ? '' : 's'}',
         duration: const Duration(seconds: 3),
-      ),
-    );
+      );
+    } else {
+      SnackbarHelper.showInfo(
+        context,
+        message: 'No Atlas Linq contacts found in device',
+        duration: const Duration(seconds: 3),
+      );
+    }
   }
 
   void _showSyncErrorSnackbar() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Failed to sync contacts. Please try again.'),
-        backgroundColor: AppColors.error,
-      ),
+    SnackbarHelper.showError(
+      context,
+      message: 'Failed to sync contacts. Please try again.',
     );
   }
 

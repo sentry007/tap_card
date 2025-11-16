@@ -48,7 +48,15 @@ class HistoryCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
         child: const Icon(CupertinoIcons.delete, color: AppColors.error, size: 24),
       ),
-      onDismissed: (direction) => onDelete(),
+      confirmDismiss: (direction) async {
+        // Call delete and wait for it to complete
+        // onDelete callback handles the actual deletion and shows appropriate snackbar
+        onDelete();
+        // Return false to prevent automatic dismissal by Dismissible
+        // The stream update from HistoryService will remove the item naturally,
+        // avoiding widget tree conflicts while still providing visual feedback
+        return false;
+      },
       child: Material(
         color: Colors.transparent,
         child: InkWell(

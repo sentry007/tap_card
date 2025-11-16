@@ -7,6 +7,7 @@ import '../../theme/theme.dart';
 import '../../services/nfc_service.dart';
 import '../../core/constants/app_constants.dart';
 import '../glassmorphic_dialog.dart';
+import '../../utils/snackbar_helper.dart';
 
 /// NFC Helpers
 ///
@@ -298,112 +299,31 @@ class NfcHelpers {
 
   /// Show success snackbar with glassmorphic design
   static void showSuccessMessage(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.success.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppColors.success.withValues(alpha: 0.3),
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(CupertinoIcons.check_mark_circled_solid,
-                      color: AppColors.success),
-                  const SizedBox(width: 12),
-                  Expanded(child: Text(message)),
-                ],
-              ),
-            ),
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 3),
-      ),
+    SnackbarHelper.showSuccess(
+      context,
+      message: message,
+      icon: CupertinoIcons.check_mark_circled_solid,
+      duration: const Duration(seconds: 3),
     );
   }
 
   /// Show error snackbar with glassmorphic design
   static void showErrorMessage(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.error.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppColors.error.withValues(alpha: 0.3),
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(CupertinoIcons.exclamationmark_circle_fill,
-                      color: AppColors.error),
-                  const SizedBox(width: 12),
-                  Expanded(child: Text(message)),
-                ],
-              ),
-            ),
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 4),
-      ),
+    SnackbarHelper.showError(
+      context,
+      message: message,
+      icon: CupertinoIcons.exclamationmark_circle_fill,
+      duration: const Duration(seconds: 4),
     );
   }
 
   /// Show info snackbar with glassmorphic design
   static void showInfoMessage(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.blueAccent.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: Colors.blueAccent.withValues(alpha: 0.3),
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(CupertinoIcons.info_circle_fill,
-                      color: Colors.blueAccent),
-                  const SizedBox(width: 12),
-                  Expanded(child: Text(message)),
-                ],
-              ),
-            ),
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 3),
-      ),
+    SnackbarHelper.showInfo(
+      context,
+      message: message,
+      icon: CupertinoIcons.info_circle_fill,
+      duration: const Duration(seconds: 3),
     );
   }
 }

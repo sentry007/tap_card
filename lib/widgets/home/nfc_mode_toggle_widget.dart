@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import '../../theme/theme.dart';
 import '../../services/nfc_service.dart';
+import '../../utils/snackbar_helper.dart';
 
 /// NFC Mode Toggle Widget
 ///
@@ -168,34 +169,18 @@ class NfcModeToggleWidget extends StatelessWidget {
   }
 
   void _showErrorMessage(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(CupertinoIcons.exclamationmark_circle_fill, color: AppColors.error),
-            const SizedBox(width: 12),
-            Expanded(child: Text(message)),
-          ],
-        ),
-        backgroundColor: AppColors.error.withValues(alpha: 0.9),
-        behavior: SnackBarBehavior.floating,
-      ),
+    SnackbarHelper.showError(
+      context,
+      message: message,
+      icon: CupertinoIcons.exclamationmark_circle_fill,
     );
   }
 
   void _showInfoMessage(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(CupertinoIcons.info_circle_fill, color: AppColors.info),
-            const SizedBox(width: 12),
-            Expanded(child: Text(message)),
-          ],
-        ),
-        backgroundColor: AppColors.info.withValues(alpha: 0.9),
-        behavior: SnackBarBehavior.floating,
-      ),
+    SnackbarHelper.showInfo(
+      context,
+      message: message,
+      icon: CupertinoIcons.info_circle_fill,
     );
   }
 }

@@ -7,6 +7,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import '../../core/services/privacy_service.dart';
+import '../../utils/snackbar_helper.dart';
 
 /// GDPR Consent Dialog
 class ConsentDialog extends StatefulWidget {
@@ -367,8 +368,9 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
         if (context.mounted) {
           Navigator.of(context).pop(); // Close loading
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Export failed: $e')),
+          SnackbarHelper.showError(
+            context,
+            message: 'Export failed: $e',
           );
         }
       }
@@ -417,18 +419,18 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
           Navigator.of(context).pop(); // Close loading
 
           // Navigate to welcome screen
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Account deleted successfully'),
-            ),
+          SnackbarHelper.showSuccess(
+            context,
+            message: 'Account deleted successfully',
           );
         }
       } catch (e) {
         if (context.mounted) {
           Navigator.of(context).pop(); // Close loading
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Deletion failed: $e')),
+          SnackbarHelper.showError(
+            context,
+            message: 'Deletion failed: $e',
           );
         }
       }

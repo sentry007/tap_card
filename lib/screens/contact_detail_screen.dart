@@ -7,6 +7,7 @@ import 'dart:ui';
 import '../models/unified_models.dart';
 import '../widgets/widgets.dart';
 import '../theme/theme.dart';
+import '../utils/snackbar_helper.dart';
 
 class ContactDetailScreen extends StatefulWidget {
   final ReceivedContact receivedContact;
@@ -168,36 +169,10 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
             text: 'Save Contact',
             onPressed: () async {
               // Simple contact saving - could integrate with contact_service
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: AppColors.success.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: AppColors.success.withValues(alpha: 0.3),
-                            width: 1,
-                          ),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(CupertinoIcons.check_mark_circled_solid, color: AppColors.success),
-                            SizedBox(width: 12),
-                            Expanded(child: Text('Contact saved successfully!')),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  behavior: SnackBarBehavior.floating,
-                ),
+              SnackbarHelper.showSuccess(
+                context,
+                message: 'Contact saved successfully!',
+                icon: CupertinoIcons.check_mark_circled_solid,
               );
               Navigator.pop(context);
             },
@@ -273,36 +248,10 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                 _contact = _contact.copyWith(notes: noteText.isEmpty ? null : noteText);
               });
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: AppColors.success.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: AppColors.success.withValues(alpha: 0.3),
-                            width: 1,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(CupertinoIcons.check_mark_circled_solid, color: AppColors.success),
-                            const SizedBox(width: 12),
-                            Expanded(child: Text('Note ${noteText.isEmpty ? 'removed' : 'saved'}')),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  behavior: SnackBarBehavior.floating,
-                ),
+              SnackbarHelper.showSuccess(
+                context,
+                message: 'Note ${noteText.isEmpty ? 'removed' : 'saved'}',
+                icon: CupertinoIcons.check_mark_circled_solid,
               );
             },
             child: const Text('Save'),

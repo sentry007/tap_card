@@ -779,11 +779,9 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           onTap: () async {
             await TutorialService.resetTutorial();
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Tutorial reset! Navigate to Home to start.'),
-                  duration: Duration(seconds: 2),
-                ),
+              SnackbarHelper.showInfo(
+                context,
+                message: 'Tutorial reset! Navigate to Home to start.',
               );
               // Navigate to home screen with tutorial
               context.go('/home');
@@ -1407,22 +1405,18 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
               Logger.info('Account deleted successfully', name: 'SETTINGS');
 
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Account deleted successfully'),
-                    backgroundColor: AppColors.success,
-                  ),
+                SnackbarHelper.showSuccess(
+                  context,
+                  message: 'Account deleted successfully',
                 );
               }
             } catch (e, stackTrace) {
               Logger.error('Delete account error: $e', name: 'SETTINGS', error: e, stackTrace: stackTrace);
 
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Failed to delete account: $e'),
-                    backgroundColor: AppColors.error,
-                  ),
+                SnackbarHelper.showError(
+                  context,
+                  message: 'Failed to delete account: $e',
                 );
               }
             }
