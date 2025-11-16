@@ -1199,7 +1199,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       final location = await _getCurrentLocation();
 
       await HistoryService.addSentEntry(
-        recipientName: 'Via P2P Share',
+        recipientName: _cachedActiveProfile != null
+            ? 'P2P ${_cachedActiveProfile!.type.label} Card'
+            : 'P2P Card',
         method: ShareMethod.nfc,
         location: location,
         metadata: {

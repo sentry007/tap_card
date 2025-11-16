@@ -51,6 +51,7 @@ class ConnectionTrendsWidget extends StatelessWidget {
           crossAxisCount: 2,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
           mainAxisSpacing: 12,
           crossAxisSpacing: 12,
           childAspectRatio: 1.5,

@@ -267,9 +267,9 @@ class HistoryEntry {
         return senderProfile?.name ?? 'Unknown';
       case HistoryEntryType.tag:
         if (writtenProfileType != null) {
-          return 'Your ${writtenProfileType!.label} Profile';
+          return '${writtenProfileType!.label} Card';
         }
-        return 'Your Profile';
+        return 'Card';
     }
   }
 

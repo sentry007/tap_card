@@ -92,8 +92,8 @@ class _GlassBottomNavState extends State<GlassBottomNav>
     final currentRoute = GoRouterState.of(context).uri.path;
     final routeIndex = AppRoutes.getBottomNavIndex(currentRoute);
 
-    // Only prevent re-navigation if we're actually on this nav route
-    if (routeIndex >= 0 && index == routeIndex) return;
+    // Prevent re-navigation only if we're on the exact same route
+    if (routeIndex == index) return;
 
     setState(() => _currentIndex = index);
     _animationController.forward().then((_) {
