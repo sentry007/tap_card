@@ -9,12 +9,42 @@ library;
 
 import 'dart:developer' as developer;
 import 'dart:math';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tap_card/core/models/profile_models.dart';
 import 'package:tap_card/services/firestore_sync_service.dart';
 
 /// Service for generating mock profile data for testing
+///
+/// IMPORTANT: This service only works when Developer Mode is enabled in settings.
+/// All methods will throw an exception if dev mode is OFF to prevent accidental
+/// mock data generation in production/beta environments.
 class MockDataGenerator {
   static final Random _random = Random();
+
+  /// Check if dev mode is enabled
+  static Future<bool> _isDevModeEnabled() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool('settings_dev_mode') ?? false;
+    } catch (e) {
+      developer.log(
+        '⚠️  Failed to check dev mode setting: $e',
+        name: 'MockData.DevMode',
+      );
+      return false;
+    }
+  }
+
+  /// Throw exception if dev mode is disabled
+  static Future<void> _ensureDevModeEnabled() async {
+    final devModeEnabled = await _isDevModeEnabled();
+    if (!devModeEnabled) {
+      throw Exception(
+        'MockDataGenerator is disabled - Developer Mode is OFF.\n'
+        'Enable Developer Mode in Settings > Advanced to use mock data generation.'
+      );
+    }
+  }
 
   // Sample data pools for realistic profiles
   static const List<String> _firstNames = [
@@ -58,7 +88,9 @@ class MockDataGenerator {
   };
 
   /// Generate a random personal profile
-  static ProfileData generatePersonalProfile() {
+  static Future<ProfileData> generatePersonalProfile() async {
+    await _ensureDevModeEnabled();
+
     final firstName = _firstNames[_random.nextInt(_firstNames.length)];
     final lastName = _lastNames[_random.nextInt(_lastNames.length)];
     final fullName = '$firstName $lastName';
@@ -103,7 +135,9 @@ class MockDataGenerator {
   }
 
   /// Generate a random professional profile
-  static ProfileData generateProfessionalProfile() {
+  static Future<ProfileData> generateProfessionalProfile() async {
+    await _ensureDevModeEnabled();
+
     final firstName = _firstNames[_random.nextInt(_firstNames.length)];
     final lastName = _lastNames[_random.nextInt(_lastNames.length)];
     final fullName = '$firstName $lastName';
@@ -152,7 +186,9 @@ class MockDataGenerator {
   }
 
   /// Generate a random custom profile
-  static ProfileData generateCustomProfile() {
+  static Future<ProfileData> generateCustomProfile() async {
+    await _ensureDevModeEnabled();
+
     final firstName = _firstNames[_random.nextInt(_firstNames.length)];
     final lastName = _lastNames[_random.nextInt(_lastNames.length)];
     final fullName = '$firstName $lastName';
@@ -206,16 +242,18 @@ class MockDataGenerator {
   }
 
   /// Generate a complete set of test profiles (one of each type)
-  static List<ProfileData> generateCompleteSet() {
+  static Future<List<ProfileData>> generateCompleteSet() async {
+    await _ensureDevModeEnabled();
+
     developer.log(
       '📦 Generating complete profile set...',
       name: 'MockData.Set',
     );
 
     final profiles = [
-      generatePersonalProfile(),
-      generateProfessionalProfile(),
-      generateCustomProfile(),
+      await generatePersonalProfile(),
+      await generateProfessionalProfile(),
+      await generateCustomProfile(),
     ];
 
     developer.log(
@@ -228,6 +266,8 @@ class MockDataGenerator {
 
   /// Generate and sync a test profile to Firestore
   static Future<ProfileData?> generateAndSyncProfile(ProfileType type) async {
+    await _ensureDevModeEnabled();
+
     developer.log(
       '🚀 Generating and syncing ${type.name} profile...',
       name: 'MockData.Sync',
@@ -236,13 +276,13 @@ class MockDataGenerator {
     ProfileData profile;
     switch (type) {
       case ProfileType.personal:
-        profile = generatePersonalProfile();
+        profile = await generatePersonalProfile();
         break;
       case ProfileType.professional:
-        profile = generateProfessionalProfile();
+        profile = await generateProfessionalProfile();
         break;
       case ProfileType.custom:
-        profile = generateCustomProfile();
+        profile = await generateCustomProfile();
         break;
     }
 
@@ -272,12 +312,14 @@ class MockDataGenerator {
 
   /// Generate and sync a complete set of profiles
   static Future<List<ProfileData>> generateAndSyncCompleteSet() async {
+    await _ensureDevModeEnabled();
+
     developer.log(
       '📦 Generating and syncing complete profile set...',
       name: 'MockData.SyncSet',
     );
 
-    final profiles = generateCompleteSet();
+    final profiles = await generateCompleteSet();
     final syncedProfiles = <ProfileData>[];
 
     for (final profile in profiles) {

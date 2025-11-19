@@ -56,7 +56,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   bool _isPreviewMode = false; // Toggle between share mode and preview mode
   final GlobalKey<RefreshIndicatorState> _refreshKey =
       GlobalKey<RefreshIndicatorState>();
-
+  final GlobalKey _profileCardKey = GlobalKey(); // For capturing profile card as image
 
   bool _nfcAvailable = false;
   bool _nfcDeviceDetected = false;
@@ -989,6 +989,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       profile:
           _cachedActiveProfile!, // Pass full profile for metadata generation
       onNFCShare: _onNfcTap,
+      profileCardKey: _profileCardKey, // Pass key for capturing pre-rendered card
     );
   }
 
@@ -1299,7 +1300,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   _buildInsightsSection(),
                   const SizedBox(height: 32),
                   // 2) NFC share area (FAB + status/share options)
-                  _isPreviewMode ? ProfilePreviewWidget(profileService: _profileService) : _buildHeroNfcFab(),
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Always render card in Offstage (rendered but not painted/laid out)
+                      Offstage(
+                        offstage: !_isPreviewMode,
+                        child: ProfilePreviewWidget(
+                          profileService: _profileService,
+                          cardKey: _profileCardKey,
+                        ),
+                      ),
+                      // Always render FAB in Offstage
+                      Offstage(
+                        offstage: _isPreviewMode,
+                        child: _buildHeroNfcFab(),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 16),
                   _isPreviewMode ? const ProfilePreviewTextWidget() : _buildTapToShareText(),
                   const SizedBox(height: 24),

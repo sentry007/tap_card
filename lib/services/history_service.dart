@@ -55,11 +55,18 @@ class HistoryService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final isFirstRun = !(prefs.getBool(_initKey) ?? false);
+      final devModeEnabled = prefs.getBool('settings_dev_mode') ?? false;
 
       if (isFirstRun) {
-        // First run - generate mock data
-        developer.log('📝 First run detected - generating mock history data', name: 'History.Service');
-        await _generateMockData();
+        // First run - generate mock data only if dev mode is enabled
+        if (devModeEnabled) {
+          developer.log('📝 First run + Dev mode ON - generating mock history data', name: 'History.Service');
+          await _generateMockData();
+        } else {
+          developer.log('📝 First run + Dev mode OFF - creating empty history', name: 'History.Service');
+          _cache = [];
+          await _saveToStorage();
+        }
         await prefs.setBool(_initKey, true);
       } else {
         // Load existing history
@@ -67,7 +74,11 @@ class HistoryService {
       }
 
       _isInitialized = true;
-      developer.log('✅ HistoryService initialized with ${_cache.length} entries', name: 'History.Service');
+      developer.log(
+        '✅ HistoryService initialized with ${_cache.length} entries\n'
+        '   Dev mode: ${devModeEnabled ? "ON" : "OFF"}',
+        name: 'History.Service',
+      );
 
       // Immediately notify listeners with current data
       _notifyListeners();
