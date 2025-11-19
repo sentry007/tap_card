@@ -1,4 +1,4 @@
-package com.example.tap_card
+package com.atlaslinq.app
 
 import android.app.PendingIntent
 import android.content.Intent
