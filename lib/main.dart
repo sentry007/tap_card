@@ -10,10 +10,12 @@ library;
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'firebase_options.dart';
 
 import 'core/providers/app_state.dart';
@@ -63,6 +65,26 @@ void main() async {
     );
     developer.log(
       '✅ Firebase initialized successfully',
+      name: 'App.Main',
+    );
+
+    // Initialize Crashlytics for crash reporting
+    developer.log(
+      '📊 Initializing Crashlytics...',
+      name: 'App.Main',
+    );
+
+    // Pass all uncaught Flutter errors to Crashlytics
+    FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+
+    // Pass all uncaught asynchronous errors to Crashlytics
+    PlatformDispatcher.instance.onError = (error, stack) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      return true;
+    };
+
+    developer.log(
+      '✅ Crashlytics initialized - Crash reporting enabled',
       name: 'App.Main',
     );
   } catch (e, stackTrace) {
