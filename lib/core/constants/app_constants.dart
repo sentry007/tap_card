@@ -5,6 +5,9 @@
 /// codebase more maintainable and easier to modify.
 library;
 
+import 'package:flutter/material.dart';
+import '../../utils/responsive_helper.dart';
+
 /// Spacing and Layout Constants
 ///
 /// Uses an 8px grid system for consistent spacing throughout the app
@@ -14,7 +17,7 @@ class AppSpacing {
   // Base unit (8px grid)
   static const double unit = 8.0;
 
-  // Common spacing values
+  // Common spacing values (FIXED - for backward compatibility)
   static const double xs = unit * 0.5;   // 4px
   static const double sm = unit;         // 8px
   static const double md = unit * 2;     // 16px
@@ -23,13 +26,90 @@ class AppSpacing {
   static const double xxl = unit * 5;    // 40px
   static const double xxxl = unit * 6;   // 48px
 
-  // Specific UI spacing
+  // Specific UI spacing (FIXED - for backward compatibility)
   static const double cardPadding = lg;              // 24px
   static const double screenPadding = md;            // 16px
   static const double sectionSpacing = lg;           // 24px
   static const double itemSpacing = md;              // 16px
   static const double bottomNavHeight = 80.0;        // Bottom navigation height
   static const double appBarHeight = 64.0;           // App bar height
+
+  // RESPONSIVE SPACING - Use these for new code or when refactoring
+
+  /// Get responsive extra small spacing
+  static double responsiveXs(BuildContext context) {
+    return ResponsiveHelper.spacing(context, xs);
+  }
+
+  /// Get responsive small spacing
+  static double responsiveSm(BuildContext context) {
+    return ResponsiveHelper.spacing(context, sm);
+  }
+
+  /// Get responsive medium spacing
+  static double responsiveMd(BuildContext context) {
+    return ResponsiveHelper.spacing(context, md);
+  }
+
+  /// Get responsive large spacing
+  static double responsiveLg(BuildContext context) {
+    return ResponsiveHelper.spacing(context, lg);
+  }
+
+  /// Get responsive extra large spacing
+  static double responsiveXl(BuildContext context) {
+    return ResponsiveHelper.spacing(context, xl);
+  }
+
+  /// Get responsive double extra large spacing
+  static double responsiveXxl(BuildContext context) {
+    return ResponsiveHelper.spacing(context, xxl);
+  }
+
+  /// Get responsive triple extra large spacing
+  static double responsiveXxxl(BuildContext context) {
+    return ResponsiveHelper.spacing(context, xxxl);
+  }
+
+  /// Get responsive card padding
+  static double responsiveCardPadding(BuildContext context) {
+    return ResponsiveHelper.spacing(context, cardPadding);
+  }
+
+  /// Get responsive screen padding
+  static double responsiveScreenPadding(BuildContext context) {
+    return ResponsiveHelper.spacing(context, screenPadding);
+  }
+
+  /// Get responsive section spacing
+  static double responsiveSectionSpacing(BuildContext context) {
+    return ResponsiveHelper.spacing(context, sectionSpacing);
+  }
+
+  /// Get responsive item spacing
+  static double responsiveItemSpacing(BuildContext context) {
+    return ResponsiveHelper.spacing(context, itemSpacing);
+  }
+
+  /// Get responsive bottom navigation height (6-8% of screen height)
+  static double responsiveBottomNavHeight(BuildContext context) {
+    return ResponsiveHelper.responsiveHeight(
+      context,
+      percent: 0.07, // 7% of screen height
+      min: 60.0,
+      max: 80.0,
+    );
+  }
+
+  /// Get responsive app bar height (5-7% of screen height)
+  static double responsiveAppBarHeight(BuildContext context) {
+    return ResponsiveHelper.responsiveHeight(
+      context,
+      percent: 0.06, // 6% of screen height
+      min: 56.0,
+      max: 72.0,
+    );
+  }
 }
 
 /// Border Radius Constants
@@ -143,7 +223,7 @@ class ProfileConstants {
 class ComponentSizes {
   ComponentSizes._();
 
-  // Icon sizes
+  // Icon sizes (FIXED - for backward compatibility)
   static const double iconXs = 16.0;
   static const double iconSm = 20.0;
   static const double iconMd = 24.0;
@@ -151,27 +231,175 @@ class ComponentSizes {
   static const double iconXl = 48.0;
   static const double iconXxl = 56.0;
 
-  // Avatar sizes
+  // Avatar sizes (FIXED - for backward compatibility)
   static const double avatarSm = 32.0;
   static const double avatarMd = 45.0;
   static const double avatarLg = 60.0;
 
-  // Button heights
+  // Button heights (FIXED - for backward compatibility)
   static const double buttonSm = 40.0;
   static const double buttonMd = 48.0;
   static const double buttonLg = 56.0;
 
-  // Card sizes
+  // Card sizes (FIXED - for backward compatibility)
   static const double contactCardWidth = 72.0;
   static const double contactCardHeight = 88.0;
   static const double profileCardHeight = 180.0;
   static const double profileCardWidth = 300.0;
   static const double livePreviewHeight = 200.0;
 
-  // FAB sizes
+  // FAB sizes (FIXED - for backward compatibility)
   static const double fabContainerSize = 120.0;
   static const double fabMainSize = 96.0;
   static const double fabIconSize = 56.0;
+
+  // RESPONSIVE COMPONENT SIZES - Use these for new code or when refactoring
+
+  /// Get responsive icon size (extra small)
+  static double responsiveIconXs(BuildContext context) {
+    return ResponsiveHelper.iconSize(context, iconXs);
+  }
+
+  /// Get responsive icon size (small)
+  static double responsiveIconSm(BuildContext context) {
+    return ResponsiveHelper.iconSize(context, iconSm);
+  }
+
+  /// Get responsive icon size (medium)
+  static double responsiveIconMd(BuildContext context) {
+    return ResponsiveHelper.iconSize(context, iconMd);
+  }
+
+  /// Get responsive icon size (large)
+  static double responsiveIconLg(BuildContext context) {
+    return ResponsiveHelper.iconSize(context, iconLg);
+  }
+
+  /// Get responsive icon size (extra large)
+  static double responsiveIconXl(BuildContext context) {
+    return ResponsiveHelper.iconSize(context, iconXl);
+  }
+
+  /// Get responsive icon size (double extra large)
+  static double responsiveIconXxl(BuildContext context) {
+    return ResponsiveHelper.iconSize(context, iconXxl);
+  }
+
+  /// Get responsive avatar size (small)
+  static double responsiveAvatarSm(BuildContext context) {
+    return ResponsiveHelper.iconSize(context, avatarSm);
+  }
+
+  /// Get responsive avatar size (medium)
+  static double responsiveAvatarMd(BuildContext context) {
+    return ResponsiveHelper.iconSize(context, avatarMd);
+  }
+
+  /// Get responsive avatar size (large)
+  static double responsiveAvatarLg(BuildContext context) {
+    return ResponsiveHelper.iconSize(context, avatarLg);
+  }
+
+  /// Get responsive button height (small)
+  static double responsiveButtonSm(BuildContext context) {
+    return ResponsiveHelper.responsiveHeight(
+      context,
+      percent: 0.05, // 5% of screen height
+      min: 36.0,
+      max: 44.0,
+    );
+  }
+
+  /// Get responsive button height (medium)
+  static double responsiveButtonMd(BuildContext context) {
+    return ResponsiveHelper.responsiveHeight(
+      context,
+      percent: 0.06, // 6% of screen height
+      min: 44.0,
+      max: 52.0,
+    );
+  }
+
+  /// Get responsive button height (large)
+  static double responsiveButtonLg(BuildContext context) {
+    return ResponsiveHelper.responsiveHeight(
+      context,
+      percent: 0.07, // 7% of screen height
+      min: 52.0,
+      max: 60.0,
+    );
+  }
+
+  /// Get responsive contact card size
+  static Size responsiveContactCard(BuildContext context) {
+    return ResponsiveHelper.responsiveSize(
+      context,
+      baseWidth: contactCardWidth,
+      baseHeight: contactCardHeight,
+      widthPercent: 0.19, // 19% of screen width
+      minWidth: 64.0,
+      maxWidth: 80.0,
+    );
+  }
+
+  /// Get responsive profile card height
+  static double responsiveProfileCardHeight(BuildContext context) {
+    return ResponsiveHelper.responsiveHeight(
+      context,
+      percent: 0.22, // 22% of screen height
+      min: 160.0,
+      max: 220.0,
+    );
+  }
+
+  /// Get responsive profile card width
+  static double responsiveProfileCardWidth(BuildContext context) {
+    return ResponsiveHelper.responsiveWidth(
+      context,
+      percent: 0.8, // 80% of screen width
+      min: 280.0,
+      max: 360.0,
+    );
+  }
+
+  /// Get responsive live preview height
+  static double responsiveLivePreviewHeight(BuildContext context) {
+    return ResponsiveHelper.responsiveHeight(
+      context,
+      percent: 0.25, // 25% of screen height
+      min: 180.0,
+      max: 240.0,
+    );
+  }
+
+  /// Get responsive FAB container size (maintains aspect ratio)
+  static Size responsiveFabContainer(BuildContext context) {
+    return ResponsiveHelper.responsiveSize(
+      context,
+      baseWidth: 240.0,
+      baseHeight: 120.0,
+      widthPercent: 0.6, // 60% of screen width
+      minWidth: 200.0,
+      maxWidth: 280.0,
+    );
+  }
+
+  /// Get responsive FAB main size (maintains aspect ratio)
+  static Size responsiveFabMain(BuildContext context) {
+    return ResponsiveHelper.responsiveSize(
+      context,
+      baseWidth: 192.0,
+      baseHeight: 96.0,
+      widthPercent: 0.48, // 48% of screen width
+      minWidth: 160.0,
+      maxWidth: 224.0,
+    );
+  }
+
+  /// Get responsive FAB icon size
+  static double responsiveFabIcon(BuildContext context) {
+    return ResponsiveHelper.iconSize(context, fabIconSize);
+  }
 }
 
 /// Glassmorphism Effect Constants

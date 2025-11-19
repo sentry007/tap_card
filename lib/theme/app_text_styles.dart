@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
+import '../utils/responsive_helper.dart';
 
 class AppTextStyles {
   AppTextStyles._();
 
   static const String _fontFamily = 'Roboto';
 
-  // Headings
+  // BACKWARD COMPATIBILITY: Static const fields for existing code
+  // These will work but won't be responsive. Gradually migrate to responsive versions.
   static const TextStyle h1 = TextStyle(
     fontFamily: _fontFamily,
     fontSize: 24,
@@ -34,7 +36,6 @@ class AppTextStyles {
     letterSpacing: 0,
   );
 
-  // Body Text
   static const TextStyle body = TextStyle(
     fontFamily: _fontFamily,
     fontSize: 14,
@@ -53,7 +54,6 @@ class AppTextStyles {
     letterSpacing: 0.25,
   );
 
-  // Caption
   static const TextStyle caption = TextStyle(
     fontFamily: _fontFamily,
     fontSize: 12,
@@ -63,7 +63,6 @@ class AppTextStyles {
     letterSpacing: 0.4,
   );
 
-  // Button Text
   static const TextStyle buttonLarge = TextStyle(
     fontFamily: _fontFamily,
     fontSize: 16,
@@ -91,7 +90,6 @@ class AppTextStyles {
     letterSpacing: 0.5,
   );
 
-  // Special Styles
   static const TextStyle overline = TextStyle(
     fontFamily: _fontFamily,
     fontSize: 10,
@@ -109,6 +107,141 @@ class AppTextStyles {
     height: 1.5,
     letterSpacing: 0.15,
   );
+
+  // RESPONSIVE TEXT STYLES - Use these for new code or when refactoring
+  // These scale based on screen size for better cross-device support
+
+  /// Responsive H1 heading style
+  static TextStyle responsiveH1(BuildContext context) {
+    return TextStyle(
+      fontFamily: _fontFamily,
+      fontSize: ResponsiveHelper.fontSize(context, 24),
+      fontWeight: FontWeight.w500,
+      color: AppColors.textPrimary,
+      height: 1.2,
+      letterSpacing: -0.5,
+    );
+  }
+
+  /// Responsive H2 heading style
+  static TextStyle responsiveH2(BuildContext context) {
+    return TextStyle(
+      fontFamily: _fontFamily,
+      fontSize: ResponsiveHelper.fontSize(context, 20),
+      fontWeight: FontWeight.w500,
+      color: AppColors.textPrimary,
+      height: 1.2,
+      letterSpacing: -0.25,
+    );
+  }
+
+  /// Responsive H3 heading style
+  static TextStyle responsiveH3(BuildContext context) {
+    return TextStyle(
+      fontFamily: _fontFamily,
+      fontSize: ResponsiveHelper.fontSize(context, 16),
+      fontWeight: FontWeight.w500,
+      color: AppColors.textPrimary,
+      height: 1.3,
+      letterSpacing: 0,
+    );
+  }
+
+  /// Responsive body text style
+  static TextStyle responsiveBody(BuildContext context) {
+    return TextStyle(
+      fontFamily: _fontFamily,
+      fontSize: ResponsiveHelper.fontSize(context, 14),
+      fontWeight: FontWeight.w400,
+      color: AppColors.textPrimary,
+      height: 1.4,
+      letterSpacing: 0.25,
+    );
+  }
+
+  /// Responsive body secondary text style
+  static TextStyle responsiveBodySecondary(BuildContext context) {
+    return TextStyle(
+      fontFamily: _fontFamily,
+      fontSize: ResponsiveHelper.fontSize(context, 14),
+      fontWeight: FontWeight.w400,
+      color: AppColors.textSecondary,
+      height: 1.4,
+      letterSpacing: 0.25,
+    );
+  }
+
+  /// Responsive caption text style
+  static TextStyle responsiveCaption(BuildContext context) {
+    return TextStyle(
+      fontFamily: _fontFamily,
+      fontSize: ResponsiveHelper.fontSize(context, 12),
+      fontWeight: FontWeight.w400,
+      color: AppColors.textSecondary,
+      height: 1.3,
+      letterSpacing: 0.4,
+    );
+  }
+
+  /// Responsive large button text style
+  static TextStyle responsiveButtonLarge(BuildContext context) {
+    return TextStyle(
+      fontFamily: _fontFamily,
+      fontSize: ResponsiveHelper.fontSize(context, 16),
+      fontWeight: FontWeight.w500,
+      color: AppColors.textPrimary,
+      height: 1.0,
+      letterSpacing: 0.5,
+    );
+  }
+
+  /// Responsive medium button text style
+  static TextStyle responsiveButtonMedium(BuildContext context) {
+    return TextStyle(
+      fontFamily: _fontFamily,
+      fontSize: ResponsiveHelper.fontSize(context, 14),
+      fontWeight: FontWeight.w500,
+      color: AppColors.textPrimary,
+      height: 1.0,
+      letterSpacing: 0.25,
+    );
+  }
+
+  /// Responsive small button text style
+  static TextStyle responsiveButtonSmall(BuildContext context) {
+    return TextStyle(
+      fontFamily: _fontFamily,
+      fontSize: ResponsiveHelper.fontSize(context, 12),
+      fontWeight: FontWeight.w500,
+      color: AppColors.textPrimary,
+      height: 1.0,
+      letterSpacing: 0.5,
+    );
+  }
+
+  /// Responsive overline text style
+  static TextStyle responsiveOverline(BuildContext context) {
+    return TextStyle(
+      fontFamily: _fontFamily,
+      fontSize: ResponsiveHelper.fontSize(context, 10),
+      fontWeight: FontWeight.w400,
+      color: AppColors.textTertiary,
+      height: 1.6,
+      letterSpacing: 1.5,
+    );
+  }
+
+  /// Responsive subtitle text style
+  static TextStyle responsiveSubtitle(BuildContext context) {
+    return TextStyle(
+      fontFamily: _fontFamily,
+      fontSize: ResponsiveHelper.fontSize(context, 16),
+      fontWeight: FontWeight.w400,
+      color: AppColors.textSecondary,
+      height: 1.5,
+      letterSpacing: 0.15,
+    );
+  }
 
   // Color Variants
   static TextStyle h1Primary = h1.copyWith(color: AppColors.primaryAction);

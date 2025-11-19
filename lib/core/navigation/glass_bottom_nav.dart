@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../theme/theme.dart';
 import '../../widgets/tutorial/tutorial_keys.dart';
 import '../constants/routes.dart';
+import '../constants/app_constants.dart';
+import '../../utils/responsive_helper.dart';
 
 class GlassBottomNav extends StatefulWidget {
   const GlassBottomNav({super.key});
@@ -105,17 +107,22 @@ class _GlassBottomNavState extends State<GlassBottomNav>
 
   @override
   Widget build(BuildContext context) {
+    // Responsive dimensions
+    final navHeight = AppSpacing.responsiveBottomNavHeight(context);
+    final margin = AppSpacing.responsiveMd(context);
+    final borderRadius = ResponsiveHelper.borderRadius(context, 20);
+
     return Container(
-      margin: const EdgeInsets.all(16),
+      margin: EdgeInsets.all(margin),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(borderRadius),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
-            height: 70,
+            height: navHeight,
             decoration: BoxDecoration(
               color: Colors.black.withValues(alpha: 0.3),
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(borderRadius),
               border: Border.all(
                 color: Colors.white.withValues(alpha: 0.2),
                 width: 1,
@@ -150,6 +157,12 @@ class _GlassBottomNavState extends State<GlassBottomNav>
     final item = _navItems[index];
     final isSelected = index == _currentIndex;
 
+    // Responsive dimensions
+    final iconSize = ComponentSizes.responsiveIconMd(context);
+    final horizontalPadding = AppSpacing.responsiveMd(context);
+    final verticalPadding = AppSpacing.responsiveSm(context);
+    final borderRadius = ResponsiveHelper.borderRadius(context, 16);
+
     return Semantics(
       button: true,
       selected: isSelected,
@@ -164,12 +177,12 @@ class _GlassBottomNavState extends State<GlassBottomNav>
             scale: scale,
             child: Container(
               key: item.key,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 8,
+              padding: EdgeInsets.symmetric(
+                horizontal: horizontalPadding,
+                vertical: verticalPadding,
               ),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(borderRadius),
                 color: Colors.transparent,
               ),
               child: Column(
@@ -180,16 +193,16 @@ class _GlassBottomNavState extends State<GlassBottomNav>
                     child: Icon(
                       isSelected ? item.activeIcon : item.icon,
                       key: ValueKey(isSelected),
-                      size: 24,
+                      size: iconSize,
                       color: isSelected
                           ? AppColors.primaryAction
                           : AppColors.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  SizedBox(height: ResponsiveHelper.spacing(context, 2)),
                   AnimatedDefaultTextStyle(
                     duration: const Duration(milliseconds: 200),
-                    style: AppTextStyles.caption.copyWith(
+                    style: AppTextStyles.responsiveCaption(context).copyWith(
                       color: isSelected
                           ? AppColors.primaryAction
                           : AppColors.textPrimary,

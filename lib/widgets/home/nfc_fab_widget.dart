@@ -4,6 +4,7 @@ import 'dart:ui';
 
 import '../../theme/theme.dart';
 import '../../services/nfc_service.dart';
+import '../../utils/responsive_helper.dart';
 
 /// Five-state NFC FAB system for comprehensive user feedback
 enum NfcFabState {
@@ -74,22 +75,33 @@ class _NfcFabWidgetState extends State<NfcFabWidget> {
     final nfcColors = _getNfcStateColors();
     final hasDevice = widget.nfcDeviceDetected;
 
+    // Responsive dimensions - FAB scales between 50-70% of screen width
+    final fabSize = ResponsiveHelper.responsiveSize(
+      context,
+      baseWidth: 240,
+      baseHeight: 120,
+      widthPercent: 0.64,
+      minWidth: 200,
+      maxWidth: 280,
+    );
+    final borderRadius = ResponsiveHelper.borderRadius(context, 24);
+
     return Transform.scale(
       scale: widget.fabScale.value * widget.pulseScale.value * (hasDevice ? 1.05 : 1.0),
       child: SizedBox(
         key: const Key('nfc-fab-container'),
-        width: 240,
-        height: 120,
+        width: fabSize.width,
+        height: fabSize.height,
         child: Stack(
           alignment: Alignment.center,
           children: [
             // Animated outer glow effect
             Container(
               key: const Key('nfc-fab-glow'),
-              width: 240,
-              height: 120,
+              width: fabSize.width,
+              height: fabSize.height,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(borderRadius),
                 boxShadow: [
                   BoxShadow(
                     color: nfcColors['primary']!.withValues(alpha: 
@@ -119,13 +131,12 @@ class _NfcFabWidgetState extends State<NfcFabWidget> {
 
                 // Smooth easing function for more natural animation
                 final easedProgress = Curves.easeOut.transform(progress);
-                final rippleWidth = 210.0 +
-                    (easedProgress * 240.0); // Start closer to FAB width, expand more
-                final rippleHeight = 110.0 +
-                    (easedProgress * 120.0); // Start closer to FAB height
-                final borderRadius = 20.0 +
-                    (easedProgress *
-                        10.0); // Match FAB shape with slight growth
+                final rippleWidth = (fabSize.width * 0.875) +
+                    (easedProgress * fabSize.width); // Start closer to FAB width, expand more
+                final rippleHeight = (fabSize.height * 0.917) +
+                    (easedProgress * fabSize.height); // Start closer to FAB height
+                final rippleBorderRadius = (borderRadius * 0.833) +
+                    (easedProgress * (borderRadius * 0.417)); // Match FAB shape with slight growth
 
                 // More subtle fade out
                 final opacity = (1.0 - easedProgress) * 0.6;
@@ -137,7 +148,7 @@ class _NfcFabWidgetState extends State<NfcFabWidget> {
                   width: rippleWidth,
                   height: rippleHeight,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(borderRadius),
+                    borderRadius: BorderRadius.circular(rippleBorderRadius),
                     border: Border.all(
                       color: nfcColors['primary']!.withValues(alpha: opacity),
                       width: 1.5,
@@ -150,11 +161,11 @@ class _NfcFabWidgetState extends State<NfcFabWidget> {
               key: widget.tutorialKey,
               child: Container(
                 key: const Key('home_nfc_fab_main'),
-                width: 192, // 8px * 24 (doubled width)
-                height: 96,
+                width: fabSize.width * 0.8, // 80% of outer container
+                height: fabSize.height * 0.8,
                 decoration: BoxDecoration(
                   borderRadius:
-                      BorderRadius.circular(20), // Smooth square corners
+                      BorderRadius.circular(borderRadius * 0.833), // Proportional to outer radius
                   boxShadow: [
                     BoxShadow(
                       color: nfcColors['primary']!.withValues(alpha: 0.4),
@@ -174,7 +185,7 @@ class _NfcFabWidgetState extends State<NfcFabWidget> {
                   ],
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(borderRadius * 0.833),
                   child: Stack(
                     children: [
                       // Flowing gradient background
@@ -195,7 +206,7 @@ class _NfcFabWidgetState extends State<NfcFabWidget> {
                           onTap: widget.isLoading ? null : widget.onTap,
                           onLongPress: widget.isLoading ? null : widget.onLongPress,
                           borderRadius:
-                              BorderRadius.circular(20), // Match container radius
+                              BorderRadius.circular(borderRadius * 0.833), // Match container radius
                           child: Center(
                             key: const Key('home_nfc_fab_center'),
                             child: _buildFabContent(),
@@ -219,13 +230,16 @@ class _NfcFabWidgetState extends State<NfcFabWidget> {
         ? CupertinoIcons.arrow_up_arrow_down_square
         : CupertinoIcons.radiowaves_right;
 
+    // Responsive icon size
+    final iconSize = ResponsiveHelper.iconSize(context, 56);
+
     // Special case: NFC disabled
     if (!widget.nfcAvailable) {
       return Icon(
         modeIcon,
         key: const Key('home_nfc_fab_disabled'),
         color: AppColors.textSecondary, // Gray
-        size: 56,
+        size: iconSize,
       );
     }
 
@@ -237,7 +251,7 @@ class _NfcFabWidgetState extends State<NfcFabWidget> {
           modeIcon,
           key: const Key('home_nfc_fab_inactive'),
           color: Colors.white.withValues(alpha: 0.5), // Dull white
-          size: 56,
+          size: iconSize,
         );
 
       case NfcFabState.active:
@@ -248,19 +262,19 @@ class _NfcFabWidgetState extends State<NfcFabWidget> {
           child: Icon(
             modeIcon,
             color: Colors.white, // Glowing white
-            size: 56,
+            size: iconSize,
           ),
         );
 
       case NfcFabState.writing:
         // Loading spinner during NFC write
-        return const SizedBox(
-          key: Key('home_nfc_fab_writing'),
-          width: 32,
-          height: 32,
+        return SizedBox(
+          key: const Key('home_nfc_fab_writing'),
+          width: iconSize * 0.571,
+          height: iconSize * 0.571,
           child: CupertinoActivityIndicator(
             color: Colors.white,
-            radius: 16,
+            radius: iconSize * 0.286,
           ),
         );
 
@@ -269,20 +283,20 @@ class _NfcFabWidgetState extends State<NfcFabWidget> {
         return ScaleTransition(
           key: const Key('home_nfc_fab_success'),
           scale: widget.successScale,
-          child: const Icon(
+          child: Icon(
             CupertinoIcons.check_mark_circled_solid,
             color: Colors.greenAccent,
-            size: 56,
+            size: iconSize,
           ),
         );
 
       case NfcFabState.error:
         // Red X icon
-        return const Icon(
+        return Icon(
           CupertinoIcons.exclamationmark_circle_fill,
-          key: Key('home_nfc_fab_error'),
+          key: const Key('home_nfc_fab_error'),
           color: Colors.redAccent,
-          size: 56,
+          size: iconSize,
         );
     }
   }
@@ -521,7 +535,7 @@ class NfcFabStatusText extends StatelessWidget {
     return AnimatedDefaultTextStyle(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
-      style: AppTextStyles.h3.copyWith(
+      style: AppTextStyles.responsiveH3(context).copyWith(
         color: textColor,
         fontWeight: FontWeight.w500,
       ),
@@ -546,28 +560,34 @@ class ShareOptionsButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final borderRadius = ResponsiveHelper.borderRadius(context, 20);
+    final horizontalPadding = ResponsiveHelper.spacing(context, 24);
+    final verticalPadding = ResponsiveHelper.spacing(context, 14);
+    final iconSize = ResponsiveHelper.iconSize(context, 20);
+    final spacing = ResponsiveHelper.spacing(context, 10);
+
     return Material(
       key: const Key('home_share_options_material'),
       color: Colors.transparent,
       child: InkWell(
         key: const Key('home_share_options_inkwell'),
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(borderRadius),
         child: ClipRRect(
           key: const Key('home_share_options_clip'),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(borderRadius),
           child: BackdropFilter(
             key: const Key('home_share_options_backdrop'),
             filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
             child: Container(
               key: const Key('home_share_options_container'),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 24,
-                vertical: 14,
+              padding: EdgeInsets.symmetric(
+                horizontal: horizontalPadding,
+                vertical: verticalPadding,
               ),
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(borderRadius),
                 border: Border.all(
                   color: Colors.white.withValues(alpha: 0.2),
                   width: 1,
@@ -584,19 +604,19 @@ class ShareOptionsButton extends StatelessWidget {
                 key: const Key('home_share_options_row'),
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(
+                  Icon(
                     CupertinoIcons.share,
-                    key: Key('home_share_options_icon'),
-                    size: 20,
+                    key: const Key('home_share_options_icon'),
+                    size: iconSize,
                     color: AppColors.primaryAction,
                   ),
-                  const SizedBox(
-                      key: Key('home_share_options_text_spacing'),
-                      width: 10),
+                  SizedBox(
+                      key: const Key('home_share_options_text_spacing'),
+                      width: spacing),
                   Text(
                     'More sharing options',
                     key: const Key('home_share_options_text'),
-                    style: AppTextStyles.body.copyWith(
+                    style: AppTextStyles.responsiveBody(context).copyWith(
                       color: AppColors.primaryAction,
                       fontWeight: FontWeight.w600,
                     ),

@@ -16,10 +16,12 @@ import '../../widgets/profile/custom_links_fields.dart';
 import '../../widgets/profile/card_aesthetics_section.dart';
 import '../../widgets/tutorial/tutorial_keys.dart';
 import '../../core/constants/routes.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/models/profile_models.dart';
 import '../../core/services/profile_service.dart';
 import '../../utils/logger.dart';
 import '../../utils/snackbar_helper.dart';
+import '../../utils/responsive_helper.dart';
 
 /// Enum for background color picker mode
 enum BackgroundMode { solid, gradient }
@@ -700,10 +702,10 @@ class _ProfileScreenState extends State<ProfileScreen>
           SingleChildScrollView(
             key: const Key('profile_scroll_view'),
             padding: EdgeInsets.only(
-              top: statusBarHeight + 80 + 16 + 8, // App bar + horizontal padding + top spacing
-              left: 16,
-              right: 16,
-              bottom: 100, // Original bottom spacing
+              top: statusBarHeight + AppSpacing.responsiveAppBarHeight(context) + AppSpacing.responsiveMd(context) + AppSpacing.responsiveSm(context),
+              left: AppSpacing.responsiveMd(context),
+              right: AppSpacing.responsiveMd(context),
+              bottom: ResponsiveHelper.responsiveHeight(context, percent: 0.12, min: 80, max: 120),
             ),
             child: Form(
               key: _formKey,
@@ -711,9 +713,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                 key: const Key('profile_form_column'),
                 children: [
                   _buildLivePreview(),
-                  const SizedBox(key: Key('profile_preview_spacing'), height: 24),
+                  SizedBox(key: const Key('profile_preview_spacing'), height: AppSpacing.responsiveLg(context)),
                   _buildBlurSlider(),
-                  const SizedBox(key: Key('profile_blur_spacing'), height: 24),
+                  SizedBox(key: const Key('profile_blur_spacing'), height: AppSpacing.responsiveLg(context)),
                   CardAestheticsSection(
                     cardAesthetics: _currentProfile?.cardAesthetics ?? const CardAesthetics(),
                     recentCombinations: _recentCombinations,
@@ -727,13 +729,13 @@ class _ProfileScreenState extends State<ProfileScreen>
                     onAddRecentCombination: _addToRecentCombinations,
                     onBackgroundImageTap: () => _showImagePicker(isBackground: true),
                   ),
-                  const SizedBox(key: Key('profile_template_spacing'), height: 24),
+                  SizedBox(key: const Key('profile_template_spacing'), height: AppSpacing.responsiveLg(context)),
                   if (_profileService.multipleProfilesEnabled) ...[
                     _buildProfileSelector(),
-                    const SizedBox(key: Key('profile_selector_spacing'), height: 24),
+                    SizedBox(key: const Key('profile_selector_spacing'), height: AppSpacing.responsiveLg(context)),
                   ],
                   _buildFormSection(),
-                  const SizedBox(key: Key('profile_form_spacing'), height: 32),
+                  SizedBox(key: const Key('profile_form_spacing'), height: AppSpacing.responsiveXl(context)),
                   _buildSaveButton(),
                 ],
               ),
@@ -774,17 +776,21 @@ class _ProfileScreenState extends State<ProfileScreen>
 
 
   Widget _buildImagePickerModal({bool isBackground = false}) {
+    final margin = AppSpacing.responsiveMd(context);
+    final borderRadius = ResponsiveHelper.borderRadius(context, 20);
+    final padding = AppSpacing.responsiveLg(context);
+
     return Container(
-      margin: const EdgeInsets.all(16),
+      margin: EdgeInsets.all(margin),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(borderRadius),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
-            padding: const EdgeInsets.all(24),
+            padding: EdgeInsets.all(padding),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(borderRadius),
               border: Border.all(
                 color: Colors.white.withValues(alpha: 0.25),
                 width: 1,
@@ -795,11 +801,11 @@ class _ProfileScreenState extends State<ProfileScreen>
               children: [
                 Text(
                   isBackground ? 'Choose Background Image' : 'Choose Profile Photo',
-                  style: AppTextStyles.h3.copyWith(
+                  style: AppTextStyles.responsiveH3(context).copyWith(
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 24),
+                SizedBox(height: AppSpacing.responsiveLg(context)),
                 Row(
                   children: [
                     Expanded(
@@ -812,7 +818,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                         },
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    SizedBox(width: AppSpacing.responsiveMd(context)),
                     Expanded(
                       child: _buildImagePickerOption(
                         icon: CupertinoIcons.photo,
@@ -885,16 +891,21 @@ class _ProfileScreenState extends State<ProfileScreen>
     required String title,
     required VoidCallback onTap,
   }) {
+    final borderRadius = ResponsiveHelper.borderRadius(context, 16);
+    final padding = AppSpacing.responsiveMd(context);
+    final iconSize = ComponentSizes.responsiveIconLg(context);
+    final spacing = AppSpacing.responsiveSm(context);
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(borderRadius),
         child: Container(
-          padding: const EdgeInsets.all(20),
+          padding: EdgeInsets.all(padding),
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(borderRadius),
             border: Border.all(
               color: Colors.white.withValues(alpha: 0.25),
               width: 1,
@@ -905,12 +916,12 @@ class _ProfileScreenState extends State<ProfileScreen>
               Icon(
                 icon,
                 color: AppColors.primaryAction,
-                size: 32,
+                size: iconSize,
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: spacing),
               Text(
                 title,
-                style: AppTextStyles.body.copyWith(
+                style: AppTextStyles.responsiveBody(context).copyWith(
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -966,15 +977,15 @@ class _ProfileScreenState extends State<ProfileScreen>
     return GestureDetector(
       onTap: () => _switchToProfileType(profileType),
       child: SizedBox(
-        height: 120,
+        height: ResponsiveHelper.responsiveHeight(context, percent: 0.15, min: 100, max: 140),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(ResponsiveHelper.borderRadius(context, 16)),
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
             child: Container(
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(ResponsiveHelper.borderRadius(context, 16)),
                 border: Border.all(
                   color: isSelected
                       ? typeColor
@@ -992,7 +1003,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                     : null,
               ),
               child: Padding(
-                padding: const EdgeInsets.all(12),
+                padding: EdgeInsets.all(AppSpacing.responsiveSm(context)),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -1001,14 +1012,13 @@ class _ProfileScreenState extends State<ProfileScreen>
                       color: isSelected
                           ? typeColor
                           : AppColors.textSecondary,
-                      size: 32,
+                      size: ComponentSizes.responsiveIconLg(context),
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: AppSpacing.responsiveXs(context)),
                     Text(
                       profileType.label,
-                      style: AppTextStyles.caption.copyWith(
+                      style: AppTextStyles.responsiveCaption(context).copyWith(
                         fontWeight: FontWeight.w600,
-                        fontSize: 11,
                         color: isSelected
                             ? typeColor
                             : AppColors.textPrimary,
@@ -1017,11 +1027,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: AppSpacing.responsiveXs(context) / 2),
                     Text(
                       profile?.name.isNotEmpty == true ? profile!.name : profileType.label,
-                      style: AppTextStyles.caption.copyWith(
-                        fontSize: 10,
+                      style: AppTextStyles.responsiveCaption(context).copyWith(
+                        fontSize: ResponsiveHelper.fontSize(context, 10),
                         color: AppColors.textTertiary,
                       ),
                       textAlign: TextAlign.center,
@@ -1216,7 +1226,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             const Spacer(),
             Text(
               '${_blurLevel.toStringAsFixed(1)}px',
-              style: AppTextStyles.body.copyWith(
+              style: AppTextStyles.responsiveBody(context).copyWith(
                 color: AppColors.textSecondary,
                 fontWeight: FontWeight.w500,
               ),
@@ -1328,8 +1338,8 @@ class _ProfileScreenState extends State<ProfileScreen>
         key: TutorialKeys.profilePreviewCardKey,
         profile: previewProfile,
         width: double.infinity,
-        height: 200,
-        borderRadius: 20,
+        height: ResponsiveHelper.responsiveHeight(context, percent: 0.25, min: 180, max: 240),
+        borderRadius: ResponsiveHelper.borderRadius(context, 20),
         onProfileImageTap: () => _showImagePicker(isBackground: false),
         onEmailTap: previewProfile.email != null && previewProfile.email!.isNotEmpty
             ? () => _launchEmail(previewProfile.email!)
@@ -1359,18 +1369,18 @@ class _ProfileScreenState extends State<ProfileScreen>
           scale: _saveScale.value,
           child: SizedBox(
             width: double.infinity,
-            height: 56,
+            height: ResponsiveHelper.responsiveHeight(context, percent: 0.07, min: 50, max: 64),
             child: Material(
               color: Colors.transparent,
               child: InkWell(
                 onTap: _isSaving ? null : _saveProfile,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(ResponsiveHelper.borderRadius(context, 16)),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
                   curve: Curves.easeInOut,
                   decoration: BoxDecoration(
                     gradient: buttonGradient,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(ResponsiveHelper.borderRadius(context, 16)),
                     boxShadow: [
                       BoxShadow(
                         color: (_hasUnsavedChanges
@@ -1401,15 +1411,15 @@ class _ProfileScreenState extends State<ProfileScreen>
                             children: [
                               Text(
                                 'Save Profile',
-                                style: AppTextStyles.buttonLarge.copyWith(
+                                style: AppTextStyles.responsiveButtonLarge(context).copyWith(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
-                              const SizedBox(width: 10),
-                              const Icon(
+                              SizedBox(width: ResponsiveHelper.spacing(context, 10)),
+                              Icon(
                                 CupertinoIcons.floppy_disk,
-                                size: 20,
+                                size: ComponentSizes.responsiveIconSm(context),
                                 color: Colors.white,
                               ),
                             ],
