@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:developer' as developer;
 import '../../services/tutorial_service.dart';
+import '../../utils/responsive_helper.dart';
 import 'tutorial_steps.dart';
 import 'tutorial_spotlight.dart';
 import 'tutorial_tooltip.dart';
@@ -37,6 +38,7 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
   int _currentStepIndex = 0;
   List<TutorialStep> _steps = [];
   OverlayEntry? _indicatorOverlayEntry; // For rendering pulsing indicator above everything
+  OverlayEntry? _tutorialOverlayEntry; // For rendering tutorial UI in root overlay
 
   @override
   void initState() {
@@ -58,11 +60,13 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
       _currentStepIndex = savedStep;
     });
     _showIndicatorOverlay(); // Show pulsing indicator in root overlay
+    _showTutorialInRootOverlay(); // Show tutorial UI in root overlay
   }
 
   void _closeTutorial() async {
     developer.log('❌ Closing tutorial', name: 'TutorialOverlay');
     _removeIndicatorOverlay(); // Remove pulsing indicator overlay
+    _removeTutorialOverlay(); // Remove tutorial UI overlay
     setState(() {
       _showingTutorial = false;
     });
@@ -72,6 +76,7 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
   @override
   void dispose() {
     _removeIndicatorOverlay();
+    _removeTutorialOverlay();
     super.dispose();
   }
 
@@ -117,6 +122,33 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
     _indicatorOverlayEntry = null;
   }
 
+  /// Show tutorial UI in root overlay (above everything including nav bar)
+  void _showTutorialInRootOverlay() {
+    _removeTutorialOverlay(); // Remove any existing
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      _tutorialOverlayEntry = OverlayEntry(
+        builder: (context) => Material(
+          type: MaterialType.transparency,
+          child: TutorialSpotlight(
+            child: _buildTooltipPositioned(_steps[_currentStepIndex]),
+          ),
+        ),
+      );
+
+      // Insert into ROOT overlay (above everything including nav bar)
+      Overlay.of(context, rootOverlay: true).insert(_tutorialOverlayEntry!);
+    });
+  }
+
+  /// Remove tutorial UI from root overlay
+  void _removeTutorialOverlay() {
+    _tutorialOverlayEntry?.remove();
+    _tutorialOverlayEntry = null;
+  }
+
   void _nextStep() async {
     if (_currentStepIndex < _steps.length - 1) {
       setState(() {
@@ -125,6 +157,7 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
       await TutorialService.saveCurrentStep(_currentStepIndex);
       developer.log('➡️  Step $_currentStepIndex', name: 'TutorialOverlay');
       _showIndicatorOverlay(); // Update indicator position for new step
+      _showTutorialInRootOverlay(); // Update tutorial UI for new step
     } else {
       _completeTutorial();
     }
@@ -138,23 +171,8 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        widget.child,
-        if (_showingTutorial) _buildTutorialOverlay(),
-      ],
-    );
-  }
-
-  Widget _buildTutorialOverlay() {
-    final currentStep = _steps[_currentStepIndex];
-
-    return Material(
-      type: MaterialType.transparency,
-      child: TutorialSpotlight(
-        child: _buildTooltipPositioned(currentStep),
-      ),
-    );
+    // Tutorial UI is now rendered in root overlay, not in this widget tree
+    return widget.child;
   }
 
   Widget _buildTooltipPositioned(TutorialStep step) {
@@ -199,52 +217,47 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
   }
 
   _TooltipPos _getPositioning(String stepId, Offset targetPos, Size targetSize, Size screenSize) {
-    const sidePadding = 20.0;
+    // Responsive side padding (20-28px based on screen)
+    final sidePadding = ResponsiveHelper.spacing(context, 20.0);
 
-    switch (stepId) {
-      case 'nfc_fab':
-        // FAB in center - tooltip ABOVE with reduced spacing (16px to clear FAB)
-        return _TooltipPos(
-          left: sidePadding,
-          right: sidePadding,
-          bottom: screenSize.height - targetPos.dy + 16,
-          arrowPointsUp: false, // Arrow points DOWN to target
-        );
+    // Responsive gap from target (20-32px based on screen)
+    final minGapFromTarget = ResponsiveHelper.spacing(context, 24.0);
 
-      case 'mode_switch':
-        // Text above FAB - position tooltip at TOP of screen to avoid blocking UI
-        return _TooltipPos(
-          left: sidePadding,
-          right: sidePadding,
-          top: 80, // Position at top of screen with safe area padding
-          arrowPointsUp: false, // Arrow points DOWN to target
-        );
+    // Safe area insets
+    final safeAreaTop = MediaQuery.of(context).padding.top + 12; // +12px buffer
+    const navBarHeight = 80.0; // Bottom nav bar height
+    final safeAreaBottom = MediaQuery.of(context).padding.bottom + navBarHeight + 16; // +16px buffer
 
-      case 'share_options':
-        // Button below FAB - tooltip BELOW it
-        return _TooltipPos(
-          left: sidePadding,
-          right: sidePadding,
-          top: targetPos.dy + targetSize.height + 16,
-          arrowPointsUp: true, // Arrow points UP to target
-        );
+    // Calculate target center and screen center
+    final targetCenterY = targetPos.dy + (targetSize.height / 2);
+    final screenCenterY = screenSize.height / 2;
 
-      case 'profile_tab':
-        // Bottom nav - tooltip well ABOVE with proper spacing (80px)
-        return _TooltipPos(
-          left: sidePadding,
-          right: sidePadding,
-          bottom: screenSize.height - targetPos.dy + 80,
-          arrowPointsUp: false, // Arrow points DOWN to target
-        );
+    // Smart positioning: if target in top half → tooltip BELOW, else → tooltip ABOVE
+    final isTargetInTopHalf = targetCenterY < screenCenterY;
 
-      default:
-        return _TooltipPos(
-          left: sidePadding,
-          right: sidePadding,
-          top: targetPos.dy + targetSize.height + 16,
-          arrowPointsUp: true,
-        );
+    if (isTargetInTopHalf) {
+      // Tooltip BELOW target (arrow points UP ▲)
+      // Ensure tooltip has space and doesn't go off bottom
+      final topPos = targetPos.dy + targetSize.height + minGapFromTarget;
+      final maxBottom = screenSize.height - safeAreaBottom;
+
+      return _TooltipPos(
+        left: sidePadding,
+        right: sidePadding,
+        top: topPos.clamp(safeAreaTop, maxBottom - 200), // Min 200px for tooltip height
+        arrowPointsUp: true,
+      );
+    } else {
+      // Tooltip ABOVE target (arrow points DOWN ▼)
+      // Ensure tooltip has space and doesn't go into status bar
+      final bottomPos = screenSize.height - targetPos.dy + minGapFromTarget;
+
+      return _TooltipPos(
+        left: sidePadding,
+        right: sidePadding,
+        bottom: bottomPos.clamp(safeAreaBottom, screenSize.height - safeAreaTop - 200),
+        arrowPointsUp: false,
+      );
     }
   }
 }

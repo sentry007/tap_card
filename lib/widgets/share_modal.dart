@@ -5,10 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart'; // For SynchronousFuture
+import 'package:flutter/rendering.dart'; // For RenderRepaintBoundary
 import 'package:pretty_qr_code/pretty_qr_code.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../theme/theme.dart';
 import '../core/models/profile_models.dart';
@@ -22,6 +22,7 @@ class ShareModal extends StatefulWidget {
   final String? profileImageUrl;
   final VoidCallback? onNFCShare;
   final ProfileData profile;  // Full profile data for generating metadata
+  final GlobalKey? profileCardKey;  // Key for capturing pre-rendered card from home screen
 
   const ShareModal({
     super.key,
@@ -30,6 +31,7 @@ class ShareModal extends StatefulWidget {
     this.profileImageUrl,
     this.onNFCShare,
     required this.profile,
+    this.profileCardKey,
   });
 
   @override
@@ -42,6 +44,7 @@ class ShareModal extends StatefulWidget {
     String? profileImageUrl,
     VoidCallback? onNFCShare,
     required ProfileData profile,
+    GlobalKey? profileCardKey,
   }) {
     showModalBottomSheet(
       context: context,
@@ -55,6 +58,7 @@ class ShareModal extends StatefulWidget {
         profileImageUrl: profileImageUrl,
         onNFCShare: onNFCShare,
         profile: profile,
+        profileCardKey: profileCardKey,
       ),
     );
   }
@@ -65,6 +69,9 @@ class _ShareModalState extends State<ShareModal>
   // Animation controller (slide-in only)
   late AnimationController _slideController;
   late Animation<double> _slideAnimation;
+
+  // QR code capture key for export
+  final GlobalKey _qrKey = GlobalKey();
 
   // Generated share data
   String _shareUrl = '';
@@ -78,14 +85,19 @@ class _ShareModalState extends State<ShareModal>
   bool _showLogo = true; // Show logo in QR by default
   QrLogoType _logoType = QrLogoType.atlasLogo; // Default to Atlas logo
   String _initials = ''; // User initials for QR
+  int _payloadType = 0; // 0=vCard, 1=URL
 
   @override
   void initState() {
     super.initState();
     _initAnimation();
-    _loadQrSettings();
-    _generateShareData();
+    _initializeData();
     _startAnimation();
+  }
+
+  Future<void> _initializeData() async {
+    await _loadQrSettings();
+    _generateShareData();
   }
 
   Future<void> _loadQrSettings() async {
@@ -96,6 +108,7 @@ class _ShareModalState extends State<ShareModal>
     final borderColorValue = await QrSettingsService.getBorderColor();
     final showLogo = await QrSettingsService.getIncludeLogo();
     final logoType = await QrSettingsService.getQrLogoType();
+    final payloadType = await QrSettingsService.getPayloadType();
     // Auto-extract initials from userName
     final initials = QrSettingsService.extractInitials(widget.userName);
 
@@ -108,6 +121,7 @@ class _ShareModalState extends State<ShareModal>
         _showLogo = showLogo;
         _logoType = logoType;
         _initials = initials;
+        _payloadType = payloadType;
       });
     }
   }
@@ -131,20 +145,32 @@ class _ShareModalState extends State<ShareModal>
     // Generate URL from profile
     _shareUrl = widget.profile.dualPayload['url']!;
 
-    // Generate QR code vCard WITH metadata (method: QR, fresh timestamp)
-    final qrContext = ShareContext(
-      method: ShareMethod.qr,
-      timestamp: DateTime.now(),
-    );
-    final qrPayload = widget.profile.getDualPayloadWithContext(qrContext);
-    _qrData = qrPayload['vcard']!;
+    // Generate QR code data based on payload type
+    if (_payloadType == 1) {
+      // URL mode: Use web link directly
+      _qrData = _shareUrl;
+      developer.log(
+        '✅ Share data generated (URL mode)\n'
+        '   • URL: $_shareUrl\n'
+        '   • QR URL: ${_qrData.length} bytes',
+        name: 'ShareModal'
+      );
+    } else {
+      // vCard mode: Generate vCard WITH metadata (method: QR, fresh timestamp)
+      final qrContext = ShareContext(
+        method: ShareMethod.qr,
+        timestamp: DateTime.now(),
+      );
+      final qrPayload = widget.profile.getDualPayloadWithContext(qrContext);
+      _qrData = qrPayload['vcard']!;
 
-    developer.log(
-      '✅ Share data generated with metadata\n'
-      '   • URL: $_shareUrl\n'
-      '   • QR vCard: ${_qrData.length} bytes (with X-TC metadata)',
-      name: 'ShareModal'
-    );
+      developer.log(
+        '✅ Share data generated (vCard mode)\n'
+        '   • URL: $_shareUrl\n'
+        '   • QR vCard: ${_qrData.length} bytes (with X-TC metadata)',
+        name: 'ShareModal'
+      );
+    }
   }
 
   void _startAnimation() {
@@ -349,13 +375,6 @@ class _ShareModalState extends State<ShareModal>
         // TERTIARY: Link Section (compact)
         _buildCompactLinkSection(),
 
-        const SizedBox(height: 16),
-        _buildSectionDivider(),
-        const SizedBox(height: 16),
-
-        // QUATERNARY: Social Share
-        _buildSocialButtons(),
-
         const SizedBox(height: 12),
       ],
     );
@@ -420,7 +439,7 @@ class _ShareModalState extends State<ShareModal>
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Choose AirDrop, Nearby Share & more',
+                      'Share to any app',
                       style: AppTextStyles.caption.copyWith(
                         color: Colors.white.withValues(alpha: 0.85),
                       ),
@@ -451,43 +470,84 @@ class _ShareModalState extends State<ShareModal>
           ),
         ),
         const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.shadowMedium.withValues(alpha: 0.2),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: SizedBox(
-            width: _qrSize.pixels.toDouble(),
-            height: _qrSize.pixels.toDouble(),
-            child: PrettyQrView.data(
-              data: _qrData,
-              errorCorrectLevel: _errorCorrectionLevel,
-              decoration: PrettyQrDecoration(
-                shape: _colorMode == 1
-                    ? PrettyQrSmoothSymbol(
-                        color: _borderColor,
-                      )
-                    : const PrettyQrSmoothSymbol(
-                        color: Colors.black,
-                      ),
-                image: _showLogo ? _buildLogoImage() : null,
+        RepaintBoundary(
+          key: _qrKey,
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.shadowMedium.withValues(alpha: 0.2),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: SizedBox(
+              width: _qrSize.pixels.toDouble(),
+              height: _qrSize.pixels.toDouble(),
+              child: PrettyQrView.data(
+                data: _qrData,
+                errorCorrectLevel: _errorCorrectionLevel,
+                decoration: PrettyQrDecoration(
+                  shape: _colorMode == 1
+                      ? PrettyQrSmoothSymbol(
+                          color: _borderColor,
+                        )
+                      : const PrettyQrSmoothSymbol(
+                          color: Colors.black,
+                        ),
+                  image: _showLogo ? _buildLogoImage() : null,
+                ),
               ),
             ),
           ),
         ),
         const SizedBox(height: 12),
         Text(
-          'Scan to save contact',
+          _payloadType == 1 ? 'Scan to open profile link' : 'Scan to save contact',
           style: AppTextStyles.caption.copyWith(
             color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: _shareQrCode,
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+              decoration: BoxDecoration(
+                color: AppColors.glassBorder.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: AppColors.glassBorder.withValues(alpha: 0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    CupertinoIcons.share,
+                    size: 16,
+                    color: AppColors.textPrimary.withValues(alpha: 0.8),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Share QR',
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ],
@@ -592,142 +652,46 @@ class _ShareModalState extends State<ShareModal>
     );
   }
 
-  // ==================== SOCIAL SHARE BUTTONS ====================
+  // ==================== SHARE CONTACT ====================
 
-  Widget _buildSocialButtons() {
-    return Container(
-      key: const Key('share_modal_social_buttons_container'),
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Column(
-        key: const Key('share_modal_social_buttons_column'),
-        children: [
-          Text(
-            key: const Key('share_modal_social_title'),
-            'Share via',
-            style: AppTextStyles.body.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(key: Key('share_modal_social_title_spacing'), height: 16),
-          Row(
-            key: const Key('share_modal_social_buttons_row'),
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildSocialButton(
-                icon: CupertinoIcons.chat_bubble,
-                label: 'SMS',
-                color: AppColors.success,
-                onTap: _shareViaSMS,
-              ),
-              _buildSocialButton(
-                icon: CupertinoIcons.chat_bubble_2_fill,
-                label: 'WhatsApp',
-                color: const Color(0xFF25D366),
-                onTap: _shareViaWhatsApp,
-              ),
-              _buildSocialButton(
-                icon: CupertinoIcons.mail,
-                label: 'Email',
-                color: AppColors.info,
-                onTap: _shareViaEmail,
-              ),
-              _buildSocialButton(
-                icon: CupertinoIcons.share,
-                label: 'More',
-                color: AppColors.textSecondary,
-                onTap: _shareViaOther,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSocialButton({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      key: Key('share_modal_social_${label.toLowerCase()}_material'),
-      color: Colors.transparent,
-      child: InkWell(
-        key: Key('share_modal_social_${label.toLowerCase()}_inkwell'),
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          key: Key('share_modal_social_${label.toLowerCase()}_container'),
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Icon(
-            key: Key('share_modal_social_${label.toLowerCase()}_icon'),
-            icon,
-            color: color,
-            size: 24,
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ==================== VCARD FILE CREATION ====================
-
-  /// Create vCard file with metadata for AirDrop/Nearby Share
-  /// Generates fresh vCard with metadata (method: link, timestamp)
-  Future<XFile?> _createVCardFile() async {
-    try {
-      // Generate fresh vCard with metadata for Nearby Share
-      final shareContext = ShareContext(
-        method: ShareMethod.web,  // Web-based sharing (URL/nearby)
-        timestamp: DateTime.now(),
-      );
-      final payload = widget.profile.getDualPayloadWithContext(shareContext);
-      final vCard = payload['vcard']!;
-
-      final fileName = '${widget.userName.replaceAll(' ', '_')}.vcf';
-      final tempDir = await getTemporaryDirectory();
-      final filePath = '${tempDir.path}/$fileName';
-
-      final file = File(filePath);
-      await file.writeAsString(vCard);
-
-      developer.log(
-        '✅ vCard file created with metadata: ${vCard.length} bytes → $fileName\n'
-        '   • Method: ${shareContext.method.label}\n'
-        '   • Timestamp: ${shareContext.timestamp}',
-        name: 'ShareModal'
-      );
-
-      return XFile(filePath, mimeType: 'text/x-vcard', name: fileName);
-    } catch (e) {
-      developer.log('❌ Error creating vCard file: $e', name: 'ShareModal');
-      return null;
-    }
-  }
-
-  /// Share contact via AirDrop/Nearby Share (vCard file only)
+  /// Share contact with card image and rich URL message
   Future<void> _shareContactViaNearbyShare() async {
     try {
       HapticFeedback.mediumImpact();
 
-      final vcf = await _createVCardFile();
+      // Capture profile card as image
+      developer.log('🔍 Attempting to capture card image...', name: 'ShareModal');
+      developer.log('   • profileCardKey provided: ${widget.profileCardKey != null}', name: 'ShareModal');
+      if (widget.profileCardKey != null) {
+        final context = widget.profileCardKey?.currentContext;
+        developer.log('   • Key has context: ${context != null}', name: 'ShareModal');
+        if (context != null) {
+          final renderObject = context.findRenderObject();
+          developer.log('   • RenderObject found: ${renderObject != null}', name: 'ShareModal');
+          developer.log('   • RenderObject type: ${renderObject.runtimeType}', name: 'ShareModal');
+        }
+      }
 
-      if (vcf != null) {
-        // Share vCard file WITHOUT text - clean AirDrop/Nearby Share UX
-        await Share.shareXFiles([vcf]);
-        developer.log('✅ Shared vCard via Nearby Share/AirDrop', name: 'ShareModal');
+      final cardImage = await _captureProfileCardAsImage();
+
+      if (cardImage != null) {
+        // Build rich formatted message
+        final message = _buildShareMessage();
+
+        // Share card image + rich message via native share sheet
+        await Share.shareXFiles(
+          [cardImage],
+          subject: '${widget.userName}\'s Contact',
+          text: message,
+        );
+        developer.log('✅ Shared contact with card image + URL', name: 'ShareModal');
         _showSuccessSnackBar('Contact shared successfully');
       } else {
-        _showErrorSnackBar('Failed to create contact file');
+        developer.log('❌ Card image capture returned null', name: 'ShareModal');
+        _showErrorSnackBar('Failed to create contact card');
       }
-    } catch (e) {
-      developer.log('❌ Nearby Share failed: $e', name: 'ShareModal');
+    } catch (e, stackTrace) {
+      developer.log('❌ Contact share failed: $e', name: 'ShareModal', error: e, stackTrace: stackTrace);
       _showErrorSnackBar('Failed to share contact');
     }
   }
@@ -744,82 +708,179 @@ class _ShareModalState extends State<ShareModal>
     }
   }
 
-  Future<void> _shareLink() async {
-    try {
-      HapticFeedback.lightImpact();
+  /// Build rich formatted message based on profile type
+  String _buildShareMessage() {
+    final profile = widget.profile;
+    final buffer = StringBuffer();
 
-      // Share LINK ONLY (no vCard file)
-      // This is for passing around URLs via text/social
-      await Share.share(
-        'Check out ${widget.userName}\'s contact card: $_shareUrl',
-        subject: '${widget.userName}\'s Contact Card',
+    switch (profile.type) {
+      case ProfileType.personal:
+        buffer.writeln('Check out ${profile.name}\'s contact!');
+        buffer.writeln('');
+        buffer.writeln('View profile: $_shareUrl');
+        break;
+
+      case ProfileType.professional:
+        buffer.writeln(profile.name);
+        if (profile.title != null && profile.title!.isNotEmpty) {
+          buffer.write(profile.title);
+          if (profile.company != null && profile.company!.isNotEmpty) {
+            buffer.write(' at ${profile.company}');
+          }
+          buffer.writeln('');
+        }
+
+        final contactParts = <String>[];
+        if (profile.phone != null && profile.phone!.isNotEmpty) {
+          contactParts.add(profile.phone!);
+        }
+        if (profile.email != null && profile.email!.isNotEmpty) {
+          contactParts.add(profile.email!);
+        }
+        if (contactParts.isNotEmpty) {
+          buffer.writeln(contactParts.join(' | '));
+        }
+
+        buffer.writeln('');
+        buffer.writeln('View full profile: $_shareUrl');
+        break;
+
+      case ProfileType.custom:
+        buffer.writeln(profile.name);
+
+        final contactParts = <String>[];
+        if (profile.phone != null && profile.phone!.isNotEmpty) {
+          contactParts.add(profile.phone!);
+        }
+        if (profile.email != null && profile.email!.isNotEmpty) {
+          contactParts.add(profile.email!);
+        }
+        if (contactParts.isNotEmpty) {
+          buffer.writeln(contactParts.join(' | '));
+        }
+
+        buffer.writeln('');
+        buffer.writeln('View profile: $_shareUrl');
+        break;
+    }
+
+    buffer.writeln('');
+    buffer.write('Shared via Atlas Linq');
+
+    return buffer.toString();
+  }
+
+  /// Capture profile card as image for sharing
+  /// Uses the pre-rendered card from home screen (via GlobalKey) for efficiency
+  Future<XFile?> _captureProfileCardAsImage() async {
+    try {
+      // Find the pre-rendered card boundary using the key
+      final boundary = widget.profileCardKey?.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+
+      if (boundary == null) {
+        developer.log('❌ Could not find profile card boundary', name: 'ShareModal');
+        return null;
+      }
+
+      // Capture the already-rendered card as image with high quality
+      final image = await boundary.toImage(pixelRatio: 3.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+
+      if (byteData == null) {
+        developer.log('❌ Could not convert card to bytes', name: 'ShareModal');
+        return null;
+      }
+
+      final pngBytes = byteData.buffer.asUint8List();
+
+      // Save to temp file
+      final fileName = '${widget.userName.replaceAll(' ', '_')}_card.png';
+      final tempDir = await getTemporaryDirectory();
+      final filePath = '${tempDir.path}/$fileName';
+
+      final file = File(filePath);
+      await file.writeAsBytes(pngBytes);
+
+      developer.log(
+        '✅ Profile card captured from pre-rendered boundary: ${pngBytes.length} bytes → $fileName',
+        name: 'ShareModal'
       );
-      developer.log('✅ Shared link only', name: 'ShareModal');
+
+      return XFile(filePath, mimeType: 'image/png', name: fileName);
     } catch (e) {
-      developer.log('❌ Share failed: $e', name: 'ShareModal');
-      _showErrorSnackBar('Failed to share link');
+      developer.log('❌ Card capture failed: $e', name: 'ShareModal');
+      return null;
     }
   }
 
-  Future<void> _shareViaSMS() async {
+  /// Capture QR code as image and return file
+  Future<XFile?> _captureQrCodeAsImage() async {
     try {
-      HapticFeedback.lightImpact();
-      final uri = Uri(
-        scheme: 'sms',
-        queryParameters: {
-          'body': 'Here\'s my contact card: $_shareUrl',
-        },
+      // Find the render object
+      final boundary = _qrKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) {
+        developer.log('❌ Could not find QR code boundary', name: 'ShareModal');
+        return null;
+      }
+
+      // Capture the widget as an image with high quality
+      final image = await boundary.toImage(pixelRatio: 3.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+
+      if (byteData == null) {
+        developer.log('❌ Could not convert QR code to bytes', name: 'ShareModal');
+        return null;
+      }
+
+      final pngBytes = byteData.buffer.asUint8List();
+
+      // Save to temp directory
+      final fileName = '${widget.userName.replaceAll(' ', '_')}_QR.png';
+      final tempDir = await getTemporaryDirectory();
+      final filePath = '${tempDir.path}/$fileName';
+
+      final file = File(filePath);
+      await file.writeAsBytes(pngBytes);
+
+      developer.log(
+        '✅ QR code captured as image: ${pngBytes.length} bytes → $fileName',
+        name: 'ShareModal'
       );
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri);
+
+      return XFile(filePath, mimeType: 'image/png', name: fileName);
+    } catch (e) {
+      developer.log('❌ Error capturing QR code: $e', name: 'ShareModal');
+      return null;
+    }
+  }
+
+  /// Share QR code with rich message
+  Future<void> _shareQrCode() async {
+    try {
+      HapticFeedback.mediumImpact();
+
+      final qrImage = await _captureQrCodeAsImage();
+
+      if (qrImage != null) {
+        // Build rich message based on payload type
+        final message = _payloadType == 1
+            ? 'Scan this QR code to visit ${widget.userName}\'s profile!\n\n$_shareUrl\n\nShared via Atlas Linq'
+            : 'Scan this QR code to save ${widget.userName}\'s contact!\n\nShared via Atlas Linq';
+
+        // Share QR code image with rich message
+        await Share.shareXFiles(
+          [qrImage],
+          subject: '${widget.userName}\'s QR Code',
+          text: message,
+        );
+        developer.log('✅ QR code shared with rich message', name: 'ShareModal');
       } else {
-        throw 'Could not launch SMS';
+        _showErrorSnackBar('Failed to capture QR code');
       }
     } catch (e) {
-      _showErrorSnackBar('SMS not available');
+      developer.log('❌ QR share failed: $e', name: 'ShareModal');
+      _showErrorSnackBar('Failed to share QR code');
     }
-  }
-
-  Future<void> _shareViaWhatsApp() async {
-    try {
-      HapticFeedback.lightImpact();
-      final text = Uri.encodeComponent('Check out my contact card: $_shareUrl');
-      final uri = Uri.parse('whatsapp://send?text=$text');
-
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri);
-      } else {
-        throw 'WhatsApp not installed';
-      }
-    } catch (e) {
-      _showErrorSnackBar('WhatsApp not available');
-    }
-  }
-
-  Future<void> _shareViaEmail() async {
-    try {
-      HapticFeedback.lightImpact();
-      final uri = Uri(
-        scheme: 'mailto',
-        queryParameters: {
-          'subject': '${widget.userName}\'s Contact Card',
-          'body': 'Hi!\n\nI\'d like to share my contact details with you: $_shareUrl\n\nBest regards,\n${widget.userName}',
-        },
-      );
-
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri);
-      } else {
-        throw 'Email not available';
-      }
-    } catch (e) {
-      _showErrorSnackBar('Email not available');
-    }
-  }
-
-  Future<void> _shareViaOther() async {
-    // Share link only (not vCard) - for generic "More" sharing
-    await _shareLink();
   }
 
   void _showSuccessSnackBar(String message) {

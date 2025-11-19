@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
+import '../../utils/responsive_helper.dart';
 import 'tutorial_steps.dart';
 
 /// Compact tooltip with correct arrow direction
@@ -99,104 +100,135 @@ class _TutorialTooltipState extends State<TutorialTooltip>
   }
 
   Widget _buildTooltipBody() {
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 280), // Increased from 200 to 280
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.4),
-            blurRadius: 24,
-            offset: const Offset(0, 10),
-            spreadRadius: 4,
-          ),
-        ],
+    // Responsive max width (260-320px based on screen)
+    final maxWidth = ResponsiveHelper.responsiveWidth(
+      context,
+      percent: 0.85, // 85% of screen width
+      min: 260,
+      max: 320,
+    );
+
+    // Responsive padding (16-20px)
+    final padding = ResponsiveHelper.spacing(context, 18.0);
+
+    // Responsive font sizes
+    final titleSize = ResponsiveHelper.fontSize(context, 18.0);
+    final descSize = ResponsiveHelper.fontSize(context, 14.0);
+    final buttonTextSize = ResponsiveHelper.fontSize(context, 13.0);
+
+    // Responsive spacing
+    final titleDescGap = ResponsiveHelper.spacing(context, 6.0);
+    final descButtonGap = ResponsiveHelper.spacing(context, 14.0);
+
+    // Responsive border radius
+    final borderRadius = ResponsiveHelper.borderRadius(context, 14.0);
+
+    return SafeArea(
+      minimum: EdgeInsets.symmetric(
+        vertical: ResponsiveHelper.spacing(context, 12.0),
+        horizontal: ResponsiveHelper.spacing(context, 20.0),
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.white.withValues(alpha: 0.38), // Stronger
-                  Colors.white.withValues(alpha: 0.28),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.55), // Stronger
-                width: 1.5,
-              ),
+      child: Container(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(borderRadius),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.4),
+              blurRadius: 24,
+              offset: const Offset(0, 10),
+              spreadRadius: 4,
             ),
-            padding: const EdgeInsets.all(18), // Increased from 12 to 18
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Title
-                Text(
-                  widget.step.title,
-                  style: const TextStyle(
-                    fontSize: 19, // Increased from 15 to 19
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    letterSpacing: -0.4,
-                  ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(borderRadius),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white.withValues(alpha: 0.38),
+                    Colors.white.withValues(alpha: 0.28),
+                  ],
                 ),
-                const SizedBox(height: 6), // Increased from 4 to 6
-                // Description
-                Text(
-                  widget.step.description,
-                  style: TextStyle(
-                    fontSize: 15, // Increased from 12 to 15
-                    height: 1.4,
-                    color: Colors.white.withValues(alpha: 0.94),
-                  ),
+                borderRadius: BorderRadius.circular(borderRadius),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.55),
+                  width: 1.5,
                 ),
-                const SizedBox(height: 14), // Increased from 10 to 14
-                // Button
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: GestureDetector(
-                    onTap: widget.onDismiss,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 18, // Increased from 14 to 18
-                        vertical: 12, // Increased from 7 to 12 (44px min touch target)
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [
-                            Color(0xFF00D1FF),
-                            Color(0xFF0099FF),
+              ),
+              padding: EdgeInsets.all(padding),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Title
+                  Text(
+                    widget.step.title,
+                    style: TextStyle(
+                      fontSize: titleSize,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      letterSpacing: -0.4,
+                    ),
+                  ),
+                  SizedBox(height: titleDescGap),
+                  // Description
+                  Text(
+                    widget.step.description,
+                    style: TextStyle(
+                      fontSize: descSize,
+                      height: 1.4,
+                      color: Colors.white.withValues(alpha: 0.94),
+                    ),
+                  ),
+                  SizedBox(height: descButtonGap),
+                  // Button
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: GestureDetector(
+                      onTap: widget.onDismiss,
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: ResponsiveHelper.spacing(context, 18.0),
+                          vertical: ResponsiveHelper.spacing(context, 11.0),
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [
+                              Color(0xFF00D1FF),
+                              Color(0xFF0099FF),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(
+                            ResponsiveHelper.borderRadius(context, 9.0),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF00D1FF).withValues(alpha: 0.55),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
                           ],
                         ),
-                        borderRadius: BorderRadius.circular(9),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF00D1FF).withValues(alpha: 0.55),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
+                        child: Text(
+                          'Got it',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: buttonTextSize,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: -0.2,
                           ),
-                        ],
-                      ),
-                      child: const Text(
-                        'Got it',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 14, // Increased from 12 to 14
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: -0.2,
                         ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
