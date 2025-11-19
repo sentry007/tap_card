@@ -382,7 +382,7 @@ class ProfileService extends ChangeNotifier {
   }
 
   Future<void> _createDefaultProfile() async {
-    // Create exactly 3 profiles - one for each type with realistic mock data
+    // Create exactly 3 profiles - one for each type
     final now = DateTime.now();
 
     // Use Firebase Auth UID as the ONLY profile ID - all profiles share the same user ID
@@ -398,23 +398,28 @@ class ProfileService extends ChangeNotifier {
       throw Exception('User must be authenticated to create profile');
     }
 
+    // Check dev mode setting to determine if we should populate mock data
+    final devModeEnabled = await _isDevModeEnabled();
+
     developer.log(
       '🆔 Using Firebase Auth UID for all profiles: $userUuid\n'
-      '   All 3 profile types will share this same ID',
+      '   All 3 profile types will share this same ID\n'
+      '   Dev mode: ${devModeEnabled ? "ON (with mock data)" : "OFF (blank profiles)"}',
       name: 'ProfileService.CreateDefault',
     );
 
+    // Create profiles based on dev mode setting
     final personalProfile = ProfileData(
       id: userUuid,  // Same UUID for all profiles
       type: ProfileType.personal,
-      name: 'Alex Rivera',
-      phone: '+1 (555) 123-4567',
-      email: 'alex.rivera@gmail.com',
-      socialMedia: {
+      name: devModeEnabled ? 'Alex Rivera' : '',
+      phone: devModeEnabled ? '+1 (555) 123-4567' : '',
+      email: devModeEnabled ? 'alex.rivera@gmail.com' : '',
+      socialMedia: devModeEnabled ? {
         'instagram': '@alexrivera_',
         'snapchat': 'alex.rivera.snaps',
         'tiktok': '@alexrivera'
-      },
+      } : {},
       lastUpdated: now,
       isActive: true,
     );
@@ -422,15 +427,15 @@ class ProfileService extends ChangeNotifier {
     final professionalProfile = ProfileData(
       id: userUuid,  // Same UUID for all profiles
       type: ProfileType.professional,
-      name: 'Alex Rivera',
-      phone: '+1 (555) 987-6543',
-      company: 'TechFlow Solutions',
-      title: 'Senior Product Designer',
-      email: 'alex@techflow.com',
-      website: 'alexrivera.design',
-      socialMedia: {
+      name: devModeEnabled ? 'Alex Rivera' : '',
+      phone: devModeEnabled ? '+1 (555) 987-6543' : '',
+      company: devModeEnabled ? 'TechFlow Solutions' : '',
+      title: devModeEnabled ? 'Senior Product Designer' : '',
+      email: devModeEnabled ? 'alex@techflow.com' : '',
+      website: devModeEnabled ? 'alexrivera.design' : '',
+      socialMedia: devModeEnabled ? {
         'linkedin': '/in/alexrivera-design'
-      },
+      } : {},
       lastUpdated: now,
       isActive: false,
     );
@@ -438,15 +443,15 @@ class ProfileService extends ChangeNotifier {
     final customProfile = ProfileData(
       id: userUuid,  // Same UUID for all profiles
       type: ProfileType.custom,
-      name: 'Alex Rivera',
-      phone: '+1 (555) 456-7890',
-      title: 'Content Creator',
-      email: 'hello@alexcreates.co',
-      website: 'alexcreates.co',
-      socialMedia: {
+      name: devModeEnabled ? 'Alex Rivera' : '',
+      phone: devModeEnabled ? '+1 (555) 456-7890' : '',
+      title: devModeEnabled ? 'Content Creator' : '',
+      email: devModeEnabled ? 'hello@alexcreates.co' : '',
+      website: devModeEnabled ? 'alexcreates.co' : '',
+      socialMedia: devModeEnabled ? {
         'youtube': '@AlexCreates',
         'instagram': '@alex_creates'
-      },
+      } : {},
       lastUpdated: now,
       isActive: false,
     );
@@ -459,6 +464,21 @@ class ProfileService extends ChangeNotifier {
 
     await _saveProfiles();
     await _saveSettings();
+  }
+
+  /// Helper to check if dev mode is enabled
+  Future<bool> _isDevModeEnabled() async {
+    try {
+      // Import SettingsService dynamically to avoid circular dependency
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool('settings_dev_mode') ?? false;
+    } catch (e) {
+      developer.log(
+        '⚠️  Failed to check dev mode setting: $e',
+        name: 'ProfileService.DevMode',
+      );
+      return false; // Default to false if error
+    }
   }
 
   // ========== Profile-Auth Synchronization ==========

@@ -177,17 +177,35 @@ class FormValidators {
   }
 
   /// Validate phone number (optional but must be valid if provided)
+  /// Supports international format with country code (e.g., "+91 9876543210")
   static String? validatePhone(String? value) {
     if (value == null || value.trim().isEmpty) {
       return null; // Optional field
     }
 
-    // Remove common phone formatting characters
-    final cleanPhone = value.replaceAll(RegExp(r'[\s\-\(\)]'), '');
+    final trimmedValue = value.trim();
 
-    // Check if it's a valid phone number (at least 10 digits)
+    // Check if starts with + for international format
+    if (!trimmedValue.startsWith('+')) {
+      return 'Phone must start with + and country code (e.g., +91 9876543210)';
+    }
+
+    // Remove + and common formatting characters (spaces, dashes, parentheses)
+    final cleanPhone = trimmedValue.substring(1).replaceAll(RegExp(r'[\s\-\(\)]'), '');
+
+    // Check if it's all digits after the +
+    if (!RegExp(r'^\d+$').hasMatch(cleanPhone)) {
+      return 'Phone must contain only digits after +';
+    }
+
+    // Check if it has at least 10 digits (country code + phone number)
+    // Most international numbers are 10-15 digits total
     if (cleanPhone.length < 10) {
-      return 'Invalid phone number';
+      return 'Phone number too short (minimum 10 digits)';
+    }
+
+    if (cleanPhone.length > 15) {
+      return 'Phone number too long (maximum 15 digits)';
     }
 
     return null;

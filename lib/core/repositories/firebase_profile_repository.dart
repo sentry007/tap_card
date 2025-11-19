@@ -543,9 +543,22 @@ class FirebaseProfileRepository implements ProfileRepository {
       for (final ext in extensions) {
         try {
           await _storage.ref().child('profile_images/$profileId.$ext').delete();
-          break;
+          developer.log(
+            '✅ Deleted profile image: $profileId.$ext',
+            name: 'FirebaseProfileRepo.DeleteImages',
+          );
+          break; // Found and deleted, stop trying other extensions
+        } on FirebaseException catch (e) {
+          // Gracefully handle file not found (404)
+          if (e.code == 'object-not-found') {
+            // This is fine - file doesn't exist, try next extension
+            continue;
+          }
+          // Re-throw other Firebase errors (permission denied, network issues, etc.)
+          rethrow;
         } catch (_) {
-          // Continue trying other extensions
+          // Continue trying other extensions for non-Firebase errors
+          continue;
         }
       }
 
@@ -556,20 +569,36 @@ class FirebaseProfileRepository implements ProfileRepository {
               .ref()
               .child('background_images/${profileId}_bg.$ext')
               .delete();
-          break;
+          developer.log(
+            '✅ Deleted background image: ${profileId}_bg.$ext',
+            name: 'FirebaseProfileRepo.DeleteImages',
+          );
+          break; // Found and deleted, stop trying other extensions
+        } on FirebaseException catch (e) {
+          // Gracefully handle file not found (404)
+          if (e.code == 'object-not-found') {
+            // This is fine - file doesn't exist, try next extension
+            continue;
+          }
+          // Re-throw other Firebase errors
+          rethrow;
         } catch (_) {
-          // Continue trying other extensions
+          // Continue trying other extensions for non-Firebase errors
+          continue;
         }
       }
 
       developer.log(
-        '✅ Profile images deleted from Storage',
+        'ℹ️  Image deletion complete for profile: $profileId',
         name: 'FirebaseProfileRepo.DeleteImages',
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
+      // Only log actual errors, not missing files (404s are handled above)
       developer.log(
-        '⚠️  Error deleting profile images (may not exist)',
+        '⚠️  Error during image deletion (unexpected error)',
         name: 'FirebaseProfileRepo.DeleteImages',
+        error: e,
+        stackTrace: stackTrace,
       );
     }
   }

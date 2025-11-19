@@ -14,12 +14,15 @@ import '../../widgets/common/profile_card_preview.dart';
 /// - Interactive card preview using ProfileCardPreview
 /// - Tap handlers for email, phone, website, social media
 /// - URL launching for all contact methods
+/// - Optional cardKey for capturing rendered card as image
 class ProfilePreviewWidget extends StatelessWidget {
   final ProfileService profileService;
+  final GlobalKey? cardKey; // Optional key for image capture
 
   const ProfilePreviewWidget({
     super.key,
     required this.profileService,
+    this.cardKey,
   });
 
   @override
@@ -32,23 +35,26 @@ class ProfilePreviewWidget extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: ProfileCardPreview(
-        profile: activeProfile,
-        width: double.infinity,
-        height: 180,
-        borderRadius: 20,
-        showProfileTypeChip: true,
-        onEmailTap: activeProfile.email != null
-            ? () => _launchEmail(activeProfile.email!)
-            : null,
-        onPhoneTap: activeProfile.phone != null
-            ? () => _launchPhone(activeProfile.phone!)
-            : null,
-        onWebsiteTap: activeProfile.website != null
-            ? () => _launchUrl(activeProfile.website!)
-            : null,
-        onSocialTap: (platform, url) => _launchSocialMedia(platform, url),
-        onCustomLinkTap: (title, url) => _launchUrl(url),
+      child: RepaintBoundary(
+        key: cardKey,
+        child: ProfileCardPreview(
+          profile: activeProfile,
+          width: double.infinity,
+          height: 180,
+          borderRadius: 20,
+          showProfileTypeChip: true,
+          onEmailTap: activeProfile.email != null
+              ? () => _launchEmail(activeProfile.email!)
+              : null,
+          onPhoneTap: activeProfile.phone != null
+              ? () => _launchPhone(activeProfile.phone!)
+              : null,
+          onWebsiteTap: activeProfile.website != null
+              ? () => _launchUrl(activeProfile.website!)
+              : null,
+          onSocialTap: (platform, url) => _launchSocialMedia(platform, url),
+          onCustomLinkTap: (title, url) => _launchUrl(url),
+        ),
       ),
     );
   }
