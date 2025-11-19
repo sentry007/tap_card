@@ -34,6 +34,9 @@ class SettingsService {
   static const String _nfcEnabledKey = 'settings_nfc_enabled';
   static const String _autoShareKey = 'settings_auto_share';
 
+  // Developer Settings
+  static const String _devModeKey = 'settings_dev_mode';
+
   static bool _isInitialized = false;
   static SharedPreferences? _prefs;
 
@@ -280,6 +283,30 @@ class SettingsService {
     }
   }
 
+  // ========== Developer Settings ==========
+
+  /// Get dev mode enabled setting (default: false)
+  static Future<bool> getDevModeEnabled() async {
+    await _ensureInitialized();
+    try {
+      return _prefs?.getBool(_devModeKey) ?? false;
+    } catch (e) {
+      developer.log('❌ Error getting dev mode setting: $e', name: 'Settings.Service', error: e);
+      return false;
+    }
+  }
+
+  /// Set dev mode enabled
+  static Future<void> setDevModeEnabled(bool enabled) async {
+    await _ensureInitialized();
+    try {
+      await _prefs?.setBool(_devModeKey, enabled);
+      developer.log('✅ Dev mode ${enabled ? 'enabled' : 'disabled'}', name: 'Settings.Service');
+    } catch (e) {
+      developer.log('❌ Error setting dev mode: $e', name: 'Settings.Service', error: e);
+    }
+  }
+
   // ========== Utility Methods ==========
 
   /// Load all settings at once (for initialization)
@@ -302,6 +329,9 @@ class SettingsService {
       // NFC
       'nfcEnabled': await getNfcEnabled(),
       'autoShare': await getAutoShareEnabled(),
+
+      // Developer
+      'devModeEnabled': await getDevModeEnabled(),
     };
   }
 
@@ -320,6 +350,7 @@ class SettingsService {
       await _prefs?.remove(_vibrationEnabledKey);
       await _prefs?.remove(_nfcEnabledKey);
       await _prefs?.remove(_autoShareKey);
+      await _prefs?.remove(_devModeKey);
 
       developer.log('🔄 Settings reset to defaults', name: 'Settings.Service');
     } catch (e) {

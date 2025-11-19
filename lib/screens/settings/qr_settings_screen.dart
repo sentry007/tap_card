@@ -38,6 +38,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
   QrLogoType _logoType = QrLogoType.atlasLogo; // Which logo type to use
   int _colorMode = 0; // 0 = black/white, 1 = custom border
   Color _borderColor = AppColors.p2pSecondary; // Default deep purple
+  int _payloadType = 0; // 0 = vCard, 1 = URL
 
   // Auto-extracted initials from userName
   String get _initials => QrSettingsService.extractInitials(widget.userName);
@@ -57,6 +58,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
     final logoType = await QrSettingsService.getQrLogoType();
     final colorMode = await QrSettingsService.getColorMode();
     final borderColorValue = await QrSettingsService.getBorderColor();
+    final payloadType = await QrSettingsService.getPayloadType();
 
     if (mounted) {
       setState(() {
@@ -66,6 +68,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
         _logoType = logoType;
         _colorMode = colorMode;
         _borderColor = borderColorValue != null ? Color(borderColorValue) : AppColors.p2pSecondary;
+        _payloadType = payloadType;
       });
     }
   }
@@ -603,7 +606,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                           ),
                           const SizedBox(height: AppSpacing.xs),
                           Text(
-                            'Custom Border',
+                            'Custom Color',
                             textAlign: TextAlign.center,
                             style: AppTextStyles.caption.copyWith(
                               color: _colorMode == 1
@@ -694,6 +697,8 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
             const Divider(color: AppColors.glassBorder, height: 1),
             _buildLogoTypeSelector(),
           ],
+          const Divider(color: AppColors.glassBorder, height: 1),
+          _buildPayloadTypeToggle(),
         ],
       ),
     );
@@ -869,6 +874,172 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
     );
   }
 
+  Widget _buildPayloadTypeToggle() {
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.highlight.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  CupertinoIcons.doc_text,
+                  color: AppColors.highlight,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'QR Code Content',
+                      style: AppTextStyles.body.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Choose what data the QR code contains',
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    setState(() => _payloadType = 0);
+                    QrSettingsService.setPayloadType(0);
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    decoration: BoxDecoration(
+                      color: _payloadType == 0
+                          ? AppColors.primaryAction.withValues(alpha: 0.2)
+                          : AppColors.glassBorder.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                      border: Border.all(
+                        color: _payloadType == 0
+                            ? AppColors.primaryAction
+                            : AppColors.glassBorder,
+                        width: _payloadType == 0 ? 2 : 1,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(
+                          CupertinoIcons.person_crop_square,
+                          color: _payloadType == 0
+                              ? AppColors.primaryAction
+                              : AppColors.textSecondary,
+                          size: 28,
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        Text(
+                          'vCard',
+                          style: AppTextStyles.body.copyWith(
+                            color: _payloadType == 0
+                                ? AppColors.primaryAction
+                                : AppColors.textSecondary,
+                            fontWeight: _payloadType == 0
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Contact File',
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.textSecondary,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    setState(() => _payloadType = 1);
+                    QrSettingsService.setPayloadType(1);
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    decoration: BoxDecoration(
+                      color: _payloadType == 1
+                          ? AppColors.primaryAction.withValues(alpha: 0.2)
+                          : AppColors.glassBorder.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                      border: Border.all(
+                        color: _payloadType == 1
+                            ? AppColors.primaryAction
+                            : AppColors.glassBorder,
+                        width: _payloadType == 1 ? 2 : 1,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(
+                          CupertinoIcons.link,
+                          color: _payloadType == 1
+                              ? AppColors.primaryAction
+                              : AppColors.textSecondary,
+                          size: 28,
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        Text(
+                          'Web Link',
+                          style: AppTextStyles.body.copyWith(
+                            color: _payloadType == 1
+                                ? AppColors.primaryAction
+                                : AppColors.textSecondary,
+                            fontWeight: _payloadType == 1
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'URL',
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.textSecondary,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showColorPickerDialog() {
     Color selectedColor = _borderColor;
 
@@ -910,14 +1081,6 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      'Border Color',
-                      style: AppTextStyles.h3.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(

@@ -65,6 +65,9 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
   NfcMode _defaultNfcMode = NfcMode.tagWrite;
   bool _locationTracking = false;
 
+  // Developer settings
+  bool _devModeEnabled = false;
+
   // Animation controllers
   late AnimationController _slideController;
   late AnimationController _fadeController;
@@ -128,6 +131,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
         _vibrationEnabled = settings['vibrationEnabled'] ?? true;
         _nfcEnabled = settings['nfcEnabled'] ?? true;
         _autoShare = settings['autoShare'] ?? false;
+        _devModeEnabled = settings['devModeEnabled'] ?? false;
       });
     }
   }
@@ -868,6 +872,21 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
       'Advanced',
       CupertinoIcons.settings,
       [
+        SettingsSwitchTile(
+          icon: CupertinoIcons.hammer,
+          title: 'Developer Mode',
+          subtitle: 'Show mock data for testing',
+          value: _devModeEnabled,
+          onChanged: (value) async {
+            if (value) {
+              _showDevModeEnableDialog();
+            } else {
+              setState(() => _devModeEnabled = false);
+              await SettingsService.setDevModeEnabled(false);
+              _showDevModeDisabledSnackBar();
+            }
+          },
+        ),
         SettingsActionTile(
           icon: CupertinoIcons.info_circle,
           title: 'About',
@@ -1635,6 +1654,71 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
     );
   }
 
+  void _showDevModeEnableDialog() {
+    _showGlassDialog(
+      title: 'Enable Developer Mode',
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(CupertinoIcons.hammer, color: AppColors.highlight, size: 48),
+          const SizedBox(height: AppSpacing.md),
+          const Text(
+            'Developer mode will populate the app with mock data for testing purposes.',
+            style: AppTextStyles.body,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            'This is useful for testing but should be turned off for beta users.',
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.textSecondary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
+          child: Text(
+            'Cancel',
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        TextButton(
+          onPressed: () async {
+            // Pop the dialog first
+            Navigator.of(context, rootNavigator: true).pop();
+
+            // Then update state and settings
+            if (mounted) {
+              setState(() => _devModeEnabled = true);
+              await SettingsService.setDevModeEnabled(true);
+              _showDevModeEnabledSnackBar();
+            }
+          },
+          style: TextButton.styleFrom(
+            backgroundColor: AppColors.highlight.withValues(alpha: 0.2),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.sm,
+            ),
+          ),
+          child: Text(
+            'Enable',
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.highlight,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   void _showSignOutDialog() {
     _showGlassDialog(
       title: 'Sign Out',
@@ -1708,6 +1792,22 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
       context,
       message: 'All shares have been revoked',
       icon: CupertinoIcons.hand_raised_fill,
+    );
+  }
+
+  void _showDevModeEnabledSnackBar() {
+    SnackbarHelper.showSuccess(
+      context,
+      message: 'Developer mode enabled',
+      icon: CupertinoIcons.hammer_fill,
+    );
+  }
+
+  void _showDevModeDisabledSnackBar() {
+    SnackbarHelper.showInfo(
+      context,
+      message: 'Developer mode disabled',
+      icon: CupertinoIcons.hammer,
     );
   }
 

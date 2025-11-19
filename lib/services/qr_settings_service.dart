@@ -57,6 +57,7 @@ class QrSettingsService {
   static const String _qrInitialsKey = 'qr_initials';
   static const String _qrShowInitialsKey = 'qr_show_initials';
   static const String _qrLogoTypeKey = 'qr_logo_type';
+  static const String _qrPayloadTypeKey = 'qr_payload_type';
 
   static bool _isInitialized = false;
   static SharedPreferences? _prefs;
@@ -287,6 +288,43 @@ class QrSettingsService {
     }
   }
 
+  /// Get QR payload type (0 = vCard, 1 = URL)
+  /// Returns 0 (vCard) by default for maximum compatibility
+  static Future<int> getPayloadType() async {
+    await _ensureInitialized();
+
+    try {
+      return _prefs?.getInt(_qrPayloadTypeKey) ?? 0;
+    } catch (e) {
+      developer.log(
+        '❌ Error getting payload type: $e',
+        name: 'QR.Settings',
+        error: e
+      );
+      return 0;
+    }
+  }
+
+  /// Set QR payload type
+  static Future<void> setPayloadType(int type) async {
+    await _ensureInitialized();
+
+    try {
+      await _prefs?.setInt(_qrPayloadTypeKey, type);
+      final typeName = type == 0 ? 'vCard' : 'Web Link';
+      developer.log(
+        '✅ Payload type set to: $typeName',
+        name: 'QR.Settings'
+      );
+    } catch (e) {
+      developer.log(
+        '❌ Error setting payload type: $e',
+        name: 'QR.Settings',
+        error: e
+      );
+    }
+  }
+
   /// Ensure service is initialized
   static Future<void> _ensureInitialized() async {
     if (!_isInitialized) {
@@ -445,6 +483,7 @@ class QrSettingsService {
       await _prefs?.remove(_qrInitialsKey);
       await _prefs?.remove(_qrShowInitialsKey);
       await _prefs?.remove(_qrLogoTypeKey);
+      await _prefs?.remove(_qrPayloadTypeKey);
       developer.log('🔄 QR settings reset to defaults', name: 'QR.Settings');
     } catch (e) {
       developer.log(
