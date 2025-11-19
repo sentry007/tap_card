@@ -7,12 +7,57 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:319083477759:android:de3aa1d3c5bc2ba429aaca",
+        "android_client_info": {
+          "package_name": "com.atlaslinq.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "319083477759-irhhk52fljlok4e60nc0v4n7v50bjrni.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.atlaslinq.app",
+            "certificate_hash": "e7514ed6708ece3433d1e0ccf9eaa7f1930ce5f4"
+          }
+        },
+        {
+          "client_id": "319083477759-nvqfrhrennp1hddjks28lb540b5uc125.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD814d7qbqzeAlMTIgMSIzWiWnidBLJt60"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "319083477759-nvqfrhrennp1hddjks28lb540b5uc125.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:319083477759:android:376364b1e3056c3629aaca",
         "android_client_info": {
           "package_name": "com.example.tap_card"
         }
       },
       "oauth_client": [
+        {
+          "client_id": "319083477759-336agdfvd081tm5ivd7s1va9jnp9cu58.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.tap_card",
+            "certificate_hash": "da9d76d516d734228734764ce4899ca35b733653"
+          }
+        },
         {
           "client_id": "319083477759-nvqfrhrennp1hddjks28lb540b5uc125.apps.googleusercontent.com",
           "client_type": 3
