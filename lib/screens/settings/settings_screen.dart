@@ -883,6 +883,10 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             } else {
               setState(() => _devModeEnabled = false);
               await SettingsService.setDevModeEnabled(false);
+
+              // Clear mock data from history
+              await HistoryService.clearMockData();
+
               _showDevModeDisabledSnackBar();
             }
           },
@@ -1697,6 +1701,10 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             if (mounted) {
               setState(() => _devModeEnabled = true);
               await SettingsService.setDevModeEnabled(true);
+
+              // Regenerate mock data for history and analytics
+              await HistoryService.regenerateMockData();
+
               _showDevModeEnabledSnackBar();
             }
           },

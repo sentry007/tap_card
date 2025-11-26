@@ -786,6 +786,61 @@ class HistoryService {
     }
   }
 
+  /// Check if history contains mock data
+  /// Mock entries have simple numeric IDs ('1', '2', '3', etc.)
+  static bool hasMockData() {
+    return _cache.any((entry) {
+      // Mock entries have IDs from '1' to '13'
+      final id = entry.id;
+      return RegExp(r'^\d+$').hasMatch(id) && int.tryParse(id) != null && int.parse(id) <= 13;
+    });
+  }
+
+  /// Clear mock data from history
+  /// Removes entries with simple numeric IDs that match the mock data pattern
+  static Future<void> clearMockData() async {
+    try {
+      final countBefore = _cache.length;
+
+      // Remove mock entries (IDs '1' through '13')
+      _cache.removeWhere((entry) {
+        final id = entry.id;
+        return RegExp(r'^\d+$').hasMatch(id) && int.tryParse(id) != null && int.parse(id) <= 13;
+      });
+
+      final countAfter = _cache.length;
+      final removed = countBefore - countAfter;
+
+      if (removed > 0) {
+        await _saveToStorage();
+        _notifyListeners();
+        developer.log('🧹 Cleared $removed mock data entries', name: 'History.Service');
+      } else {
+        developer.log('ℹ️  No mock data to clear', name: 'History.Service');
+      }
+    } catch (e) {
+      developer.log('❌ Failed to clear mock data: $e', name: 'History.Service', error: e);
+    }
+  }
+
+  /// Regenerate mock data (clears existing mock data first)
+  /// This is called when dev mode is toggled ON
+  static Future<void> regenerateMockData() async {
+    try {
+      developer.log('🔄 Regenerating mock data...', name: 'History.Service');
+
+      // First clear any existing mock data
+      await clearMockData();
+
+      // Generate new mock data
+      await _generateMockData();
+
+      developer.log('✅ Mock data regenerated successfully', name: 'History.Service');
+    } catch (e) {
+      developer.log('❌ Failed to regenerate mock data: $e', name: 'History.Service', error: e);
+    }
+  }
+
   /// Save history to persistent storage
   static Future<void> _saveToStorage() async {
     try {
