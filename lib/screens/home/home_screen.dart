@@ -37,7 +37,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, WidgetsBindingObserver {
   late AnimationController _fabController;
   late AnimationController _pulseController;
   late AnimationController _contactsController;
@@ -60,6 +60,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   bool _nfcAvailable = false;
   bool _nfcDeviceDetected = false;
+  bool _hasShownNfcSetupDialog = false; // Prevent duplicate modal displays
 
   // NFC FAB state
   NfcFabState _nfcFabState = NfcFabState.inactive;
@@ -82,10 +83,22 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this); // Add lifecycle observer
     _initServices();
     _initAnimations();
     _loadContacts();
     _preCacheNfcPayload(); // Pre-cache for instant NFC sharing
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    // When app resumes (user returns from settings), refresh NFC status
+    if (state == AppLifecycleState.resumed) {
+      developer.log('🔄 App resumed, refreshing NFC status...', name: 'Home.Lifecycle');
+      _refreshNfcStatus();
+    }
   }
 
   @override
@@ -133,16 +146,77 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Future<void> _initializeNFC() async {
     _nfcAvailable = await NFCService.initialize();
+
+    // Show NFC setup dialog if NFC is disabled
     if (!_nfcAvailable) {
-      NfcHelpers.showNfcSetupDialog(context, () {
-        setState(() => _nfcAvailable = true);
-      });
+      _showNfcSetupDialogOnce();
     }
 
     // Initialize NFC discovery for FAB animations
     if (_nfcAvailable) {
       await NFCDiscoveryService.initialize();
       _startNfcDiscovery();
+    }
+  }
+
+  /// Show NFC setup dialog once per session
+  ///
+  /// Centralized method to prevent duplicate modals.
+  /// Uses `_hasShownNfcSetupDialog` flag to ensure modal only appears once.
+  void _showNfcSetupDialogOnce() {
+    if (!_hasShownNfcSetupDialog && mounted) {
+      _hasShownNfcSetupDialog = true;
+      developer.log('📱 Showing NFC setup dialog', name: 'Home.NFC');
+
+      NfcHelpers.showNfcSetupDialog(context, () {
+        setState(() {
+          _nfcAvailable = true;
+          _hasShownNfcSetupDialog = false; // Reset flag when NFC is enabled
+        });
+      });
+    } else {
+      developer.log('ℹ️ NFC setup dialog already shown, skipping', name: 'Home.NFC');
+    }
+  }
+
+  /// Refresh NFC availability status
+  ///
+  /// Called when app resumes or user pulls to refresh.
+  /// Updates FAB state if NFC status changed.
+  Future<void> _refreshNfcStatus() async {
+    try {
+      final wasAvailable = _nfcAvailable;
+      final nfcAvailable = await NFCService.initialize();
+
+      developer.log(
+        '🔍 NFC status check: was=$wasAvailable, now=$nfcAvailable',
+        name: 'Home.Lifecycle'
+      );
+
+      if (mounted && wasAvailable != nfcAvailable) {
+        setState(() {
+          _nfcAvailable = nfcAvailable;
+
+          // Reset modal flag if NFC was enabled
+          if (nfcAvailable) {
+            _hasShownNfcSetupDialog = false;
+          }
+        });
+
+        // Initialize or dispose NFC discovery based on new state
+        if (nfcAvailable && !wasAvailable) {
+          developer.log('✅ NFC enabled! Starting discovery...', name: 'Home.Lifecycle');
+          await NFCDiscoveryService.initialize();
+          _startNfcDiscovery();
+        } else if (!nfcAvailable && wasAvailable) {
+          developer.log('❌ NFC disabled! Stopping discovery and showing setup dialog...', name: 'Home.Lifecycle');
+          NFCDiscoveryService.dispose();
+          // Show modal when NFC gets disabled
+          _showNfcSetupDialogOnce();
+        }
+      }
+    } catch (e) {
+      developer.log('⚠️ Error refreshing NFC status: $e', name: 'Home.Lifecycle', error: e);
     }
   }
 
@@ -279,7 +353,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Future<void> _onRefresh() async {
     HapticFeedback.lightImpact();
-    await _loadContacts();
+
+    // Refresh both contacts and NFC status
+    await Future.wait([
+      _loadContacts(),
+      _refreshNfcStatus(),
+    ]);
   }
 
   /// Sync device contacts to find TapCard URLs
@@ -650,9 +729,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (!_nfcAvailable) {
       developer.log('❌ NFC not available, showing setup dialog',
           name: 'Home.NFC');
-      NfcHelpers.showNfcSetupDialog(context, () {
-        setState(() => _nfcAvailable = true);
-      });
+      _showNfcSetupDialogOnce(); // Use centralized method
       return;
     }
 
@@ -1232,6 +1309,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    // Remove lifecycle observer
+    WidgetsBinding.instance.removeObserver(this);
+
     // Cancel state reset timer
     _stateResetTimer?.cancel();
 

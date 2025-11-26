@@ -214,11 +214,10 @@ class NfcHelpers {
   }
 
   static Future<void> _tryOpenNfcSettings() async {
-    // Open app settings or NFC-specific settings
-    // Note: On Android, AppSettings.openAppSettings() opens the app settings page
-    // Users can then navigate to NFC settings from there
+    // Open device NFC settings directly
+    // Note: On Android, this opens the NFC settings page
     // iOS doesn't support NFC settings programmatically
-    await AppSettings.openAppSettings();
+    await AppSettings.openAppSettings(type: AppSettingsType.nfc);
   }
 
   /// Check NFC status again after user attempts to enable it
