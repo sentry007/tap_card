@@ -5,6 +5,7 @@
 library;
 
 import 'dart:developer' as developer;
+import 'package:flutter/foundation.dart' show kDebugMode, kReleaseMode;
 
 /// Log levels for filtering output
 enum LogLevel {
@@ -16,11 +17,36 @@ enum LogLevel {
 
 /// Centralized logger for consistent logging throughout the app
 class Logger {
-  /// Enable/disable logging (set to false in production)
+  /// Enable/disable logging (automatically configured based on build mode)
   static bool enabled = true;
 
-  /// Minimum log level to display
-  static LogLevel minimumLevel = LogLevel.debug;
+  /// Minimum log level to display (automatically configured based on build mode)
+  /// Debug mode: Shows all logs (debug+)
+  /// Release mode: Shows only warnings and errors
+  static LogLevel minimumLevel = kDebugMode ? LogLevel.debug : LogLevel.warning;
+
+  /// Static initializer to configure logger based on build mode
+  /// This is called automatically when the class is first accessed
+  static bool _isInitialized = false;
+
+  static void _ensureInitialized() {
+    if (_isInitialized) return;
+    _isInitialized = true;
+
+    if (kDebugMode) {
+      // Development: Show everything
+      enabled = true;
+      minimumLevel = LogLevel.debug;
+    } else if (kReleaseMode) {
+      // Production: Only show warnings and errors
+      enabled = true;
+      minimumLevel = LogLevel.warning;
+    } else {
+      // Profile mode: Show info and above
+      enabled = true;
+      minimumLevel = LogLevel.info;
+    }
+  }
 
   /// Log a debug message
   ///
@@ -122,6 +148,8 @@ class Logger {
     Object? error,
     StackTrace? stackTrace,
   }) {
+    _ensureInitialized(); // Auto-configure on first use
+
     if (!enabled) return;
     if (level.index < minimumLevel.index) return;
 
