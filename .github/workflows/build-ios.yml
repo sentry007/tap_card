@@ -18,7 +18,7 @@ env:
 
 jobs:
   build-ios:
-    runs-on: macos-14  # M1 runner - faster and more cost-effective
+    runs-on: macos-15  # Xcode 16 with Swift 6 support required for Firebase SDK 11.x
     timeout-minutes: 45
 
     steps:
