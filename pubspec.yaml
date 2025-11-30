@@ -31,7 +31,7 @@ dependencies:
   # QR Code Generation and Scanning
   pretty_qr_code: ^3.5.0
   qr: ^3.0.1  # QR error correction levels (dependency of pretty_qr_code)
-  mobile_scanner: ^3.5.7
+  mobile_scanner: ^5.2.0
 
   # State Management
   provider: ^6.1.1
