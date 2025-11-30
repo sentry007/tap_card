@@ -121,10 +121,10 @@ class _GlassBottomNavState extends State<GlassBottomNav>
           child: Container(
             height: navHeight,
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.3),
+              color: AppColors.glassBackground,
               borderRadius: BorderRadius.circular(borderRadius),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.2),
+                color: AppColors.glassBorder,
                 width: 1,
               ),
               boxShadow: [
