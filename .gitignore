@@ -66,3 +66,11 @@ app.*.map.json
 lib/generated_plugin_registrant.dart
 # Editors
 .vscode/
+
+# iOS sensitive files (Firebase config should be injected via CI/CD)
+ios/Runner/GoogleService-Info.plist
+
+# Android keystore (should already be in .gitignore)
+*.jks
+*.keystore
+android/key.properties

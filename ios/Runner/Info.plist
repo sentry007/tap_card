@@ -68,5 +68,21 @@
 	<!-- Contacts permission for reading and writing TapCard contacts -->
 	<key>NSContactsUsageDescription</key>
 	<string>Atlas Linq needs access to your contacts to save and manage digital business cards you receive.</string>
+
+	<!-- NFC permission for reading NFC tags -->
+	<key>NFCReaderUsageDescription</key>
+	<string>Atlas Linq uses NFC to receive digital business cards from NFC tags.</string>
+
+	<!-- Camera permission for QR code scanning -->
+	<key>NSCameraUsageDescription</key>
+	<string>Atlas Linq needs camera access to scan QR codes for receiving digital business cards.</string>
+
+	<!-- Photo Library permission for profile photos -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Atlas Linq needs photo library access to set your profile picture.</string>
+
+	<!-- Location permission for connection tracking -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Atlas Linq uses your location to remember where you made connections.</string>
 </dict>
 </plist>

@@ -29,6 +29,7 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
+import 'dart:io' show Platform;
 import 'package:flutter/services.dart';
 import 'package:nfc_manager/nfc_manager.dart';
 
@@ -80,13 +81,21 @@ class NFCService {
       // Set up method call handler for callbacks from native
       _channel.setMethodCallHandler(_handleNativeCallback);
 
-      // Check HCE support (always available since we have custom service)
+      // Check HCE support - only available on Android (iOS doesn't support card emulation)
       try {
-        _isHceSupported = true; // Custom NfcTagEmulatorService is always available
-        developer.log(
-          '✅ NFC HCE (card emulation) supported with custom Type 4 Tag service',
-          name: 'NFC.Initialize'
-        );
+        if (Platform.isIOS) {
+          _isHceSupported = false;
+          developer.log(
+            'ℹ️ NFC HCE (card emulation) not supported on iOS - using AirDrop/QR for sharing',
+            name: 'NFC.Initialize'
+          );
+        } else {
+          _isHceSupported = true; // Custom NfcTagEmulatorService is available on Android
+          developer.log(
+            '✅ NFC HCE (card emulation) supported with custom Type 4 Tag service',
+            name: 'NFC.Initialize'
+          );
+        }
       } catch (e) {
         developer.log(
           '⚠️ Failed to check HCE support: $e',
@@ -561,11 +570,17 @@ class NFCService {
     }
   }
 
-  /// Check if HCE is supported on this device
+  /// Check if HCE is supported on this device (Android only)
   static bool get isHceSupported => _isHceSupported;
 
   /// Check if card emulation is currently active
   static bool get isHceActive => _isHceActive;
+
+  /// Check if NFC tag writing is supported (Android only - iOS CoreNFC is read-only)
+  static bool get isTagWriteSupported => _isAvailable && Platform.isAndroid;
+
+  /// Check if running on iOS (for UI adaptations)
+  static bool get isIOS => Platform.isIOS;
 
   // ============================================================================
   // NFC Mode Management

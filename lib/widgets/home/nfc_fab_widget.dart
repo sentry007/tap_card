@@ -496,11 +496,15 @@ class NfcFabStatusText extends StatelessWidget {
     String text;
     Color textColor;
 
-    if (!nfcAvailable) {
+    // iOS-specific messaging (NFC tag write and P2P not supported)
+    if (NFCService.isIOS) {
+      text = 'Tap to Share via AirDrop';
+      textColor = AppColors.primaryAction;
+    } else if (!nfcAvailable) {
       text = 'NFC not available';
       textColor = AppColors.textSecondary;
     } else {
-      // Mode-specific text
+      // Mode-specific text (Android)
       final isTagWrite = mode == NfcMode.tagWrite;
 
       switch (state) {

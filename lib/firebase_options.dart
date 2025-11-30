@@ -23,10 +23,7 @@ class DefaultFirebaseOptions {
       case TargetPlatform.android:
         return android;
       case TargetPlatform.iOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for ios - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return ios;
       case TargetPlatform.macOS:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for macos - '
@@ -64,5 +61,16 @@ class DefaultFirebaseOptions {
     messagingSenderId: '319083477759',
     projectId: 'tap-card-app-75c37',
     storageBucket: 'tap-card-app-75c37.firebasestorage.app',
+  );
+
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyBcG9cQcFP9DCTYlnnzpd0qq5HcjlzaUBs',
+    appId: '1:319083477759:ios:5a1d80784860322c29aaca',
+    messagingSenderId: '319083477759',
+    projectId: 'tap-card-app-75c37',
+    storageBucket: 'tap-card-app-75c37.firebasestorage.app',
+    iosBundleId: 'com.atlaslinq.app',
+    iosClientId: '319083477759-66gtmk9jtroltg4jobaqi666jn1ii2cv.apps.googleusercontent.com',
+    androidClientId: '319083477759-336agdfvd081tm5ivd7s1va9jnp9cu58.apps.googleusercontent.com',
   );
 }

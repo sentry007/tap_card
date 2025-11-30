@@ -527,7 +527,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
         name: 'Home.NFC');
     HapticFeedback.mediumImpact();
 
-    // Route based on current NFC mode
+    // On iOS, NFC tag writing and P2P modes are not supported
+    // Open share modal directly for AirDrop/QR/Link sharing
+    if (NFCService.isIOS) {
+      developer.log('📱 iOS detected - opening share modal (NFC write not supported)',
+          name: 'Home.NFC');
+      _showShareModal();
+      return;
+    }
+
+    // Route based on current NFC mode (Android only)
     if (_nfcMode == NfcMode.tagWrite) {
       // TAG WRITE MODE
       if (_nfcFabState == NfcFabState.inactive) {
@@ -1575,6 +1584,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
             _onNfcTap();
           },
           onLongPress: () {
+            // On iOS, don't show mode picker (NFC modes not supported)
+            if (NFCService.isIOS) {
+              developer.log('FAB long-pressed on iOS - opening share modal',
+                  name: 'Home.NFC');
+              HapticFeedback.mediumImpact();
+              _showShareModal();
+              return;
+            }
             developer.log('FAB long-pressed, showing mode picker',
                 name: 'Home.NFC');
             HapticFeedback.mediumImpact();

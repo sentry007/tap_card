@@ -1,0 +1,98 @@
+name: Build iOS IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_mode:
+        description: 'Build mode'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+          - release
+          - profile
+          - debug
+
+env:
+  FLUTTER_VERSION: '3.24.0'
+
+jobs:
+  build-ios:
+    runs-on: macos-14  # M1 runner - faster and more cost-effective
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - name: Flutter version info
+        run: flutter --version
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Create .env file
+        run: |
+          cat << 'EOF' > .env
+          ${{ secrets.ENV_FILE_CONTENTS }}
+          EOF
+
+      - name: Create GoogleService-Info.plist
+        run: |
+          echo '${{ secrets.GOOGLE_SERVICE_INFO_PLIST_BASE64 }}' | base64 --decode > ios/Runner/GoogleService-Info.plist
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: ios/Pods
+          key: ${{ runner.os }}-pods-${{ hashFiles('ios/Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pods-
+
+      - name: Install CocoaPods dependencies
+        run: |
+          cd ios
+          pod install --repo-update
+
+      - name: Build iOS (unsigned)
+        run: |
+          flutter build ios --${{ inputs.build_mode }} --no-codesign
+
+      - name: Create unsigned IPA
+        run: |
+          mkdir -p build/ios/ipa
+          cd build/ios/iphoneos
+          mkdir -p Payload
+          cp -r Runner.app Payload/
+          zip -r ../ipa/AtlasLinq-${{ inputs.build_mode }}-unsigned.ipa Payload
+          echo "IPA created successfully!"
+          ls -la ../ipa/
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-linq-ios-${{ inputs.build_mode }}-${{ github.run_number }}
+          path: build/ios/ipa/*.ipa
+          retention-days: 30
+
+      - name: Build Summary
+        run: |
+          echo "## iOS Build Complete! :white_check_mark:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Build Mode:** ${{ inputs.build_mode }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Flutter Version:** ${{ env.FLUTTER_VERSION }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Download" >> $GITHUB_STEP_SUMMARY
+          echo "The IPA file is available in the **Artifacts** section above." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Sideloading Instructions" >> $GITHUB_STEP_SUMMARY
+          echo "1. Download the IPA artifact" >> $GITHUB_STEP_SUMMARY
+          echo "2. Use **Sideloadly** or **AltStore** to install on your iPhone" >> $GITHUB_STEP_SUMMARY
+          echo "3. Trust the developer certificate in Settings > General > Device Management" >> $GITHUB_STEP_SUMMARY
