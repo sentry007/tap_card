@@ -11,13 +11,13 @@ import '../../widgets/settings/settings_tiles.dart';
 import '../../core/providers/app_state.dart';
 import '../../core/services/profile_service.dart';
 import '../../core/services/auth_service.dart';
+import '../../core/models/profile_models.dart';
 import '../../core/constants/app_constants.dart';
 import '../../services/nfc_service.dart';
 import '../../services/nfc_settings_service.dart';
 import '../../services/history_service.dart';
 import '../../services/settings_service.dart';
 import '../../services/tutorial_service.dart';
-import '../../widgets/tutorial/tutorial.dart';
 import '../../utils/snackbar_helper.dart';
 import '../../utils/logger.dart';
 import 'profile_detail_modal.dart';
@@ -47,14 +47,6 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
   // Privacy controls
   bool _analyticsEnabled = true;
   bool _crashReporting = true;
-  int _shareExpiry = 30; // days
-
-  // Notification preferences
-  bool _pushNotifications = true;
-  bool _shareNotifications = true;
-  bool _receiveNotifications = true;
-  bool _soundEnabled = true;
-  bool _vibrationEnabled = true;
 
   // UI settings
   final double _glassIntensity = 0.15; // Keep for GlassCard opacity
@@ -64,6 +56,10 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
   bool _autoShare = false;
   NfcMode _defaultNfcMode = NfcMode.tagWrite;
   bool _locationTracking = false;
+  ProfileType _defaultShareProfile = ProfileType.personal;
+
+  // History settings
+  int _historyRetentionDays = 365; // Default to 1 year
 
   // Developer settings
   bool _devModeEnabled = false;
@@ -120,18 +116,18 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
         _defaultNfcMode = defaultMode;
         _locationTracking = locationEnabled;
 
+        // Update default share profile from active profile
+        if (activeProfile != null) {
+          _defaultShareProfile = activeProfile.type;
+        }
+
         // Update app settings from loaded data
         _analyticsEnabled = settings['analyticsEnabled'] ?? true;
         _crashReporting = settings['crashReporting'] ?? true;
-        _shareExpiry = settings['shareExpiry'] ?? 30;
-        _pushNotifications = settings['pushNotifications'] ?? true;
-        _shareNotifications = settings['shareNotifications'] ?? true;
-        _receiveNotifications = settings['receiveNotifications'] ?? true;
-        _soundEnabled = settings['soundEnabled'] ?? true;
-        _vibrationEnabled = settings['vibrationEnabled'] ?? true;
         _nfcEnabled = settings['nfcEnabled'] ?? true;
         _autoShare = settings['autoShare'] ?? false;
         _devModeEnabled = settings['devModeEnabled'] ?? false;
+        _historyRetentionDays = settings['historyRetentionDays'] ?? 365;
       });
     }
   }
@@ -152,71 +148,53 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
   }
 
   void _showDisableMultipleProfilesDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surfaceDark,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'Disable Multiple Profiles',
-          style: AppTextStyles.h3.copyWith(color: AppColors.warning),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              CupertinoIcons.exclamationmark_triangle,
-              color: AppColors.warning,
-              size: 48,
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'This will keep only your active profile and remove all other profiles permanently.',
-              style: AppTextStyles.body,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'This action cannot be undone.',
-              style: AppTextStyles.body.copyWith(
-                color: AppColors.warning,
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: AppTextStyles.body.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
+    _showGlassDialog(
+      title: 'Disable Multiple Profiles',
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            CupertinoIcons.exclamationmark_triangle,
+            color: AppColors.warning,
+            size: 48,
           ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _profileService.disableMultipleProfiles();
-              _showMultipleProfilesDisabledSnackBar();
-              if (mounted) {
-                setState(() {
-                  _multipleProfiles = _profileService.multipleProfilesEnabled;
-                });
-              }
-            },
-            child: Text(
-              'Disable',
-              style: AppTextStyles.body.copyWith(
-                color: AppColors.warning,
-                fontWeight: FontWeight.w600,
-              ),
+          const SizedBox(height: AppSpacing.md),
+          const Text(
+            'This will keep only your active profile and remove all other profiles permanently.',
+            style: AppTextStyles.body,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            'This action cannot be undone.',
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.warning,
+              fontWeight: FontWeight.w600,
             ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
+      actions: [
+        DialogAction.secondary(
+          text: 'Cancel',
+          onPressed: () => Navigator.pop(context),
+        ),
+        DialogAction.primary(
+          text: 'Disable',
+          isDestructive: true,
+          onPressed: () async {
+            Navigator.pop(context);
+            await _profileService.disableMultipleProfiles();
+            _showMultipleProfilesDisabledSnackBar();
+            if (mounted) {
+              setState(() {
+                _multipleProfiles = _profileService.multipleProfilesEnabled;
+              });
+            }
+          },
+        ),
+      ],
     );
   }
 
@@ -246,40 +224,44 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: AppColors.surfaceGradient,
-        ),
-        child: SafeArea(
-          child: CustomScrollView(
-            slivers: [
-              _buildAppBar(),
-              SliverPadding(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                sliver: SliverList(
-                  delegate: SliverChildListDelegate([
-                    _buildUserProfileHeader(),
-                    const SizedBox(height: AppSpacing.lg),
-                    _buildAccountSettings(),
-                    const SizedBox(height: AppSpacing.lg),
-                    _buildPrivacyControls(),
-                    const SizedBox(height: AppSpacing.lg),
-                    _buildNFCSettings(),
-                    const SizedBox(height: AppSpacing.lg),
-                    _buildNotificationPreferences(),
-                    const SizedBox(height: AppSpacing.lg),
-                    _buildTutorialSection(),
-                    const SizedBox(height: AppSpacing.lg),
-                    _buildAdvancedOptions(),
-                    const SizedBox(height: AppSpacing.bottomNavHeight + AppSpacing.md),
-                  ]),
-                ),
+      body: Stack(
+        children: [
+          // Background gradient (full screen, extends behind nav bar)
+          Positioned.fill(
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: AppColors.surfaceGradient,
               ),
-            ],
+            ),
           ),
-        ),
+          // Content (with SafeArea)
+          SafeArea(
+            child: CustomScrollView(
+              slivers: [
+                _buildAppBar(),
+                SliverPadding(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  sliver: SliverList(
+                    delegate: SliverChildListDelegate([
+                      _buildUserProfileHeader(),
+                      const SizedBox(height: AppSpacing.lg),
+                      _buildAccountSettings(),
+                      const SizedBox(height: AppSpacing.lg),
+                      _buildPrivacyControls(),
+                      const SizedBox(height: AppSpacing.lg),
+                      _buildNFCSettings(),
+                      const SizedBox(height: AppSpacing.lg),
+                      _buildTutorialSection(),
+                      const SizedBox(height: AppSpacing.lg),
+                      _buildAdvancedOptions(),
+                      const SizedBox(height: AppSpacing.bottomNavHeight + AppSpacing.md),
+                    ]),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -348,9 +330,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                       color: Colors.transparent,
                       child: InkWell(
                         borderRadius: BorderRadius.circular(AppRadius.md),
-                        onTap: () {
-                          // TODO: Show help/support
-                        },
+                        onTap: _showHelpDialog,
                         child: const Icon(
                           key: Key('settings_appbar_help_icon'),
                           CupertinoIcons.question_circle,
@@ -603,27 +583,6 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
             await SettingsService.setCrashReportingEnabled(value);
           },
         ),
-        SettingsSliderTile(
-          icon: CupertinoIcons.timer,
-          title: 'Share Expiry',
-          subtitle: 'Auto-revoke shares after $_shareExpiry days',
-          value: _shareExpiry.toDouble(),
-          min: 1,
-          max: 365,
-          divisions: 364,
-          onChanged: (value) async {
-            final days = value.round();
-            setState(() => _shareExpiry = days);
-            await SettingsService.setShareExpiryDays(days);
-          },
-        ),
-        SettingsActionTile(
-          icon: CupertinoIcons.hand_raised,
-          title: 'Revoke All Shares',
-          subtitle: 'Remove access to all shared contacts',
-          onTap: () => _showRevokeAllDialog(),
-          isDestructive: true,
-        ),
         SettingsActionTile(
           icon: CupertinoIcons.lock_fill,
           title: 'Privacy Policy',
@@ -647,78 +606,6 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
       ],
     );
   }
-
-  Widget _buildNotificationPreferences() {
-    return _buildSettingsSection(
-      'Notifications',
-      CupertinoIcons.bell,
-      [
-        SettingsSwitchTile(
-          icon: CupertinoIcons.bell_fill,
-          title: 'Push Notifications',
-          subtitle: 'Receive notifications from the app',
-          value: _pushNotifications,
-          onChanged: (value) async {
-            setState(() => _pushNotifications = value);
-            await SettingsService.setPushNotificationsEnabled(value);
-          },
-        ),
-        SettingsSwitchTile(
-          icon: CupertinoIcons.share,
-          title: 'Share Notifications',
-          subtitle: 'Notify when you share contact info',
-          value: _shareNotifications,
-          onChanged: (value) async {
-            setState(() => _shareNotifications = value);
-            await SettingsService.setShareNotificationsEnabled(value);
-          },
-        ),
-        SettingsSwitchTile(
-          icon: CupertinoIcons.arrow_down_left,
-          title: 'Receive Notifications',
-          subtitle: 'Notify when you receive contact info',
-          value: _receiveNotifications,
-          onChanged: (value) async {
-            setState(() => _receiveNotifications = value);
-            await SettingsService.setReceiveNotificationsEnabled(value);
-          },
-        ),
-        SettingsSwitchTile(
-          icon: CupertinoIcons.speaker_2,
-          title: 'Sound',
-          subtitle: 'Play sound for sharing events',
-          value: _soundEnabled,
-          onChanged: (value) async {
-            setState(() => _soundEnabled = value);
-            await SettingsService.setSoundEnabled(value);
-          },
-        ),
-        SettingsSwitchTile(
-          icon: CupertinoIcons.device_phone_portrait,
-          title: 'Vibration',
-          subtitle: 'Vibrate on successful sharing',
-          value: _vibrationEnabled,
-          onChanged: (value) async {
-            setState(() => _vibrationEnabled = value);
-            await SettingsService.setVibrationEnabled(value);
-          },
-        ),
-        SettingsActionTile(
-          icon: CupertinoIcons.settings,
-          title: 'System Notification Settings',
-          subtitle: 'Manage notifications in system settings',
-          onTap: () async {
-            try {
-              await AppSettings.openAppSettings(type: AppSettingsType.notification);
-            } catch (e) {
-              _showErrorSnackBar('Could not open notification settings');
-            }
-          },
-        ),
-      ],
-    );
-  }
-
 
   Widget _buildTutorialSection() {
     return _buildSettingsSection(
@@ -822,6 +709,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           },
         ),
         _buildDefaultNfcModeTile(),
+        _buildDefaultShareProfileTile(),
         SettingsSwitchTile(
           icon: CupertinoIcons.location_fill,
           title: 'Track Location',
@@ -909,9 +797,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           icon: CupertinoIcons.chat_bubble_2,
           title: 'Help & Support',
           subtitle: 'Get help or contact support',
-          onTap: () {
-            // TODO: Navigate to support
-          },
+          onTap: _showHelpDialog,
         ),
         SettingsActionTile(
           icon: CupertinoIcons.star,
@@ -928,6 +814,29 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
           onTap: () {
             // TODO: Open feedback form
           },
+        ),
+        SettingsSliderTile(
+          icon: CupertinoIcons.calendar,
+          title: 'History Retention',
+          subtitle: _historyRetentionDays >= 365
+              ? 'Keep history forever'
+              : 'Auto-delete after $_historyRetentionDays days',
+          value: _historyRetentionDays.toDouble(),
+          min: 7,
+          max: 365,
+          divisions: 358,
+          onChanged: (value) async {
+            final days = value.round();
+            setState(() => _historyRetentionDays = days);
+            await SettingsService.setHistoryRetentionDays(days);
+          },
+        ),
+        SettingsActionTile(
+          icon: CupertinoIcons.trash_circle,
+          title: 'Clear History',
+          subtitle: 'Remove all sharing history',
+          onTap: () => _showClearHistoryDialog(),
+          isDestructive: true,
         ),
         SettingsActionTile(
           icon: CupertinoIcons.delete,
@@ -970,20 +879,17 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
               Container(
                 padding: const EdgeInsets.all(AppSpacing.sm),
                 decoration: BoxDecoration(
-                  gradient: AppColors.primaryGradient,
+                  color: AppColors.glassBackground,
                   borderRadius: BorderRadius.circular(AppRadius.sm),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primaryAction.withValues(alpha: 0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+                  border: Border.all(
+                    color: AppColors.glassBorder,
+                    width: 1,
+                  ),
                 ),
                 child: Icon(
                   icon,
                   size: 18,
-                  color: Colors.white,
+                  color: AppColors.highlight,
                 ),
               ),
               const SizedBox(width: AppSpacing.md),
@@ -1106,6 +1012,199 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
     );
   }
 
+  Widget _buildDefaultShareProfileTile() {
+    return GestureDetector(
+      onTap: _showProfilePickerSheet,
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              decoration: BoxDecoration(
+                color: AppColors.highlight.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+              ),
+              child: const Icon(
+                CupertinoIcons.person_crop_square,
+                color: AppColors.highlight,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Default Profile',
+                    style: AppTextStyles.body.copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  const Text(
+                    'Profile type to share by default',
+                    style: AppTextStyles.caption,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceDark.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: AppColors.glassBorder.withValues(alpha: 0.3),
+                  width: 0.5,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _getProfileDisplayName(_defaultShareProfile),
+                    style: AppTextStyles.body.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  const Icon(
+                    CupertinoIcons.chevron_down,
+                    color: AppColors.textSecondary,
+                    size: 14,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _getProfileDisplayName(ProfileType type) {
+    switch (type) {
+      case ProfileType.personal:
+        return 'Personal';
+      case ProfileType.professional:
+        return 'Professional';
+      case ProfileType.custom:
+        return 'Custom';
+    }
+  }
+
+  void _showProfilePickerSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: AppColors.surfaceDark,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle bar
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.textTertiary,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              // Title
+              Padding(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                child: Text(
+                  'Select Default Profile',
+                  style: AppTextStyles.h3.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              // Options
+              _buildProfileOption(
+                type: ProfileType.personal,
+                icon: CupertinoIcons.person,
+                title: 'Personal',
+                subtitle: 'Share personal contact info',
+              ),
+              _buildProfileOption(
+                type: ProfileType.professional,
+                icon: CupertinoIcons.briefcase,
+                title: 'Professional',
+                subtitle: 'Share work contact info',
+              ),
+              _buildProfileOption(
+                type: ProfileType.custom,
+                icon: CupertinoIcons.star,
+                title: 'Custom',
+                subtitle: 'Share custom contact info',
+              ),
+              const SizedBox(height: AppSpacing.md),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileOption({
+    required ProfileType type,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    final isSelected = _defaultShareProfile == type;
+    return ListTile(
+      leading: Container(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        decoration: BoxDecoration(
+          color: isSelected
+            ? AppColors.primaryAction.withValues(alpha: 0.2)
+            : AppColors.glassBackground,
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+        ),
+        child: Icon(
+          icon,
+          color: isSelected ? AppColors.primaryAction : AppColors.textSecondary,
+          size: 20,
+        ),
+      ),
+      title: Text(
+        title,
+        style: AppTextStyles.body.copyWith(
+          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+          color: isSelected ? AppColors.primaryAction : AppColors.textPrimary,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: AppTextStyles.caption,
+      ),
+      trailing: isSelected
+        ? const Icon(CupertinoIcons.checkmark_circle_fill, color: AppColors.primaryAction, size: 22)
+        : null,
+      onTap: () async {
+        HapticFeedback.selectionClick();
+        Navigator.pop(context);
+        setState(() => _defaultShareProfile = type);
+        await _profileService.setActiveProfileByType(type);
+      },
+    );
+  }
+
   Widget _buildToggleOption({
     required IconData icon,
     required String label,
@@ -1148,14 +1247,15 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
 
 
   // Glassmorphic dialog helper for consistent styling
+  // Uses DialogAction callbacks to avoid context shadowing issues
   Future<T?> _showGlassDialog<T>({
     required String title,
     required Widget content,
-    List<Widget>? actions,
+    List<DialogAction>? actions,
   }) {
     return showDialog<T>(
       context: context,
-      builder: (context) => BackdropFilter(
+      builder: (dialogContext) => BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Dialog(
           backgroundColor: Colors.transparent,
@@ -1212,7 +1312,7 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                     child: content,
                   ),
                 ),
-                // Actions
+                // Actions - build buttons internally using DialogAction callbacks
                 if (actions != null && actions.isNotEmpty)
                   Container(
                     padding: const EdgeInsets.all(AppSpacing.md),
@@ -1226,7 +1326,32 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.end,
-                      children: actions,
+                      children: actions.map((action) => Padding(
+                        padding: const EdgeInsets.only(left: AppSpacing.sm),
+                        child: TextButton(
+                          onPressed: action.onPressed,
+                          style: TextButton.styleFrom(
+                            backgroundColor: action.isPrimary
+                                ? (action.isDestructive
+                                    ? AppColors.warning.withValues(alpha: 0.2)
+                                    : AppColors.primaryAction.withValues(alpha: 0.2))
+                                : Colors.transparent,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.lg,
+                              vertical: AppSpacing.sm,
+                            ),
+                          ),
+                          child: Text(
+                            action.text,
+                            style: AppTextStyles.body.copyWith(
+                              color: action.isPrimary
+                                  ? (action.isDestructive ? AppColors.warning : AppColors.primaryAction)
+                                  : AppColors.textSecondary,
+                              fontWeight: action.isPrimary ? FontWeight.w600 : FontWeight.w400,
+                            ),
+                          ),
+                        ),
+                      )).toList(),
                     ),
                   ),
               ],
@@ -1237,59 +1362,139 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
     );
   }
 
-  void _showRevokeAllDialog() {
+  void _showClearHistoryDialog() {
     _showGlassDialog(
-      title: 'Revoke All Shares',
+      title: 'Clear History',
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(CupertinoIcons.exclamationmark_triangle, color: AppColors.error, size: 48),
+          const Icon(CupertinoIcons.trash_circle, color: AppColors.warning, size: 48),
           const SizedBox(height: AppSpacing.md),
           const Text(
-            'This will immediately revoke access to all your shared contact information. Recipients will no longer be able to view your details.',
+            'This will permanently delete all your sharing history including sent, received, and tag write records.',
             style: AppTextStyles.body,
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
-            'This action cannot be undone.',
+            'Your profile and settings will not be affected.',
             style: AppTextStyles.body.copyWith(
-              color: AppColors.error,
-              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
             ),
             textAlign: TextAlign.center,
           ),
         ],
       ),
       actions: [
-        TextButton(
+        DialogAction.secondary(
+          text: 'Cancel',
           onPressed: () => Navigator.pop(context),
-          child: Text(
-            'Cancel',
-            style: AppTextStyles.body.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
         ),
-        const SizedBox(width: AppSpacing.sm),
-        TextButton(
-          onPressed: () {
+        DialogAction.primary(
+          text: 'Clear History',
+          isDestructive: true,
+          onPressed: () async {
             Navigator.pop(context);
-            _showRevokeSuccessSnackBar();
+            await HistoryService.clearAllHistory();
+            if (mounted) {
+              SnackbarHelper.showSuccess(
+                context,
+                message: 'History cleared successfully',
+                icon: CupertinoIcons.checkmark_circle,
+              );
+            }
           },
-          style: TextButton.styleFrom(
-            backgroundColor: AppColors.error.withValues(alpha: 0.2),
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.lg,
-              vertical: AppSpacing.sm,
+        ),
+      ],
+    );
+  }
+
+  void _showHelpDialog() {
+    _showGlassDialog(
+      title: 'Help & Quick Tips',
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildHelpItem(
+            icon: CupertinoIcons.radiowaves_right,
+            title: 'NFC Sharing',
+            description: 'Tap your phone against another NFC-enabled device to instantly share your profile.',
+          ),
+          const SizedBox(height: AppSpacing.md),
+          _buildHelpItem(
+            icon: CupertinoIcons.qrcode,
+            title: 'QR Code',
+            description: 'Share your profile by having others scan your QR code from the home screen.',
+          ),
+          const SizedBox(height: AppSpacing.md),
+          _buildHelpItem(
+            icon: CupertinoIcons.person_2,
+            title: 'Multiple Profiles',
+            description: 'Create separate profiles for personal and professional use. Enable in Account Settings.',
+          ),
+          const SizedBox(height: AppSpacing.md),
+          _buildHelpItem(
+            icon: CupertinoIcons.clock,
+            title: 'History',
+            description: 'Track all your profile shares in the History tab. See who you connected with and when.',
+          ),
+          const SizedBox(height: AppSpacing.md),
+          _buildHelpItem(
+            icon: CupertinoIcons.lightbulb,
+            title: 'Need more help?',
+            description: 'Use the "Restart Tutorial" option in Help & Tutorial section to review the guided tour.',
+          ),
+        ],
+      ),
+      actions: [
+        DialogAction.primary(
+          text: 'Got it',
+          onPressed: () => Navigator.pop(context),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHelpItem({
+    required IconData icon,
+    required String title,
+    required String description,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(AppSpacing.sm),
+          decoration: BoxDecoration(
+            color: AppColors.glassBackground,
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+            border: Border.all(
+              color: AppColors.glassBorder,
+              width: 1,
             ),
           ),
-          child: Text(
-            'Revoke All',
-            style: AppTextStyles.body.copyWith(
-              color: AppColors.error,
-              fontWeight: FontWeight.w600,
-            ),
+          child: Icon(icon, size: 18, color: AppColors.highlight),
+        ),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: AppTextStyles.body.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                description,
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -1321,27 +1526,16 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
         ],
       ),
       actions: [
-        TextButton(
+        DialogAction.secondary(
+          text: 'Cancel',
           onPressed: () => Navigator.pop(context),
-          child: Text(
-            'Cancel',
-            style: AppTextStyles.body.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
         ),
-        const SizedBox(width: AppSpacing.sm),
-        TextButton(
+        DialogAction.primary(
+          text: 'Upgrade Now',
           onPressed: () {
             Logger.info('Upgrade account button tapped', name: 'SETTINGS');
-
-            // ✅ CRITICAL: Capture AppState BEFORE popping dialog
             final appState = context.read<AppState>();
-
-            // ✅ CRITICAL: Use rootNavigator to pop ONLY the dialog, not GoRouter's stack
             Navigator.of(context, rootNavigator: true).pop();
-
-            // ✅ CRITICAL: Defer sign-out until AFTER dialog navigation completes
             SchedulerBinding.instance.addPostFrameCallback((_) async {
               try {
                 Logger.info('Signing out to show auth options...', name: 'SETTINGS');
@@ -1352,20 +1546,6 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
               }
             });
           },
-          style: TextButton.styleFrom(
-            backgroundColor: AppColors.primaryAction.withValues(alpha: 0.2),
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.lg,
-              vertical: AppSpacing.sm,
-            ),
-          ),
-          child: Text(
-            'Upgrade Now',
-            style: AppTextStyles.body.copyWith(
-              color: AppColors.primaryAction,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
         ),
       ],
     );
@@ -1406,27 +1586,21 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
         ],
       ),
       actions: [
-        TextButton(
+        DialogAction.secondary(
+          text: 'Cancel',
           onPressed: () => Navigator.pop(context),
-          child: Text(
-            'Cancel',
-            style: AppTextStyles.body.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
         ),
-        const SizedBox(width: AppSpacing.sm),
-        TextButton(
+        DialogAction.primary(
+          text: 'Delete Account',
+          isDestructive: true,
           onPressed: () async {
             Logger.info('Delete account button tapped', name: 'SETTINGS');
             Navigator.pop(context);
-
             try {
               Logger.info('Calling authService.deleteAccount()...', name: 'SETTINGS');
               final authService = AuthService();
               await authService.deleteAccount();
               Logger.info('Account deleted successfully', name: 'SETTINGS');
-
               if (mounted) {
                 SnackbarHelper.showSuccess(
                   context,
@@ -1435,7 +1609,6 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
               }
             } catch (e, stackTrace) {
               Logger.error('Delete account error: $e', name: 'SETTINGS', error: e, stackTrace: stackTrace);
-
               if (mounted) {
                 SnackbarHelper.showError(
                   context,
@@ -1444,20 +1617,6 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
               }
             }
           },
-          style: TextButton.styleFrom(
-            backgroundColor: AppColors.error.withValues(alpha: 0.2),
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.lg,
-              vertical: AppSpacing.sm,
-            ),
-          ),
-          child: Text(
-            'Delete Account',
-            style: AppTextStyles.body.copyWith(
-              color: AppColors.error,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
         ),
       ],
     );
@@ -1499,17 +1658,13 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
         ],
       ),
       actions: [
-        TextButton(
+        DialogAction.secondary(
+          text: 'Cancel',
           onPressed: () => Navigator.pop(context),
-          child: Text(
-            'Cancel',
-            style: AppTextStyles.body.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
         ),
-        const SizedBox(width: AppSpacing.sm),
-        TextButton(
+        DialogAction(
+          text: 'Delete Everything',
+          isDestructive: true,
           onPressed: () {
             Logger.info('Clear all data button tapped', name: 'SETTINGS');
 
@@ -1526,135 +1681,88 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
               Logger.info('App state reset - all data cleared', name: 'SETTINGS');
             });
           },
-          style: TextButton.styleFrom(
-            backgroundColor: AppColors.error.withValues(alpha: 0.2),
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.lg,
-              vertical: AppSpacing.sm,
-            ),
-          ),
-          child: Text(
-            'Delete Everything',
-            style: AppTextStyles.body.copyWith(
-              color: AppColors.error,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
         ),
       ],
     );
   }
 
   void _showAboutDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surfaceDark,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                gradient: AppColors.primaryGradient,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                CupertinoIcons.antenna_radiowaves_left_right,
-                color: AppColors.textPrimary,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 12),
-            const Text(
-              'About Atlas Linq',
-              style: AppTextStyles.h3,
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  'Version: ',
-                  style: AppTextStyles.body.copyWith(
-                    fontWeight: FontWeight.w600,
+    _showGlassDialog(
+      title: 'About Atlas Linq',
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                decoration: BoxDecoration(
+                  color: AppColors.glassBackground,
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                  border: Border.all(
+                    color: AppColors.glassBorder,
+                    width: 1,
                   ),
                 ),
-                const Text(
-                  '1.0.0',
-                  style: AppTextStyles.body,
+                child: const Icon(
+                  CupertinoIcons.antenna_radiowaves_left_right,
+                  color: AppColors.highlight,
+                  size: 24,
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'A modern NFC sharing app with beautiful glassmorphism UI design. Share your contact information effortlessly with just a tap.',
-              style: AppTextStyles.bodySecondary,
-            ),
-            const SizedBox(height: 16),
-            const Divider(color: AppColors.glassBorder),
-            const SizedBox(height: 16),
-            Text(
-              'Features:',
-              style: AppTextStyles.body.copyWith(
-                fontWeight: FontWeight.w600,
               ),
-            ),
-            const SizedBox(height: 8),
-            const Column(
-              key: Key('settings_about_features_list'),
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(key: Key('settings_about_nfc_feature'), '• NFC-enabled contact sharing', style: AppTextStyles.bodySecondary),
-                Text(key: Key('settings_about_qr_feature'), '• QR code generation', style: AppTextStyles.bodySecondary),
-                Text(key: Key('settings_about_privacy_feature'), '• Privacy controls', style: AppTextStyles.bodySecondary),
-                Text(key: Key('settings_about_design_feature'), '• Beautiful glassmorphism design', style: AppTextStyles.bodySecondary),
-                Text(key: Key('settings_about_appearance_feature'), '• Customizable appearance', style: AppTextStyles.bodySecondary),
-              ],
-            ),
-            const SizedBox(height: 16),
-            const Row(
-              children: [
-                Text(
-                  'Build: ',
-                  style: AppTextStyles.caption,
-                ),
-                Text(
-                  '2024.03.15',
-                  style: AppTextStyles.caption,
-                ),
-              ],
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              // TODO: Open license page
-            },
-            child: Text(
-              'Licenses',
-              style: AppTextStyles.body.copyWith(
-                color: AppColors.textSecondary,
+              const SizedBox(width: AppSpacing.md),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Version: 1.0.0',
+                    style: AppTextStyles.body.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const Text(
+                    'Build: 2024.03.15',
+                    style: AppTextStyles.caption,
+                  ),
+                ],
               ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          const Text(
+            'A modern NFC sharing app with beautiful glassmorphism UI design. Share your contact information effortlessly with just a tap.',
+            style: AppTextStyles.bodySecondary,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          const Divider(color: AppColors.glassBorder),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            'Features:',
+            style: AppTextStyles.body.copyWith(
+              fontWeight: FontWeight.w600,
             ),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Close',
-              style: AppTextStyles.body.copyWith(
-                color: AppColors.primaryAction,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
+          const SizedBox(height: AppSpacing.sm),
+          const Text('• NFC-enabled contact sharing', style: AppTextStyles.bodySecondary),
+          const Text('• QR code generation', style: AppTextStyles.bodySecondary),
+          const Text('• Privacy controls', style: AppTextStyles.bodySecondary),
+          const Text('• Multiple profile types', style: AppTextStyles.bodySecondary),
+          const Text('• Sharing history tracking', style: AppTextStyles.bodySecondary),
         ],
       ),
+      actions: [
+        DialogAction.secondary(
+          text: 'Licenses',
+          onPressed: () {
+            // TODO: Open license page
+          },
+        ),
+        DialogAction.primary(
+          text: 'Close',
+          onPressed: () => Navigator.pop(context),
+        ),
+      ],
     );
   }
 
@@ -1682,17 +1790,12 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
         ],
       ),
       actions: [
-        TextButton(
+        DialogAction.secondary(
+          text: 'Cancel',
           onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
-          child: Text(
-            'Cancel',
-            style: AppTextStyles.body.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
         ),
-        const SizedBox(width: AppSpacing.sm),
-        TextButton(
+        DialogAction.primary(
+          text: 'Enable',
           onPressed: () async {
             // Pop the dialog first
             Navigator.of(context, rootNavigator: true).pop();
@@ -1708,20 +1811,6 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
               _showDevModeEnabledSnackBar();
             }
           },
-          style: TextButton.styleFrom(
-            backgroundColor: AppColors.highlight.withValues(alpha: 0.2),
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.lg,
-              vertical: AppSpacing.sm,
-            ),
-          ),
-          child: Text(
-            'Enable',
-            style: AppTextStyles.body.copyWith(
-              color: AppColors.highlight,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
         ),
       ],
     );
@@ -1743,17 +1832,12 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
         ],
       ),
       actions: [
-        TextButton(
+        DialogAction.secondary(
+          text: 'Cancel',
           onPressed: () => Navigator.pop(context),
-          child: Text(
-            'Cancel',
-            style: AppTextStyles.body.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
         ),
-        const SizedBox(width: AppSpacing.sm),
-        TextButton(
+        DialogAction.primary(
+          text: 'Sign Out',
           onPressed: () {
             Logger.info('Sign-out button tapped', name: 'SETTINGS');
 
@@ -1776,30 +1860,8 @@ class _SettingsScreenState extends State<SettingsScreen> with TickerProviderStat
               }
             });
           },
-          style: TextButton.styleFrom(
-            backgroundColor: AppColors.primaryAction.withValues(alpha: 0.2),
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.lg,
-              vertical: AppSpacing.sm,
-            ),
-          ),
-          child: Text(
-            'Sign Out',
-            style: AppTextStyles.body.copyWith(
-              color: AppColors.primaryAction,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
         ),
       ],
-    );
-  }
-
-  void _showRevokeSuccessSnackBar() {
-    SnackbarHelper.showWarning(
-      context,
-      message: 'All shares have been revoked',
-      icon: CupertinoIcons.hand_raised_fill,
     );
   }
 
