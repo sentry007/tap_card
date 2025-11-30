@@ -49,7 +49,7 @@ dependencies:
   permission_handler: ^11.3.0
 
   # Settings Access
-  app_settings: ^5.1.1
+  app_settings: ^6.0.0
 
   # Contacts Access (modern, actively maintained)
   flutter_contacts: ^1.1.7+1
