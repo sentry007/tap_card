@@ -1020,6 +1020,8 @@ class _InsightsScreenState extends State<InsightsScreen> {
         return AppColors.info;
       case ShareMethod.tag:
         return AppColors.secondaryAction;
+      case ShareMethod.quickShare:
+        return AppColors.quickSharePrimary;
     }
   }
 
@@ -1220,6 +1222,12 @@ class _InsightsScreenState extends State<InsightsScreen> {
     if (nfcCount >= 50) achievements.add(Achievement(icon: Icons.contactless, title: 'NFC Master', description: '50 NFC shares', color: AppColors.primaryAction, category: AchievementCategory.sharing));
     if (nfcCount >= 100) achievements.add(Achievement(icon: Icons.tap_and_play, title: 'NFC Legend', description: '100+ NFC shares!', color: AppColors.highlight, category: AchievementCategory.sharing));
 
+    // Quick Share specific
+    final quickShareCount = analytics.methodCounts[ShareMethod.quickShare] ?? 0;
+    if (quickShareCount >= 10) achievements.add(Achievement(icon: CupertinoIcons.arrow_up_circle_fill, title: 'Quick Starter', description: '10 Quick Shares', color: AppColors.quickSharePrimary, category: AchievementCategory.sharing));
+    if (quickShareCount >= 50) achievements.add(Achievement(icon: CupertinoIcons.arrow_up_circle_fill, title: 'Quick Pro', description: '50 Quick Shares', color: AppColors.quickSharePrimary, category: AchievementCategory.sharing));
+    if (quickShareCount >= 100) achievements.add(Achievement(icon: CupertinoIcons.arrow_up_circle_fill, title: 'Quick Legend', description: '100+ Quick Shares!', color: AppColors.highlight, category: AchievementCategory.sharing));
+
     // ========== CONNECTION ACHIEVEMENTS ==========
     if (analytics.totalReceived >= 1) achievements.add(Achievement(icon: Icons.person_add, title: 'First Connection', description: 'Received your first card', color: AppColors.success, category: AchievementCategory.connections));
     if (analytics.totalReceived >= 5) achievements.add(Achievement(icon: Icons.people_outline, title: 'Social Starter', description: '5 connections made', color: AppColors.success, category: AchievementCategory.connections));
@@ -1356,6 +1364,12 @@ class _InsightsScreenState extends State<InsightsScreen> {
     if (nfcCount >= 10) achievements.add(_Achievement(icon: Icons.nfc, title: 'NFC Novice', description: '10 NFC shares', color: AppColors.primaryAction));
     if (nfcCount >= 50) achievements.add(_Achievement(icon: Icons.contactless, title: 'NFC Master', description: '50 NFC shares', color: AppColors.primaryAction));
     if (nfcCount >= 100) achievements.add(_Achievement(icon: Icons.tap_and_play, title: 'NFC Legend', description: '100+ NFC shares!', color: AppColors.highlight));
+
+    // Quick Share specific
+    final quickShareCount = analytics.methodCounts[ShareMethod.quickShare] ?? 0;
+    if (quickShareCount >= 10) achievements.add(_Achievement(icon: CupertinoIcons.arrow_up_circle_fill, title: 'Quick Starter', description: '10 Quick Shares', color: AppColors.quickSharePrimary));
+    if (quickShareCount >= 50) achievements.add(_Achievement(icon: CupertinoIcons.arrow_up_circle_fill, title: 'Quick Pro', description: '50 Quick Shares', color: AppColors.quickSharePrimary));
+    if (quickShareCount >= 100) achievements.add(_Achievement(icon: CupertinoIcons.arrow_up_circle_fill, title: 'Quick Legend', description: '100+ Quick Shares!', color: AppColors.highlight));
 
     // ========== CONNECTION ACHIEVEMENTS (15) ==========
     // Receiving connections
