@@ -66,6 +66,8 @@ dependencies:
   path_provider: ^2.1.2
   image_picker: ^1.0.7
   image_cropper: ^8.0.2
+  image: ^4.0.17  # Image processing for vCard photo encoding
+  http: ^1.2.0    # HTTP client for downloading images from URLs
   url_launcher: ^6.2.4
   share_plus: ^7.2.2
   flutter_colorpicker: ^1.1.0
