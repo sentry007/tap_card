@@ -26,7 +26,11 @@ library;
 
 import 'dart:convert';
 import 'dart:developer' as developer;
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:image/image.dart' as img;
 import '../../models/history_models.dart';
 
 /// Card aesthetic settings for each profile
@@ -228,10 +232,10 @@ class ProfileData {
   final CardAesthetics cardAesthetics; // Color-based aesthetics
   final DateTime lastUpdated;
   final bool isActive;
-  final String? _cachedNfcPayload; // Pre-computed JSON for instant NFC sharing (legacy)
-  final String? _cachedVCard; // Pre-computed vCard for dual-payload NFC
-  final String? _cachedCardUrl; // Pre-computed URL for dual-payload NFC
-  final DateTime? _dualPayloadCacheTime; // When dual payload was last generated
+  final String? _cachedOptimizedVCard; // Optimized vCard for NFC (no photo)
+  final String? _cachedRichVCard; // Rich vCard with photo for Quick Share/QR
+  final String? _cachedCardUrl; // Pre-computed URL
+  final DateTime? _payloadCacheTime; // When payloads were last generated
   // NOTE: receivedCardUuids removed - ReceivedCardsRepository is now the single source of truth
 
   ProfileData({
@@ -250,15 +254,15 @@ class ProfileData {
     CardAesthetics? cardAesthetics,
     required this.lastUpdated,
     this.isActive = false,
-    String? cachedNfcPayload,
-    String? cachedVCard,
+    String? cachedOptimizedVCard,
+    String? cachedRichVCard,
     String? cachedCardUrl,
-    DateTime? dualPayloadCacheTime,
+    DateTime? payloadCacheTime,
   }) : cardAesthetics = cardAesthetics ?? CardAesthetics.defaultForType(type),
-       _cachedNfcPayload = cachedNfcPayload,
-       _cachedVCard = cachedVCard,
+       _cachedOptimizedVCard = cachedOptimizedVCard,
+       _cachedRichVCard = cachedRichVCard,
        _cachedCardUrl = cachedCardUrl,
-       _dualPayloadCacheTime = dualPayloadCacheTime;
+       _payloadCacheTime = payloadCacheTime;
 
   ProfileData copyWith({
     String? id,
@@ -276,10 +280,10 @@ class ProfileData {
     CardAesthetics? cardAesthetics,
     DateTime? lastUpdated,
     bool? isActive,
-    String? cachedNfcPayload,
-    String? cachedVCard,
+    String? cachedOptimizedVCard,
+    String? cachedRichVCard,
     String? cachedCardUrl,
-    DateTime? dualPayloadCacheTime,
+    DateTime? payloadCacheTime,
   }) {
     return ProfileData(
       id: id ?? this.id,
@@ -297,10 +301,10 @@ class ProfileData {
       cardAesthetics: cardAesthetics ?? this.cardAesthetics,
       lastUpdated: lastUpdated ?? this.lastUpdated,
       isActive: isActive ?? this.isActive,
-      cachedNfcPayload: cachedNfcPayload ?? _cachedNfcPayload,
-      cachedVCard: cachedVCard ?? _cachedVCard,
+      cachedOptimizedVCard: cachedOptimizedVCard ?? _cachedOptimizedVCard,
+      cachedRichVCard: cachedRichVCard ?? _cachedRichVCard,
       cachedCardUrl: cachedCardUrl ?? _cachedCardUrl,
-      dualPayloadCacheTime: dualPayloadCacheTime ?? _dualPayloadCacheTime,
+      payloadCacheTime: payloadCacheTime ?? _payloadCacheTime,
     );
   }
 
@@ -321,11 +325,10 @@ class ProfileData {
       'cardAesthetics': cardAesthetics.toJson(),
       'lastUpdated': lastUpdated.toIso8601String(),
       'isActive': isActive,
-      'cachedNfcPayload': _cachedNfcPayload,
-      'cachedVCard': _cachedVCard,
+      'cachedOptimizedVCard': _cachedOptimizedVCard,
+      'cachedRichVCard': _cachedRichVCard,
       'cachedCardUrl': _cachedCardUrl,
-      'dualPayloadCacheTime': _dualPayloadCacheTime?.toIso8601String(),
-      // receivedCardUuids removed - use ReceivedCardsRepository instead
+      'payloadCacheTime': _payloadCacheTime?.toIso8601String(),
     };
   }
 
@@ -358,13 +361,15 @@ class ProfileData {
         : CardAesthetics.defaultForType(type),
       lastUpdated: DateTime.parse(json['lastUpdated']),
       isActive: json['isActive'] ?? false,
-      cachedNfcPayload: json['cachedNfcPayload'],
-      cachedVCard: json['cachedVCard'],
+      // Support both old and new field names for backward compatibility
+      cachedOptimizedVCard: json['cachedOptimizedVCard'] ?? json['cachedVCard'],
+      cachedRichVCard: json['cachedRichVCard'],
       cachedCardUrl: json['cachedCardUrl'],
-      dualPayloadCacheTime: json['dualPayloadCacheTime'] != null
-        ? DateTime.parse(json['dualPayloadCacheTime'])
-        : null,
-      // receivedCardUuids removed - use ReceivedCardsRepository instead
+      payloadCacheTime: json['payloadCacheTime'] != null
+        ? DateTime.parse(json['payloadCacheTime'])
+        : (json['dualPayloadCacheTime'] != null
+            ? DateTime.parse(json['dualPayloadCacheTime'])
+            : null),
     );
   }
 
@@ -412,8 +417,8 @@ class ProfileData {
       name: '',
       lastUpdated: DateTime.now(),
     );
-    // Generate initial NFC cache (both legacy and dual-payload)
-    return profile.regenerateDualPayloadCache();
+    // Generate initial payload cache
+    return profile.regeneratePayloadCache();
   }
 
   /// Get essential fields for NFC transmission (ultra-compact for NTAG213)
@@ -508,61 +513,24 @@ class ProfileData {
     );
   }
 
-  /// Get the cached NFC payload or generate it if not cached
-  String get nfcPayload => _cachedNfcPayload ?? _generateNfcPayload();
-
-  /// Generate optimized JSON payload for NFC transmission (always fresh)
-  String _generateNfcPayload() {
-    // Ultra-compact payload for NTAG213 (144 bytes)
-    final payload = {
-      'a': 'al',  // Shortened app identifier (Atlas Linq)
-      'v': '1',   // Shortened version
-      'd': getEssentialFields(),
-      't': (DateTime.now().millisecondsSinceEpoch / 1000).round(), // Seconds instead of ms
-    };
-    return jsonEncode(payload);
-  }
-
-  /// Create a new ProfileData with regenerated NFC cache
-  ProfileData regenerateNfcCache() {
-    final newPayload = _generateNfcPayload();
-    return copyWith(
-      cachedNfcPayload: newPayload,
-      lastUpdated: DateTime.now(),
-    );
-  }
-
-  /// Check if NFC cache needs regeneration (older than 5 minutes or missing)
-  bool get needsNfcCacheUpdate {
-    if (_cachedNfcPayload == null) return true;
-
-    try {
-      final cached = jsonDecode(_cachedNfcPayload!);
-      final cacheTimeSeconds = cached['t'] ?? 0;
-      final cacheTime = DateTime.fromMillisecondsSinceEpoch(cacheTimeSeconds * 1000);
-      final age = DateTime.now().difference(cacheTime);
-      return age.inMinutes > 5; // Refresh every 5 minutes
-    } catch (e) {
-      return true; // Invalid cache, regenerate
-    }
-  }
-
-  /// Get fresh NFC payload, regenerating cache if needed
-  ///
-  /// Performance: Prefers cached payload for instant NFC sharing.
-  /// Only regenerates if cache is missing or older than 5 minutes.
-  String getFreshNfcPayload() {
-    // Use cached payload if available (instant performance)
-    if (_cachedNfcPayload != null && !needsNfcCacheUpdate) {
-      return _cachedNfcPayload!;
-    }
-    // Regenerate only if cache is stale or missing
-    return _generateNfcPayload();
-  }
-
   // ============================================================================
-  // DUAL-PAYLOAD NFC OPTIMIZATION (vCard + URL)
+  // PAYLOAD GENERATION (Consolidated vCard + URL)
   // ============================================================================
+
+  /// Cache TTL - payloads are refreshed after 5 minutes
+  static const Duration _cacheTtl = Duration(minutes: 5);
+
+  /// Check if payload cache is stale (>5 minutes old or missing)
+  bool get needsPayloadCacheUpdate {
+    if (_cachedOptimizedVCard == null || _cachedCardUrl == null) return true;
+    if (_payloadCacheTime == null) return true;
+
+    final age = DateTime.now().difference(_payloadCacheTime!);
+    return age > _cacheTtl;
+  }
+
+  /// Get the card URL (cached or generated fresh)
+  String get cardUrl => _cachedCardUrl ?? _generateCardUrl();
 
   /// Generate optimized vCard 3.0 for NFC transmission
   ///
@@ -637,6 +605,196 @@ class ProfileData {
     return buffer.toString();
   }
 
+  /// Generate rich vCard for AirDrop sharing (includes profile photo)
+  ///
+  /// Unlike the optimized NFC vCard, this version includes:
+  /// - Full title (no truncation)
+  /// - Profile photo as Base64 JPEG (compressed ~200x200)
+  /// - All contact fields
+  ///
+  /// AirDrop has no file size limit, so we can include the photo.
+  /// iOS requires Base64 encoding with 75-char line folding.
+  Future<String> _generateRichVCard({ShareContext? shareContext}) async {
+    final buffer = StringBuffer();
+    buffer.write('BEGIN:VCARD\n');
+    buffer.write('VERSION:3.0\n');
+    buffer.write('FN:$name\n');
+
+    // Structured name parsing
+    final nameParts = name.split(' ').map((part) => part.trim()).where((part) => part.isNotEmpty).toList();
+    if (nameParts.length >= 2) {
+      buffer.write('N:${nameParts.last};${nameParts.first};;;\n');
+    } else {
+      buffer.write('N:$name;;;;\n');
+    }
+
+    // Title (full length - no truncation for AirDrop)
+    if (title != null && title!.isNotEmpty) {
+      buffer.write('TITLE:$title\n');
+    }
+
+    // Organization
+    if (company != null && company!.isNotEmpty) {
+      buffer.write('ORG:$company\n');
+    }
+
+    // Phone
+    if (phone != null && phone!.isNotEmpty) {
+      buffer.write('TEL;TYPE=CELL:$phone\n');
+    }
+
+    // Email
+    if (email != null && email!.isNotEmpty) {
+      buffer.write('EMAIL:$email\n');
+    }
+
+    // Atlas Linq URL as primary URL
+    buffer.write('URL:${_generateCardUrl()}\n');
+
+    // Custom website as secondary URL
+    if (website != null && website!.isNotEmpty) {
+      buffer.write('URL;TYPE=WORK:$website\n');
+    }
+
+    // Profile photo (if available)
+    if (profileImagePath != null && profileImagePath!.isNotEmpty) {
+      final photoBase64 = await _encodeProfilePhotoForVCard();
+      if (photoBase64 != null) {
+        buffer.write(photoBase64);
+      }
+    }
+
+    // NOTE field with metadata
+    final noteLines = <String>[];
+    noteLines.add('Shared via Atlas Linq');
+    if (shareContext != null) {
+      noteLines.add('X-AL-M:${shareContext.methodCode}');
+      noteLines.add('X-AL-T:${shareContext.unixTimestamp}');
+      noteLines.add('X-AL-P:${type.code}');
+    }
+    buffer.write('NOTE:${noteLines.join('\\n')}\n');
+
+    buffer.write('END:VCARD');
+    return buffer.toString();
+  }
+
+  /// Encode profile photo as Base64 for vCard with proper line folding
+  ///
+  /// iOS vCard 3.0 requirements:
+  /// - Format: PHOTO;TYPE=JPEG;ENCODING=b:[base64]
+  /// - Lines must be folded at 75 characters
+  /// - Continuation lines start with a space
+  ///
+  /// Supports both local file paths and HTTP/HTTPS URLs (Firebase Storage)
+  Future<String?> _encodeProfilePhotoForVCard() async {
+    try {
+      Uint8List bytes;
+
+      // Handle both local paths and URLs
+      if (profileImagePath!.startsWith('http://') ||
+          profileImagePath!.startsWith('https://')) {
+        // Download from URL (Firebase Storage, etc.)
+        developer.log('📥 Downloading profile image from URL: $profileImagePath',
+            name: 'ProfileData.Photo');
+        final response = await http.get(Uri.parse(profileImagePath!));
+        if (response.statusCode != 200) {
+          developer.log('Failed to download image: HTTP ${response.statusCode}',
+              name: 'ProfileData.Photo');
+          return null;
+        }
+        bytes = response.bodyBytes;
+        developer.log('✅ Downloaded ${bytes.length} bytes from URL',
+            name: 'ProfileData.Photo');
+      } else {
+        // Read from local file
+        final file = File(profileImagePath!);
+        if (!await file.exists()) {
+          developer.log('Profile image not found: $profileImagePath',
+              name: 'ProfileData.Photo');
+          return null;
+        }
+        bytes = await file.readAsBytes();
+      }
+
+      // Decode image
+      img.Image? image = img.decodeImage(bytes);
+
+      if (image == null) {
+        developer.log('Failed to decode profile image', name: 'ProfileData.Photo');
+        return null;
+      }
+
+      // Resize to ~200x200 for reasonable vCard size
+      // Maintain aspect ratio
+      const maxDimension = 200;
+      if (image.width > maxDimension || image.height > maxDimension) {
+        if (image.width > image.height) {
+          image = img.copyResize(image, width: maxDimension);
+        } else {
+          image = img.copyResize(image, height: maxDimension);
+        }
+      }
+
+      // Encode as JPEG with quality 80
+      final jpegBytes = img.encodeJpg(image, quality: 80);
+      final base64String = base64Encode(jpegBytes);
+
+      // Build vCard PHOTO field with 75-char line folding
+      final buffer = StringBuffer();
+      buffer.write('PHOTO;TYPE=JPEG;ENCODING=b:');
+
+      // Fold lines at 75 characters (continuation lines start with space)
+      String remaining = base64String;
+      bool firstLine = true;
+      while (remaining.isNotEmpty) {
+        if (firstLine) {
+          // First line: header already written, add first chunk
+          final chunk = remaining.length > 47 ? remaining.substring(0, 47) : remaining;
+          buffer.write('$chunk\n');
+          remaining = remaining.length > 47 ? remaining.substring(47) : '';
+          firstLine = false;
+        } else {
+          // Continuation lines: start with space, then 74 chars of data
+          final chunk = remaining.length > 74 ? remaining.substring(0, 74) : remaining;
+          buffer.write(' $chunk\n');
+          remaining = remaining.length > 74 ? remaining.substring(74) : '';
+        }
+      }
+
+      developer.log(
+        '📷 Photo encoded for vCard\n'
+        '   • Original: ${bytes.length} bytes\n'
+        '   • Resized: ${image.width}x${image.height}\n'
+        '   • JPEG: ${jpegBytes.length} bytes\n'
+        '   • Base64: ${base64String.length} chars',
+        name: 'ProfileData.Photo'
+      );
+
+      return buffer.toString();
+    } catch (e) {
+      developer.log('Failed to encode profile photo: $e', name: 'ProfileData.Photo', error: e);
+      return null;
+    }
+  }
+
+  /// Get rich vCard for AirDrop sharing (async, with photo)
+  ///
+  /// Use this for iOS AirDrop sharing where file size is not a constraint.
+  /// Returns a full vCard with embedded profile photo.
+  Future<String> getRichVCardForAirDrop(ShareContext shareContext) async {
+    final vCard = await _generateRichVCard(shareContext: shareContext);
+
+    developer.log(
+      '📤 Rich vCard generated for AirDrop\n'
+      '   • Method: ${shareContext.method.label}\n'
+      '   • Size: ${vCard.length} bytes\n'
+      '   • Has photo: ${profileImagePath != null}',
+      name: 'ProfileData.RichVCard'
+    );
+
+    return vCard;
+  }
+
   /// Generate custom URL for full digital profile using UUID + type format
   /// URL pattern: https://atlaslinq.com/share/[uuid]_[type]
   ///
@@ -652,24 +810,16 @@ class ProfileData {
     return 'https://atlaslinq.com/share/${id}_${type.name}';
   }
 
-  /// Check if dual payload cache is stale (>5 minutes old or missing)
-  bool get needsDualPayloadCacheUpdate {
-    if (_cachedVCard == null || _cachedCardUrl == null) return true;
-    if (_dualPayloadCacheTime == null) return true;
-
-    final age = DateTime.now().difference(_dualPayloadCacheTime!);
-    return age.inMinutes > 5;
-  }
-
-  /// Regenerate dual-payload cache (vCard + URL)
-  ProfileData regenerateDualPayloadCache({ShareContext? shareContext}) {
+  /// Regenerate all payload caches (optimized vCard + URL)
+  /// Call this when profile data changes or cache expires
+  ProfileData regeneratePayloadCache({ShareContext? shareContext}) {
     final vCard = _generateOptimizedVCard(shareContext: shareContext);
     final url = _generateCardUrl();
     final now = DateTime.now();
 
     developer.log(
-      '🔄 Regenerating dual-payload cache\n'
-      '   • vCard: ${vCard.length} bytes\n'
+      '🔄 Regenerating payload cache\n'
+      '   • Optimized vCard: ${vCard.length} bytes\n'
       '   • URL: ${url.length} bytes\n'
       '   • Total: ${vCard.length + url.length} bytes\n'
       '   • Has metadata: ${shareContext != null}',
@@ -677,10 +827,34 @@ class ProfileData {
     );
 
     return copyWith(
-      cachedVCard: vCard,
+      cachedOptimizedVCard: vCard,
       cachedCardUrl: url,
-      dualPayloadCacheTime: now,
-      cachedNfcPayload: _generateNfcPayload(), // Also refresh legacy payload
+      payloadCacheTime: now,
+      lastUpdated: now,
+    );
+  }
+
+  /// Pre-cache all payloads including rich vCard (async)
+  /// Call this on profile load for instant sharing
+  Future<ProfileData> preCacheAllPayloads({ShareContext? shareContext}) async {
+    final optimizedVCard = _generateOptimizedVCard(shareContext: shareContext);
+    final richVCard = await _generateRichVCard(shareContext: shareContext);
+    final url = _generateCardUrl();
+    final now = DateTime.now();
+
+    developer.log(
+      '🚀 Pre-caching all payloads\n'
+      '   • Optimized vCard: ${optimizedVCard.length} bytes\n'
+      '   • Rich vCard: ${richVCard.length} bytes\n'
+      '   • URL: ${url.length} bytes',
+      name: 'ProfileData.Cache'
+    );
+
+    return copyWith(
+      cachedOptimizedVCard: optimizedVCard,
+      cachedRichVCard: richVCard,
+      cachedCardUrl: url,
+      payloadCacheTime: now,
       lastUpdated: now,
     );
   }
@@ -711,15 +885,15 @@ class ProfileData {
   /// Only regenerates if cache is stale or missing.
   Map<String, String> get dualPayload {
     // Use cached version if available and fresh
-    if (_cachedVCard != null && _cachedCardUrl != null && !needsDualPayloadCacheUpdate) {
+    if (_cachedOptimizedVCard != null && _cachedCardUrl != null && !needsPayloadCacheUpdate) {
       developer.log(
         '✅ Using cached dual-payload (instant!)\n'
-        '   • vCard: ${_cachedVCard!.length} bytes\n'
+        '   • vCard: ${_cachedOptimizedVCard!.length} bytes\n'
         '   • URL: ${_cachedCardUrl!.length} bytes',
         name: 'ProfileData.DualPayload'
       );
       return {
-        'vcard': _cachedVCard!,
+        'vcard': _cachedOptimizedVCard!,
         'url': _cachedCardUrl!,
       };
     }
@@ -729,12 +903,16 @@ class ProfileData {
       '⚠️ Dual-payload cache expired, regenerating...',
       name: 'ProfileData.DualPayload'
     );
-    final freshProfile = regenerateDualPayloadCache();
+    final freshProfile = regeneratePayloadCache();
     return {
-      'vcard': freshProfile._cachedVCard!,
+      'vcard': freshProfile._cachedOptimizedVCard!,
       'url': freshProfile._cachedCardUrl!,
     };
   }
+
+  /// Get cached rich vCard if available, otherwise null
+  /// Use getRichVCardForAirDrop() for async generation with photo
+  String? get cachedRichVCard => _cachedRichVCard;
 }
 
 /// Validation result for profile completeness
@@ -807,13 +985,14 @@ class ShareContext {
   });
 
   /// Encode method to single character for vCard
-  /// N=NFC, Q=QR, W=Web, T=Tag
+  /// N=NFC, Q=QR, W=Web, T=Tag, S=QuickShare
   String get methodCode {
     switch (method) {
-      case ShareMethod.nfc:   return 'N';
-      case ShareMethod.qr:    return 'Q';
-      case ShareMethod.web:   return 'W';
-      case ShareMethod.tag:   return 'T';
+      case ShareMethod.nfc:        return 'N';
+      case ShareMethod.qr:         return 'Q';
+      case ShareMethod.web:        return 'W';
+      case ShareMethod.tag:        return 'T';
+      case ShareMethod.quickShare: return 'S';
     }
   }
 
@@ -824,6 +1003,7 @@ class ShareContext {
       case 'Q': return ShareMethod.qr;
       case 'W': return ShareMethod.web;
       case 'T': return ShareMethod.tag;
+      case 'S': return ShareMethod.quickShare;
       case 'L': return ShareMethod.web; // Legacy: 'L' was link, now web
       default:  return ShareMethod.nfc; // fallback
     }

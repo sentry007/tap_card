@@ -286,8 +286,8 @@ class MockDataGenerator {
         break;
     }
 
-    // Regenerate caches for NFC
-    profile = profile.regenerateDualPayloadCache();
+    // Regenerate payload caches
+    profile = profile.regeneratePayloadCache();
 
     // Sync to Firestore
     final syncResult = await FirestoreSyncService.syncProfileToFirestore(profile);
@@ -323,7 +323,7 @@ class MockDataGenerator {
     final syncedProfiles = <ProfileData>[];
 
     for (final profile in profiles) {
-      final profileWithCache = profile.regenerateDualPayloadCache();
+      final profileWithCache = profile.regeneratePayloadCache();
       final syncResult = await FirestoreSyncService.syncProfileToFirestore(profileWithCache);
 
       if (syncResult != null) {

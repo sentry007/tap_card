@@ -712,10 +712,10 @@ class ProfileService extends ChangeNotifier {
         // In Phase 2, we'll enforce validation here
       }
 
-      // Regenerate NFC cache if profile data changed (includes dual-payload)
-      final needsCacheUpdate = updatedProfile.needsNfcCacheUpdate;
+      // Regenerate payload cache if profile data changed
+      final needsCacheUpdate = updatedProfile.needsPayloadCacheUpdate;
       final finalProfile = needsCacheUpdate
-          ? updatedProfile.regenerateDualPayloadCache()
+          ? updatedProfile.regeneratePayloadCache()
           : updatedProfile.copyWith(lastUpdated: DateTime.now());
 
       _profiles[index] = finalProfile;

@@ -484,8 +484,8 @@ class _ProfileScreenState extends State<ProfileScreen>
       cardAesthetics: updatedAesthetics,
     );
 
-    // Regenerate NFC cache when profile data changes for instant sharing (includes dual-payload)
-    final profileWithFreshCache = updatedProfile.regenerateDualPayloadCache();
+    // Regenerate payload cache when profile data changes for instant sharing
+    final profileWithFreshCache = updatedProfile.regeneratePayloadCache();
     await _profileService.updateProfile(profileWithFreshCache);
 
     // Save color combination after successful profile save
