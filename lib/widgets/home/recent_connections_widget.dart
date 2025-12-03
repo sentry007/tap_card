@@ -421,13 +421,15 @@ class ConnectionCard extends StatelessWidget {
   Color _getMethodColor(ShareMethod method) {
     switch (method) {
       case ShareMethod.nfc:
-        return AppColors.primaryAction; // Blue/purple
+        return AppColors.primaryAction; // Orange
       case ShareMethod.qr:
-        return AppColors.secondaryAction; // Purple/pink
+        return AppColors.secondaryAction; // Purple
       case ShareMethod.web:
-        return AppColors.highlight; // Yellow/amber
+        return AppColors.highlight; // Yellow
       case ShareMethod.tag:
         return AppColors.success; // Green
+      case ShareMethod.quickShare:
+        return AppColors.quickSharePrimary; // Blue
     }
   }
 

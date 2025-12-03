@@ -82,6 +82,12 @@ class MethodChip extends StatelessWidget {
           'label': 'Tag',
           'color': AppColors.success,
         };
+      case ShareMethod.quickShare:
+        return {
+          'icon': CupertinoIcons.arrow_up_circle_fill,
+          'label': 'Quick Share',
+          'color': AppColors.quickSharePrimary,
+        };
     }
   }
 }

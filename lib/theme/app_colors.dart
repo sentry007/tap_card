@@ -14,6 +14,9 @@ class AppColors {
   static const Color p2pPrimary = Color(0xFF9C27B0);    // Material Purple 500
   static const Color p2pSecondary = Color(0xFF673AB7);  // Deep Purple 500
 
+  // Quick Share Mode Colors
+  static const Color quickSharePrimary = Color(0xFF2196F3);  // Material Blue 500
+
   // Glassmorphism Colors
   static const Color glassBackground = Color(0x20FFFFFF);
   static const Color glassBorder = Color(0x30FFFFFF);

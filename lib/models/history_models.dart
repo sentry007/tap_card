@@ -16,10 +16,11 @@ import '../core/models/profile_models.dart';
 
 /// Method used to share contact information
 enum ShareMethod {
-  nfc,   // NFC tap to phone
-  qr,    // QR code scan
-  web,   // Web-based (URL share, nearby share, downloads)
-  tag,   // Written to NFC tag (sticker/card)
+  nfc,        // NFC tap to phone
+  qr,         // QR code scan
+  web,        // Web-based (URL share, downloads)
+  tag,        // Written to NFC tag (sticker/card)
+  quickShare, // Quick Share (Android) / AirDrop (iOS)
 }
 
 /// Type of history entry
@@ -323,6 +324,8 @@ extension ShareMethodExtension on ShareMethod {
         return 'Web';
       case ShareMethod.tag:
         return 'Tag';
+      case ShareMethod.quickShare:
+        return 'Quick Share';
     }
   }
 
@@ -336,6 +339,8 @@ extension ShareMethodExtension on ShareMethod {
         return 'Web/Link';
       case ShareMethod.tag:
         return 'NFC Tag';
+      case ShareMethod.quickShare:
+        return 'Quick Share / AirDrop';
     }
   }
 }

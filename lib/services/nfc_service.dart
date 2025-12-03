@@ -39,8 +39,9 @@ import 'validation_service.dart';
 
 /// NFC Operation Mode
 enum NfcMode {
-  tagWrite,  // Write to physical NFC tags (default)
-  p2pShare,  // Phone-to-phone sharing via HCE
+  tagWrite,   // Write to physical NFC tags (default)
+  p2pShare,   // Phone-to-phone sharing via HCE
+  quickShare, // Quick Share / AirDrop (rich vCard with photo)
 }
 
 /// Singleton service managing all NFC operations
