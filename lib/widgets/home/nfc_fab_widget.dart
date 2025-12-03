@@ -226,9 +226,15 @@ class _NfcFabWidgetState extends State<NfcFabWidget> {
 
   Widget _buildFabContent() {
     // Mode-specific icons
-    final IconData modeIcon = widget.mode == NfcMode.tagWrite
-        ? CupertinoIcons.arrow_up_arrow_down_square
-        : CupertinoIcons.radiowaves_right;
+    final IconData modeIcon;
+    switch (widget.mode) {
+      case NfcMode.tagWrite:
+        modeIcon = CupertinoIcons.arrow_up_arrow_down_square;
+      case NfcMode.p2pShare:
+        modeIcon = CupertinoIcons.radiowaves_right;
+      case NfcMode.quickShare:
+        modeIcon = CupertinoIcons.arrow_up_circle_fill;
+    }
 
     // Responsive icon size
     final iconSize = ResponsiveHelper.iconSize(context, 56);
@@ -322,6 +328,12 @@ class _NfcFabWidgetState extends State<NfcFabWidget> {
             'primary': const Color(0xFF9C27B0), // Material Purple 500
             'secondary': const Color(0xFF673AB7), // Material Deep Purple 500
           };
+        } else if (widget.mode == NfcMode.quickShare) {
+          // Blue gradient for Quick Share mode
+          return {
+            'primary': AppColors.quickSharePrimary, // Material Blue 500
+            'secondary': AppColors.info, // Slightly different blue
+          };
         } else {
           // Orange gradient for Tag Write mode (default)
           return {
@@ -365,6 +377,12 @@ class _NfcFabWidgetState extends State<NfcFabWidget> {
           return [
             AppColors.p2pPrimary,     // #9C27B0 Purple
             AppColors.p2pSecondary,   // #673AB7 Deep Purple
+          ];
+        } else if (widget.mode == NfcMode.quickShare) {
+          // Blue theme for Quick Share mode
+          return [
+            AppColors.quickSharePrimary, // #2196F3 Blue
+            AppColors.info,              // Slightly different blue
           ];
         } else {
           // Orange theme for Tag Write mode - using brand colors only
@@ -496,41 +514,79 @@ class NfcFabStatusText extends StatelessWidget {
     String text;
     Color textColor;
 
-    // iOS-specific messaging (NFC tag write and P2P not supported)
+    // iOS-specific messaging - FAB always triggers direct vCard share
     if (NFCService.isIOS) {
-      text = 'Tap to Share via AirDrop';
-      textColor = AppColors.primaryAction;
+      switch (state) {
+        case NfcFabState.inactive:
+        case NfcFabState.active:
+          text = 'Tap to Share via AirDrop';
+          textColor = AppColors.primaryAction;
+          break;
+        case NfcFabState.writing:
+          text = 'Preparing contact...';
+          textColor = AppColors.primaryAction;
+          break;
+        case NfcFabState.success:
+          text = 'Contact shared!';
+          textColor = Colors.greenAccent;
+          break;
+        case NfcFabState.error:
+          text = 'Share failed';
+          textColor = Colors.redAccent;
+          break;
+      }
     } else if (!nfcAvailable) {
       text = 'NFC not available';
       textColor = AppColors.textSecondary;
     } else {
       // Mode-specific text (Android)
-      final isTagWrite = mode == NfcMode.tagWrite;
-
       switch (state) {
         case NfcFabState.inactive:
           text = 'Tap to share • Long press to switch modes';
-          textColor = Colors.white.withValues(alpha: 0.6); // Dull white
+          textColor = Colors.white.withValues(alpha: 0.6);
           break;
 
         case NfcFabState.active:
-          text = isTagWrite ? 'Tap to Share' : 'Ready for Tap';
-          textColor = AppColors.primaryAction; // Orange
-          break;
-
         case NfcFabState.writing:
-          // Writing state kept for compatibility but shows same as active
-          text = isTagWrite ? 'Tap to Share' : 'Ready for Tap';
-          textColor = AppColors.primaryAction; // Orange
+          switch (mode) {
+            case NfcMode.tagWrite:
+              text = 'Tap to Share';
+              textColor = AppColors.primaryAction;
+              break;
+            case NfcMode.p2pShare:
+              text = 'Ready for Tap';
+              textColor = AppColors.p2pPrimary;
+              break;
+            case NfcMode.quickShare:
+              text = 'Tap to Quick Share';
+              textColor = AppColors.quickSharePrimary;
+              break;
+          }
           break;
 
         case NfcFabState.success:
-          text = isTagWrite ? 'Written successfully!' : 'Shared successfully!';
+          switch (mode) {
+            case NfcMode.tagWrite:
+              text = 'Written successfully!';
+              break;
+            case NfcMode.p2pShare:
+            case NfcMode.quickShare:
+              text = 'Shared successfully!';
+              break;
+          }
           textColor = Colors.greenAccent;
           break;
 
         case NfcFabState.error:
-          text = isTagWrite ? 'Write failed' : 'Share failed';
+          switch (mode) {
+            case NfcMode.tagWrite:
+              text = 'Write failed';
+              break;
+            case NfcMode.p2pShare:
+            case NfcMode.quickShare:
+              text = 'Share failed';
+              break;
+          }
           textColor = Colors.redAccent;
           break;
       }

@@ -4,8 +4,11 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:app_settings/app_settings.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import 'dart:ui';
 import 'dart:async';
+import 'dart:io';
 import 'dart:developer' as developer;
 
 import '../../theme/theme.dart';
@@ -147,12 +150,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
   Future<void> _initializeNFC() async {
     _nfcAvailable = await NFCService.initialize();
 
-    // Show NFC setup dialog if NFC is disabled
+    // On iOS, NFC tag writing is not supported - skip NFC setup entirely
+    // iOS uses AirDrop via native share sheet instead
+    if (NFCService.isIOS) {
+      developer.log('📱 iOS detected - skipping NFC setup (using AirDrop instead)',
+          name: 'Home.NFC');
+      // On iOS, sharing is always "available" via AirDrop, so FAB should be active
+      setState(() {
+        _nfcAvailable = true;
+        _nfcFabState = NfcFabState.active;
+      });
+      return;
+    }
+
+    // Android: Show NFC setup dialog if NFC is disabled
     if (!_nfcAvailable) {
       _showNfcSetupDialogOnce();
     }
 
-    // Initialize NFC discovery for FAB animations
+    // Android: Initialize NFC discovery for FAB animations
     if (_nfcAvailable) {
       await NFCDiscoveryService.initialize();
       _startNfcDiscovery();
@@ -522,35 +538,44 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
   void _onNfcTap() async {
     developer.log('🔥 FAB button tapped - _onNfcTap() called',
         name: 'Home.NFC');
-    developer.log(
-        '   Current mode: ${_nfcMode == NfcMode.tagWrite ? "Tag Write" : "P2P Share"}',
-        name: 'Home.NFC');
+    developer.log('   Current mode: ${_nfcMode.name}', name: 'Home.NFC');
     HapticFeedback.mediumImpact();
 
-    // On iOS, NFC tag writing and P2P modes are not supported
-    // Open share modal directly for AirDrop/QR/Link sharing
+    // On iOS, FAB tap = direct vCard share via AirDrop
+    // (NFC tag writing and P2P modes are not supported on iOS)
     if (NFCService.isIOS) {
-      developer.log('📱 iOS detected - opening share modal (NFC write not supported)',
+      developer.log('📱 iOS FAB tap - triggering direct vCard share via AirDrop',
           name: 'Home.NFC');
-      _showShareModal();
+      await _shareVCardDirectly();
       return;
     }
 
-    // Route based on current NFC mode (Android only)
-    if (_nfcMode == NfcMode.tagWrite) {
-      // TAG WRITE MODE
-      if (_nfcFabState == NfcFabState.inactive) {
-        await _activateNfcWriteMode();
-      } else {
-        await _deactivateNfcWriteMode();
-      }
-    } else {
-      // P2P SHARE MODE
-      if (_nfcFabState == NfcFabState.inactive) {
-        await _activateP2pMode();
-      } else {
-        await _deactivateP2pMode();
-      }
+    // Route based on current NFC mode (Android)
+    switch (_nfcMode) {
+      case NfcMode.tagWrite:
+        // TAG WRITE MODE
+        if (_nfcFabState == NfcFabState.inactive) {
+          await _activateNfcWriteMode();
+        } else {
+          await _deactivateNfcWriteMode();
+        }
+        break;
+
+      case NfcMode.p2pShare:
+        // P2P SHARE MODE
+        if (_nfcFabState == NfcFabState.inactive) {
+          await _activateP2pMode();
+        } else {
+          await _deactivateP2pMode();
+        }
+        break;
+
+      case NfcMode.quickShare:
+        // QUICK SHARE MODE - same as iOS AirDrop (reuses _shareVCardDirectly)
+        developer.log('📤 Android Quick Share - triggering vCard share',
+            name: 'Home.NFC');
+        await _shareVCardDirectly();
+        break;
     }
   }
 
@@ -571,7 +596,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
           children: [
             const SizedBox(height: 16),
             Text(
-              'Select NFC Mode',
+              'Select Share Mode',
               style: AppTextStyles.body.copyWith(
                 fontWeight: FontWeight.w600,
                 fontSize: 15,
@@ -607,7 +632,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
                     _buildModeOption(
                       icon: CupertinoIcons.radiowaves_right,
                       title: 'P2P Share',
-                      subtitle: 'Phone-to-phone sharing',
+                      subtitle: 'Phone-to-phone NFC sharing',
                       isSelected: _nfcMode == NfcMode.p2pShare,
                       color: AppColors.p2pPrimary,
                       isAvailable: NFCService.isHceSupported,
@@ -619,6 +644,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
                           NfcHelpers.showErrorMessage(
                               context, 'Phone-to-Phone mode not supported on this device');
                         }
+                      },
+                    ),
+                    const SizedBox(height: 4),
+                    _buildModeOption(
+                      icon: CupertinoIcons.arrow_up_circle_fill,
+                      title: 'Quick Share',
+                      subtitle: 'Share via Nearby Share / AirDrop',
+                      isSelected: _nfcMode == NfcMode.quickShare,
+                      color: AppColors.quickSharePrimary,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _switchToMode(NfcMode.quickShare);
                       },
                     ),
                   ],
@@ -715,15 +752,41 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
   void _switchToMode(NfcMode newMode) {
     if (_nfcMode == newMode) return;
 
+    // Reset animation controllers to clean state before switching
+    _pulseController.stop();
+    _rippleController.stop();
+    _pulseController.reset();
+    _rippleController.reset();
+
     setState(() {
       _nfcMode = newMode;
+      // Quick Share: start in active state with animations
+      // Other modes: start in inactive state (user taps to activate)
+      if (newMode == NfcMode.quickShare) {
+        _nfcFabState = NfcFabState.active;
+      } else {
+        _nfcFabState = NfcFabState.inactive;
+      }
     });
+
+    // Start animations for Quick Share (it's always "ready to share")
+    if (newMode == NfcMode.quickShare) {
+      _pulseController.repeat(reverse: true);
+      _rippleController.repeat();
+    }
 
     NFCService.switchMode(newMode);
     HapticFeedback.lightImpact();
 
-    final modeName =
-        newMode == NfcMode.tagWrite ? 'Tag Write' : 'Phone-to-Phone';
+    String modeName;
+    switch (newMode) {
+      case NfcMode.tagWrite:
+        modeName = 'Tag Write';
+      case NfcMode.p2pShare:
+        modeName = 'Phone-to-Phone';
+      case NfcMode.quickShare:
+        modeName = Platform.isIOS ? 'AirDrop' : 'Quick Share';
+    }
     NfcHelpers.showInfoMessage(context, 'Switched to $modeName mode');
   }
 
@@ -1046,13 +1109,22 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
     NFCDiscoveryService.resumeDiscovery();
   }
 
-  /// Schedule automatic reset from success/error state to inactive
+  /// Schedule automatic reset from success/error state
+  /// - iOS: resets to active (FAB always ready for AirDrop)
+  /// - Android Quick Share mode: resets to active (always ready)
+  /// - Android NFC modes: resets to inactive (NFC needs to be activated)
   void _scheduleStateReset({required Duration duration}) {
     _stateResetTimer?.cancel();
     _stateResetTimer = Timer(duration, () {
       if (mounted) {
         setState(() {
-          _nfcFabState = NfcFabState.inactive;
+          // iOS and Quick Share mode: stay active (always ready to share)
+          // Android NFC modes: return to inactive (needs activation)
+          if (NFCService.isIOS || _nfcMode == NfcMode.quickShare) {
+            _nfcFabState = NfcFabState.active;
+          } else {
+            _nfcFabState = NfcFabState.inactive;
+          }
         });
         _successController.reset();
       }
@@ -1079,6 +1151,109 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
     );
   }
 
+  /// Share vCard file directly via native share sheet (iOS AirDrop)
+  ///
+  /// This provides instant contact sharing without opening the share modal.
+  /// Recipients can save the contact directly to their device with photo.
+  Future<void> _shareVCardDirectly() async {
+    try {
+      // Ensure profile is ready
+      if (_cachedActiveProfile == null) {
+        NfcHelpers.showErrorMessage(context, 'Profile not ready. Please wait...');
+        await _preCacheNfcPayload();
+        if (_cachedActiveProfile == null) return;
+      }
+
+      // Use cached rich vCard if available (INSTANT!), otherwise generate fresh
+      String vCardContent;
+      if (_cachedActiveProfile!.cachedRichVCard != null) {
+        vCardContent = _cachedActiveProfile!.cachedRichVCard!;
+        developer.log('✅ Using cached rich vCard (instant!)', name: 'Home.Share');
+      } else {
+        // Fallback: generate fresh rich vCard with photo
+        final shareContext = ShareContext(
+          method: ShareMethod.quickShare,
+          timestamp: DateTime.now(),
+        );
+        vCardContent = await _cachedActiveProfile!.getRichVCardForAirDrop(shareContext);
+        developer.log('⚠️ Generated fresh rich vCard (not cached)', name: 'Home.Share');
+      }
+
+      // Create temporary .vcf file
+      final tempDir = await getTemporaryDirectory();
+      final fileName = '${_cachedActiveProfile!.name.replaceAll(' ', '_')}.vcf';
+      final filePath = '${tempDir.path}/$fileName';
+
+      final file = File(filePath);
+      await file.writeAsString(vCardContent);
+
+      developer.log(
+        '📤 Sharing vCard via AirDrop\n'
+        '   • File: $fileName\n'
+        '   • Size: ${vCardContent.length} bytes',
+        name: 'Home.Share'
+      );
+
+      // Share via native share sheet (AirDrop on iOS)
+      final result = await Share.shareXFiles(
+        [XFile(filePath, mimeType: 'text/vcard', name: fileName)],
+        subject: '${_cachedActiveProfile!.name}\'s Contact',
+      );
+
+      // Handle share result
+      if (mounted) {
+        if (result.status == ShareResultStatus.success) {
+          setState(() {
+            _nfcFabState = NfcFabState.success;
+          });
+          _successController.forward();
+          NfcHelpers.showSuccessMessage(context, 'Contact shared!');
+          _scheduleStateReset(duration: const Duration(seconds: 2));
+
+          // Add to history for tracking
+          _addAirDropShareToHistory();
+        } else if (result.status == ShareResultStatus.dismissed) {
+          // User cancelled - show brief error state, then reset to active
+          setState(() {
+            _nfcFabState = NfcFabState.error;
+          });
+          _scheduleStateReset(duration: const Duration(seconds: 1));
+        }
+      }
+    } catch (e, stackTrace) {
+      developer.log('Failed to share vCard: $e',
+          name: 'Home.Share', error: e, stackTrace: stackTrace);
+      if (mounted) {
+        setState(() {
+          _nfcFabState = NfcFabState.error;
+        });
+        NfcHelpers.showErrorMessage(context, 'Failed to share contact');
+        _scheduleStateReset(duration: const Duration(seconds: 3));
+      }
+    }
+  }
+
+  /// Add Quick Share/AirDrop to history (for tracking shares)
+  Future<void> _addAirDropShareToHistory() async {
+    if (_cachedActiveProfile == null) return;
+
+    try {
+      final location = await _getCurrentLocation();
+      final shareName = Platform.isIOS ? 'AirDrop Share' : 'Quick Share';
+      await HistoryService.addSentEntry(
+        recipientName: shareName,
+        method: ShareMethod.quickShare,
+        location: location,
+        metadata: {
+          'profileName': _cachedActiveProfile!.name,
+          'profileType': _cachedActiveProfile!.type.name,
+        },
+      );
+      developer.log('📝 $shareName added to history', name: 'Home.History');
+    } catch (e) {
+      developer.log('Failed to add share to history: $e', name: 'Home.History');
+    }
+  }
 
   void _onSettingsTap() {
     HapticFeedback.lightImpact();
@@ -1111,13 +1286,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
     }
   }
 
-  /// Pre-cache active profile and NFC payload for instant sharing
+  /// Pre-cache active profile and ALL payloads for instant sharing
   ///
   /// This method runs at startup and whenever the profile changes,
-  /// ensuring the NFC tap handler has everything ready immediately.
+  /// ensuring the NFC tap handler and Quick Share have everything ready immediately.
+  /// Caches: optimized vCard (NFC), rich vCard (Quick Share), URL
   Future<void> _preCacheNfcPayload() async {
     try {
-      developer.log('⚡ Pre-caching DUAL-PAYLOAD for instant NFC sharing...',
+      developer.log('⚡ Pre-caching ALL payloads for instant sharing...',
           name: 'Home.NFC');
       final startTime = DateTime.now();
 
@@ -1137,27 +1313,28 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
         return;
       }
 
-      // Get cached DUAL-PAYLOAD (vCard + URL) - should be pre-generated for 0ms lag!
-      final dualPayload = profile.dualPayload;
+      // Pre-cache ALL payloads (optimized vCard + rich vCard with photo + URL)
+      final cachedProfile = await profile.preCacheAllPayloads();
+      final dualPayload = cachedProfile.dualPayload;
 
       final duration = DateTime.now().difference(startTime).inMilliseconds;
       developer.log(
-          '✅ Dual-payload cached in ${duration}ms (INSTANT!)\n'
-          '   • vCard: ${dualPayload['vcard']!.length} bytes\n'
+          '✅ All payloads cached in ${duration}ms\n'
+          '   • Optimized vCard: ${dualPayload['vcard']!.length} bytes\n'
+          '   • Rich vCard: ${cachedProfile.cachedRichVCard?.length ?? 0} bytes\n'
           '   • URL: ${dualPayload['url']!.length} bytes\n'
-          '   • Total: ${dualPayload['vcard']!.length + dualPayload['url']!.length} bytes\n'
-          '   • Profile: ${profile.name}',
+          '   • Profile: ${cachedProfile.name}',
           name: 'Home.NFC');
 
       if (mounted) {
         setState(() {
-          _cachedActiveProfile = profile;
+          _cachedActiveProfile = cachedProfile;
           _cachedDualPayload = dualPayload;
           _isPayloadReady = true;
         });
       }
     } catch (e) {
-      developer.log('❌ Error pre-caching dual-payload: $e',
+      developer.log('❌ Error pre-caching payloads: $e',
           name: 'Home.NFC', error: e);
       if (mounted) {
         setState(() {
